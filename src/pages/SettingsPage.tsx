@@ -2,7 +2,11 @@ import React from 'react';
 import { useState } from 'react';
 import { Save, CheckCircle2 } from 'lucide-react';
 
-export function SettingsPage() {
+interface SettingsPageProps {
+  showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
+}
+
+export function SettingsPage({ showToast }: SettingsPageProps = {}) {
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -32,7 +36,7 @@ export function SettingsPage() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '24px' }}>
+      <div className="settings-layout" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Settings Navigation */}
         <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '8px' }}>
           {[

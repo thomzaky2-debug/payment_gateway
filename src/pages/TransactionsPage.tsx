@@ -21,7 +21,11 @@ const statusColors: Record<string, { bg: string; text: string }> = {
   EXPIRED: { bg: '#f1f5f9', text: '#475569' },
 };
 
-export function TransactionsPage() {
+interface TransactionsPageProps {
+  showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
+}
+
+export function TransactionsPage({ showToast }: TransactionsPageProps = {}) {
   const [filter, setFilter] = useState('ALL');
 
   const filtered = transactions.filter((tx) => filter === 'ALL' || tx.status === filter);

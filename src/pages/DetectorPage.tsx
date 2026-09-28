@@ -1,7 +1,11 @@
 import React from 'react';
 import { Smartphone, CheckCircle2, AlertTriangle, Wifi, Battery, Clock } from 'lucide-react';
 
-export function DetectorPage() {
+interface DetectorPageProps {
+  showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
+}
+
+export function DetectorPage({ showToast }: DetectorPageProps = {}) {
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ marginBottom: '24px' }}>

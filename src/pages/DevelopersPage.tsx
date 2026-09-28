@@ -2,7 +2,14 @@ import React from 'react';
 import { useState } from 'react';
 import { Key, Webhook, Copy, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 
-export function DevelopersPage() {
+import type { ConfirmAction } from '../App';
+
+interface DevelopersPageProps {
+  showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
+  showConfirm?: (action: Omit<ConfirmAction, 'id'>) => void;
+}
+
+export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps = {}) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [copied, setCopied] = useState(false);
   const apiKey = 'ipg_live_sk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6';

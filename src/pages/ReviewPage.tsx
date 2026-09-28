@@ -31,7 +31,14 @@ const reviewItems = [
   },
 ];
 
-export function ReviewPage() {
+import type { ConfirmAction } from '../App';
+
+interface ReviewPageProps {
+  showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
+  showConfirm?: (action: Omit<ConfirmAction, 'id'>) => void;
+}
+
+export function ReviewPage({ showToast, showConfirm }: ReviewPageProps = {}) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<string[]>([]);
 

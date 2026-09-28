@@ -8,7 +8,11 @@ import {
   Clock,
 } from 'lucide-react';
 
-export function OverviewPage() {
+interface OverviewPageProps {
+  showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
+}
+
+export function OverviewPage({ showToast }: OverviewPageProps = {}) {
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
       {/* Page Title */}
