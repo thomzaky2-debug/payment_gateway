@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { Page } from '../App';
 
 interface MobileNavProps {
@@ -18,29 +18,44 @@ const navItems: { page: Page; label: string; emoji: string }[] = [
 ];
 
 export function MobileNav({ isOpen, onClose, currentPage, onNavigate }: MobileNavProps) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex' }}>
       {/* Overlay */}
-      <div 
+      <div
         style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)' }}
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Drawer */}
-      <div style={{ 
-        position: 'absolute', left: 0, top: 0, bottom: 0, 
-        width: '288px', backgroundColor: '#0f172a', color: 'white',
-        animation: 'slideIn 0.3s ease-out'
-      }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Mobile navigation"
+        style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0,
+          width: '288px', backgroundColor: '#0f172a', color: 'white',
+          animation: 'slideIn 0.3s ease-out'
+        }}
+      >
         {/* Header */}
-        <div style={{ 
+        <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '24px', borderBottom: '1px solid rgba(51,65,85,0.5)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
+            <div style={{
               width: '40px', height: '40px', borderRadius: '12px',
               background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -50,8 +65,9 @@ export function MobileNav({ isOpen, onClose, currentPage, onNavigate }: MobileNa
             </div>
             <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>InstaPay</h2>
           </div>
-          <button 
+          <button
             onClick={onClose}
+            aria-label="Close menu"
             style={{ padding: '8px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent', color: 'white' }}
           >
             ✕

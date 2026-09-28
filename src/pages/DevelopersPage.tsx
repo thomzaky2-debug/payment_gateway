@@ -5,7 +5,8 @@ import { Key, Webhook, Copy, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 export function DevelopersPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [copied, setCopied] = useState(false);
-  const apiKey = 'ipg_live_sk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6';
+  // Placeholder only — real API keys must never be embedded in client-side code.
+  const apiKey = 'ipg_live_sk_demo_00000000000000000000';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(apiKey);
@@ -40,10 +41,10 @@ export function DevelopersPage() {
           <div style={{ flex: 1, backgroundColor: '#0f172a', borderRadius: '12px', padding: '12px 16px', fontFamily: 'monospace', fontSize: '14px', color: '#4ade80', overflowX: 'auto' }}>
             {showApiKey ? apiKey : '•'.repeat(40)}
           </div>
-          <button onClick={() => setShowApiKey(!showApiKey)} style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+          <button onClick={() => setShowApiKey(!showApiKey)} aria-label={showApiKey ? 'Hide API key' : 'Show API key'} style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
             {showApiKey ? <EyeOff size={16} style={{ color: '#475569' }} /> : <Eye size={16} style={{ color: '#475569' }} />}
           </button>
-          <button onClick={handleCopy} style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+          <button onClick={handleCopy} aria-label="Copy API key" style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
             {copied ? <CheckCircle2 size={16} style={{ color: '#059669' }} /> : <Copy size={16} style={{ color: '#475569' }} />}
           </button>
         </div>

@@ -46,6 +46,7 @@ function App() {
         }} className="md:hidden">
           <button
             onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
             style={{ padding: '8px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
           >
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
