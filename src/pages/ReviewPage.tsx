@@ -64,6 +64,15 @@ export function ReviewPage() {
             <div key={item.id} style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
               <div
                 onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setExpandedId(isExpanded ? null : item.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', cursor: 'pointer' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

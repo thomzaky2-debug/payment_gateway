@@ -93,16 +93,17 @@ export function SettingsPage() {
 }
 
 function FormField({ label, defaultValue }: { label: string; defaultValue: string }) {
+  const id = `field-${label.toLowerCase().replace(/\s+/g, '-')}`;
   return (
     <div>
-      <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#64748b', marginBottom: '6px' }}>{label}</label>
+      <label htmlFor={id} style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#64748b', marginBottom: '6px' }}>{label}</label>
       <input
+        id={id}
         type="text"
         defaultValue={defaultValue}
         style={{
           width: '100%', padding: '10px 16px', backgroundColor: '#f8fafc',
           border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '14px',
-          outline: 'none',
         }}
       />
     </div>

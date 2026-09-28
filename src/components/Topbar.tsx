@@ -36,6 +36,7 @@ export function Topbar({ currentPage }: TopbarProps) {
           <input
             type="text"
             placeholder="Search..."
+            aria-label="Search"
             style={{
               paddingLeft: '40px',
               paddingRight: '16px',
@@ -45,15 +46,14 @@ export function Topbar({ currentPage }: TopbarProps) {
               border: 'none',
               borderRadius: '8px',
               fontSize: '14px',
-              outline: 'none',
             }}
           />
         </div>
 
         {/* Notifications */}
-        <button style={{ 
-          position: 'relative', padding: '8px', borderRadius: '8px', 
-          border: 'none', cursor: 'pointer', backgroundColor: 'transparent' 
+        <button aria-label="Notifications" style={{
+          position: 'relative', padding: '8px', borderRadius: '8px',
+          border: 'none', cursor: 'pointer', backgroundColor: 'transparent'
         }}>
           <span style={{ fontSize: '20px' }}>🔔</span>
           <span style={{
