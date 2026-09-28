@@ -28,7 +28,7 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 overflow-hidden">
+    <div className="flex h-full min-h-screen bg-slate-100 overflow-hidden">
       {/* Desktop Sidebar */}
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
 
