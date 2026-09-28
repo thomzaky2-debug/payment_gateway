@@ -38,6 +38,21 @@ export function AuditLogPage() {
 
   const filtered = filter === 'all' ? auditLogs : auditLogs.filter((log) => log.category === filter);
 
+  const handleExport = () => {
+    const csv = [
+      'ID,Action,Category,User,IP,Timestamp,Details',
+      ...filtered.map(log => `${log.id},"${log.action}","${log.category}","${log.user}","${log.ip}","${log.timestamp}","${log.details}"`)
+    ].join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-log-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
@@ -46,6 +61,7 @@ export function AuditLogPage() {
           <p style={{ fontSize: '14px', color: '#64748b', margin: '4px 0 0 0' }}>Track all actions and security events</p>
         </div>
         <button
+          onClick={handleExport}
           style={{
             display: 'flex',
             alignItems: 'center',
