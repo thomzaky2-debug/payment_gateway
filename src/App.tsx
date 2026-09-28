@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -28,24 +29,42 @@ function App() {
   };
 
   return (
-    <div className="flex h-full min-h-screen bg-slate-100 overflow-hidden">
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f1f5f9', overflow: 'hidden' }}>
       {/* Desktop Sidebar */}
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200">
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          padding: '12px 16px', 
+          backgroundColor: 'white', 
+          borderBottom: '1px solid #e2e8f0' 
+        }} className="md:hidden">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+            style={{ padding: '8px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
           >
-            <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-lg font-bold text-slate-800">InstaPay Gateway</h1>
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+          <h1 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>InstaPay Gateway</h1>
+          <div style={{ 
+            width: '40px', 
+            height: '40px', 
+            borderRadius: '50%', 
+            backgroundColor: '#2563eb', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            color: 'white', 
+            fontWeight: '600', 
+            fontSize: '14px' 
+          }}>
             M
           </div>
         </div>
@@ -54,8 +73,8 @@ function App() {
         <Topbar currentPage={currentPage} />
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
-          <div className="animate-fade-in">
+        <main style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+          <div style={{ animation: 'fadeIn 0.4s ease-out' }}>
             {renderPage()}
           </div>
         </main>

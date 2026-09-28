@@ -1,15 +1,5 @@
 import React from 'react';
 import type { Page } from '../App';
-import {
-  LayoutDashboard,
-  CreditCard,
-  ShieldCheck,
-  Smartphone,
-  Code2,
-  Settings,
-  X,
-  Zap,
-} from 'lucide-react';
 
 interface MobileNavProps {
   isOpen: boolean;
@@ -18,54 +8,81 @@ interface MobileNavProps {
   onNavigate: (page: Page) => void;
 }
 
-const navItems: { page: Page; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { page: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { page: 'transactions', label: 'Transactions', icon: CreditCard },
-  { page: 'review', label: 'Manual Review', icon: ShieldCheck },
-  { page: 'detector', label: 'Detector', icon: Smartphone },
-  { page: 'developers', label: 'Developers', icon: Code2 },
-  { page: 'settings', label: 'Settings', icon: Settings },
+const navItems: { page: Page; label: string; emoji: string }[] = [
+  { page: 'overview', label: 'Overview', emoji: '📊' },
+  { page: 'transactions', label: 'Transactions', emoji: '💳' },
+  { page: 'review', label: 'Manual Review', emoji: '🛡️' },
+  { page: 'detector', label: 'Detector', emoji: '📱' },
+  { page: 'developers', label: 'Developers', emoji: '💻' },
+  { page: 'settings', label: 'Settings', emoji: '⚙️' },
 ];
 
 export function MobileNav({ isOpen, onClose, currentPage, onNavigate }: MobileNavProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex' }}>
       {/* Overlay */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div 
+        style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)' }}
+        onClick={onClose}
+      />
 
       {/* Drawer */}
-      <div className="absolute left-0 top-0 bottom-0 w-72 bg-slate-900 text-white animate-slide-in">
+      <div style={{ 
+        position: 'absolute', left: 0, top: 0, bottom: 0, 
+        width: '288px', backgroundColor: '#0f172a', color: 'white',
+        animation: 'slideIn 0.3s ease-out'
+      }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
+        <div style={{ 
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '24px', borderBottom: '1px solid rgba(51,65,85,0.5)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ 
+              width: '40px', height: '40px', borderRadius: '12px',
+              background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '20px'
+            }}>
+              ⚡
             </div>
-            <h2 className="text-lg font-bold">InstaPay</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>InstaPay</h2>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-800">
-            <X className="w-5 h-5" />
+          <button 
+            onClick={onClose}
+            style={{ padding: '8px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent', color: 'white' }}
+          >
+            ✕
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-1">
+        <nav style={{ padding: '16px' }}>
           {navItems.map((item) => {
-            const Icon = item.icon;
             const isActive = currentPage === item.page;
             return (
               <button
                 key={item.page}
                 onClick={() => onNavigate(item.page)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  marginBottom: '4px',
+                  backgroundColor: isActive ? '#2563eb' : 'transparent',
+                  color: isActive ? 'white' : '#cbd5e1',
+                }}
               >
-                <Icon className="w-5 h-5" />
+                <span style={{ fontSize: '18px' }}>{item.emoji}</span>
                 <span>{item.label}</span>
               </button>
             );

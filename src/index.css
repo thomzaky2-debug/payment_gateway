@@ -7,8 +7,9 @@
 }
 
 html, body, #root {
-  height: 100%;
   width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -18,46 +19,17 @@ body {
   background-color: #f1f5f9;
 }
 
-@keyframes pulse-green {
+@keyframes pulseGreen {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
 
-.animate-pulse-green {
-  animation: pulse-green 2s ease-in-out infinite;
-}
-
-@keyframes slide-in {
+@keyframes slideIn {
   from { transform: translateX(-100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 
-.animate-slide-in {
-  animation: slide-in 0.3s ease-out;
-}
-
-@keyframes fade-in {
+@keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.4s ease-out;
-}
-
-.scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
 }

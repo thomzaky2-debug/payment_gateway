@@ -1,5 +1,5 @@
+import React from 'react';
 import type { Page } from '../App';
-import { Bell, Search } from 'lucide-react';
 
 interface TopbarProps {
   currentPage: Page;
@@ -16,37 +16,67 @@ const pageTitles: Record<Page, string> = {
 
 export function Topbar({ currentPage }: TopbarProps) {
   return (
-    <header className="hidden md:flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200">
+    <header 
+      className="hidden md:flex items-center justify-between"
+      style={{ 
+        padding: '16px 24px', 
+        backgroundColor: 'white', 
+        borderBottom: '1px solid #e2e8f0' 
+      }}
+    >
       <div>
-        <h1 className="text-xl font-bold text-slate-800">{pageTitles[currentPage]}</h1>
-        <p className="text-sm text-slate-500">Welcome back, Merchant</p>
+        <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>{pageTitles[currentPage]}</h1>
+        <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Welcome back, Merchant</p>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>🔍</span>
           <input
             type="text"
             placeholder="Search..."
-            className="pl-10 pr-4 py-2 w-64 bg-slate-100 border-0 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            style={{
+              paddingLeft: '40px',
+              paddingRight: '16px',
+              padding: '8px 16px 8px 40px',
+              width: '256px',
+              backgroundColor: '#f1f5f9',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              outline: 'none',
+            }}
           />
         </div>
 
         {/* Notifications */}
-        <button className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors">
-          <Bell className="w-5 h-5 text-slate-600" />
-          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
+        <button style={{ 
+          position: 'relative', padding: '8px', borderRadius: '8px', 
+          border: 'none', cursor: 'pointer', backgroundColor: 'transparent' 
+        }}>
+          <span style={{ fontSize: '20px' }}>🔔</span>
+          <span style={{
+            position: 'absolute', top: '4px', right: '4px',
+            width: '10px', height: '10px',
+            backgroundColor: '#ef4444', borderRadius: '50%',
+            border: '2px solid white'
+          }} />
         </button>
 
         {/* User Avatar */}
-        <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-semibold text-sm">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingLeft: '16px', borderLeft: '1px solid #e2e8f0' }}>
+          <div style={{ 
+            width: '40px', height: '40px', borderRadius: '50%',
+            background: 'linear-gradient(135deg, #2563eb, #06b6d4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'white', fontWeight: '600', fontSize: '14px'
+          }}>
             M
           </div>
-          <div className="hidden lg:block">
-            <p className="text-sm font-medium text-slate-700">Merchant</p>
-            <p className="text-xs text-slate-500">merchant@instapay</p>
+          <div>
+            <p style={{ fontSize: '14px', fontWeight: 500, color: '#334155', margin: 0 }}>Merchant</p>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>merchant@instapay</p>
           </div>
         </div>
       </div>
