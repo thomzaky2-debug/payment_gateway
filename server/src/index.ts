@@ -90,7 +90,7 @@ app.use('/api/webhooks', webhookLimiter, webhookRouter)
 app.use('/api/v1/checkout', v1CheckoutRouter)
 app.use('/api/checkout', checkoutRouter)
 app.use('/api/transactions', transactionRouter)
-app.use('/api/admin', authLimiter, adminRouter)
+app.use('/api/admin', adminRouter)
 app.use('/api/settings', settingsRouter)
 
 // ─── Global Error Handler ──────────────────────────────────────────

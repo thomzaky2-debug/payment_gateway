@@ -8,8 +8,11 @@ import {
 } from '../services/authService.js'
 import { emitCheckoutUpdate } from '../services/notificationService.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
+import { createRateLimiter } from '../lib/rateLimiter.js'
 
 export const adminRouter = Router()
+
+const adminAuthLimiter = createRateLimiter(15 * 60 * 1000, 30, 'Too many admin login attempts.')
 
 // Middleware to authenticate Superadmin
 function requireAdmin(req: Request, res: Response, next: () => void) {
@@ -25,7 +28,7 @@ function requireAdmin(req: Request, res: Response, next: () => void) {
 
 // ─── Admin Login ────────────────────────────────────────────────────
 
-adminRouter.post('/auth', async (req: Request, res: Response) => {
+adminRouter.post('/auth', adminAuthLimiter, async (req: Request, res: Response) => {
   const { password } = req.body
   const expectedPassword = process.env.ADMIN_PASSWORD
   if (!expectedPassword && process.env.NODE_ENV === 'production') {
@@ -58,6 +61,81 @@ adminRouter.post('/logout', (_req: Request, res: Response) => {
     sameSite: 'lax',
   })
   return res.json({ ok: true, message: 'Admin logged out' })
+})
+
+// ─── Verify Admin Session ───────────────────────────────────────────
+
+adminRouter.get('/session', requireAdmin, (_req: Request, res: Response) => {
+  return res.json({ ok: true, authenticated: true })
+})
+
+// ─── Platform Overview Stats ────────────────────────────────────────
+
+adminRouter.get('/stats', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const [
+      totalClients,
+      pendingClients,
+      approvedClients,
+      totalTransactions,
+      confirmedTransactions,
+      totalVolumeResult,
+      totalDetectors,
+    ] = await Promise.all([
+      db.client.count(),
+      db.client.count({ where: { approvalStatus: 'PENDING' } }),
+      db.client.count({ where: { approvalStatus: 'APPROVED' } }),
+      db.transaction.count(),
+      db.transaction.count({ where: { status: 'CONFIRMED' } }),
+      db.transaction.aggregate({
+        where: { status: 'CONFIRMED' },
+        _sum: { amountEgp: true },
+      }),
+      db.detectorDevice.count(),
+    ])
+
+    return res.json({
+      ok: true,
+      stats: {
+        totalClients,
+        pendingClients,
+        approvedClients,
+        totalTransactions,
+        confirmedTransactions,
+        totalVolumeEgp: totalVolumeResult._sum.amountEgp || 0,
+        totalDetectors,
+      },
+    })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+// ─── Platform Transactions ──────────────────────────────────────────
+
+adminRouter.get('/transactions', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { status, limit = '50' } = req.query
+    const where: any = {}
+    if (status && status !== 'all') {
+      where.status = String(status).toUpperCase()
+    }
+    const transactions = await db.transaction.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(100, Math.max(1, Number(limit))),
+      include: {
+        client: {
+          select: { id: true, businessName: true, email: true },
+        },
+      },
+    })
+    return res.json({ ok: true, transactions })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
 })
 
 // ─── List Merchants ─────────────────────────────────────────────────

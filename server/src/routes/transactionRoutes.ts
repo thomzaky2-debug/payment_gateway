@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { verifySessionToken } from '../services/authService.js'
+import { emitCheckoutUpdate } from '../services/notificationService.js'
+import { forwardToClientWebhook } from '../services/webhookService.js'
 
 export const transactionRouter = Router()
 
@@ -190,3 +192,92 @@ transactionRouter.get('/export', requireMerchant, async (req: Request, res: Resp
     return res.status(500).json({ ok: false, error: error.message })
   }
 })
+
+// ─── Merchant Confirm / Resolve Transaction ─────────────────────────
+
+transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const sessionId = String(req.params.sessionId)
+    const tx = await db.transaction.findFirst({
+      where: { sessionId, clientId: client.id },
+    })
+
+    if (!tx) {
+      return res.status(404).json({ ok: false, error: 'Transaction not found or not owned by you' })
+    }
+
+    const updated = await db.transaction.update({
+      where: { sessionId },
+      data: {
+        status: 'CONFIRMED',
+        detectedAt: new Date(),
+        detectedRef: tx.detectedRef || 'MERCHANT_MANUAL_CONFIRM',
+        detectedAmountEgp: tx.detectedAmountEgp ?? tx.amountEgp,
+      },
+    })
+
+    // Emit live update to Customer Checkout Waiting Screen
+    emitCheckoutUpdate({
+      sessionId: updated.sessionId,
+      status: 'CONFIRMED',
+      amountEgp: updated.amountEgp,
+      detectedAmountEgp: updated.detectedAmountEgp,
+      senderHandle: updated.senderHandle,
+      detectedRef: updated.detectedRef,
+      detectedAt: updated.detectedAt?.toISOString() ?? null,
+    })
+
+    // Deliver signed webhook to Merchant server if configured
+    if (client.webhookUrl) {
+      void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
+        event: 'payment.confirmed',
+        clientId: client.id,
+        businessName: client.businessName,
+        transaction: {
+          sessionId: updated.sessionId,
+          senderHandle: updated.senderHandle,
+          recipientHandle: updated.recipientHandle,
+          amountEgp: updated.amountEgp,
+          detectedAmountEgp: updated.detectedAmountEgp,
+          currency: updated.currency,
+          status: updated.status,
+          detectedRef: updated.detectedRef,
+          detectedAt: updated.detectedAt?.toISOString() ?? null,
+          note: updated.note,
+          createdAt: updated.createdAt.toISOString(),
+        },
+      })
+    }
+
+    await db.auditLog.create({
+      data: {
+        action: 'MERCHANT_CONFIRM',
+        details: `Merchant ${client.businessName} manually confirmed transaction ${sessionId} for ${tx.amountEgp} EGP`,
+      },
+    })
+
+    return res.json({ ok: true, transaction: updated })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+// ─── Dismiss Mismatched Review Item ─────────────────────────────────
+
+transactionRouter.post('/review-queue/:id/dismiss', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const id = String(req.params.id)
+    await db.mismatchedPayment.updateMany({
+      where: { id, clientId: client.id },
+      data: { status: 'RESOLVED' },
+    })
+    return res.json({ ok: true })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+

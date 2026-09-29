@@ -40,12 +40,15 @@ function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmAction | null>(null);
 
+  const [currentClient, setCurrentClient] = useState<any>(null);
+
   useEffect(() => {
     authApi
       .getSession()
       .then((res) => {
         if (res?.authenticated && res?.client) {
           setIsAuthenticated(true);
+          setCurrentClient(res.client);
         }
       })
       .catch(() => {});
@@ -67,6 +70,12 @@ function App() {
   const closeConfirm = () => setConfirmDialog(null);
 
   const handleLogin = () => {
+    authApi
+      .getSession()
+      .then((res) => {
+        if (res?.client) setCurrentClient(res.client);
+      })
+      .catch(() => {});
     setIsAuthenticated(true);
     showToast('success', 'Welcome back! You are now logged in.');
   };
@@ -81,6 +90,7 @@ function App() {
       onConfirm: async () => {
         await authApi.logout().catch(() => {});
         setIsAuthenticated(false);
+        setCurrentClient(null);
         setCurrentPage('overview');
         closeConfirm();
         showToast('info', 'You have been logged out successfully.');
@@ -155,11 +165,11 @@ function App() {
               fontSize: '14px',
             }}
           >
-            M
+            {currentClient?.businessName ? currentClient.businessName[0].toUpperCase() : 'M'}
           </div>
         </div>
 
-        <Topbar currentPage={currentPage} onLogout={handleLogout} />
+        <Topbar client={currentClient} currentPage={currentPage} onLogout={handleLogout} />
 
         <main style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
           <div style={{ animation: 'fadeIn 0.4s ease-out' }}>{renderPage()}</div>

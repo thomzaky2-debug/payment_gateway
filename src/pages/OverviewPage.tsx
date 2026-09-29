@@ -18,6 +18,7 @@ interface OverviewPageProps {
 export function OverviewPage({ showToast }: OverviewPageProps) {
   const [stats, setStats] = useState<any>(null);
   const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,8 +60,8 @@ export function OverviewPage({ showToast }: OverviewPageProps) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <StatCard
           title="Today's Confirmed"
-          value={stats ? `${stats.today.totalEgp.toFixed(2)} EGP` : '0.00 EGP'}
-          subtitle={stats ? `${stats.today.count} transactions today` : 'Loading...'}
+          value={stats?.today?.totalEgp != null ? `${Number(stats.today.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
+          subtitle={stats?.today?.count != null ? `${stats.today.count} transactions today` : 'Loading...'}
           trend="+100%"
           trendUp={true}
           icon={<TrendingUp className="w-5 h-5" />}
@@ -68,21 +69,21 @@ export function OverviewPage({ showToast }: OverviewPageProps) {
         />
         <StatCard
           title="7-Day Revenue"
-          value={stats ? `${stats.sevenDays.totalEgp.toFixed(2)} EGP` : '0.00 EGP'}
-          subtitle={stats ? `${stats.sevenDays.count} confirmed orders` : 'Loading...'}
+          value={stats?.sevenDays?.totalEgp != null ? `${Number(stats.sevenDays.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
+          subtitle={stats?.sevenDays?.count != null ? `${stats.sevenDays.count} confirmed orders` : 'Loading...'}
           icon={<CreditCard className="w-5 h-5" />}
           color="#10b981"
         />
         <StatCard
           title="Pending Checkouts"
-          value={stats ? `${stats.pending.count}` : '0'}
+          value={stats?.pending?.count != null ? `${stats.pending.count}` : '0'}
           subtitle="Awaiting transfer"
           icon={<AlertCircle className="w-5 h-5" />}
           color="#f59e0b"
         />
         <StatCard
           title="Monthly Plan Quota"
-          value={stats?.quota ? `${stats.quota.count} / ${stats.quota.limit}` : 'Trial Plan'}
+          value={stats?.quota?.limit != null ? `${stats.quota.count ?? 0} / ${stats.quota.limit}` : 'Trial Plan'}
           subtitle={stats?.quota?.plan || 'Active Subscription'}
           icon={<Smartphone className="w-5 h-5" />}
           color="#06b6d4"

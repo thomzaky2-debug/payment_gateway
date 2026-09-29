@@ -82,7 +82,7 @@ export function ReviewPage({ showToast, showConfirm }: ReviewPageProps) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {underpaid.map((item) => (
             <div key={item.id} style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #fed7aa', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', flexWrap: 'wrap', gap: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <AlertCircle size={22} style={{ color: '#ea580c' }} />
@@ -99,13 +99,55 @@ export function ReviewPage({ showToast, showConfirm }: ReviewPageProps) {
                     </p>
                   </div>
                 </div>
+
+                <div>
+                  <button
+                    onClick={() => {
+                      if (showConfirm) {
+                        showConfirm({
+                          title: 'Accept Underpayment',
+                          message: `Are you sure you want to accept and mark session ${item.sessionId} as CONFIRMED? This will complete the checkout and fire the webhook.`,
+                          confirmLabel: 'Accept & Confirm',
+                          cancelLabel: 'Cancel',
+                          variant: 'warning',
+                          onConfirm: async () => {
+                            try {
+                              const res = await transactionsApi.confirm(item.sessionId);
+                              if (res.ok) {
+                                if (showToast) showToast('success', `Session ${item.sessionId} confirmed!`);
+                                fetchQueue();
+                              } else {
+                                if (showToast) showToast('error', res.error || 'Failed to confirm');
+                              }
+                            } catch {
+                              if (showToast) showToast('error', 'Error confirming payment');
+                            }
+                          },
+                        });
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)',
+                    }}
+                  >
+                    Accept & Confirm
+                  </button>
+                </div>
               </div>
             </div>
           ))}
 
           {mismatched.map((item) => (
             <div key={item.id} style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', flexWrap: 'wrap', gap: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                   <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <XCircle size={22} style={{ color: '#dc2626' }} />
@@ -121,6 +163,34 @@ export function ReviewPage({ showToast, showConfirm }: ReviewPageProps) {
                       From {item.senderHandle} • Amount: {item.amountEgp.toFixed(2)} EGP • Ref: {item.reference || '—'}
                     </p>
                   </div>
+                </div>
+
+                <div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await transactionsApi.dismissReviewItem(item.id);
+                        if (res.ok) {
+                          if (showToast) showToast('info', 'Unmatched record dismissed');
+                          fetchQueue();
+                        }
+                      } catch {
+                        if (showToast) showToast('error', 'Failed to dismiss item');
+                      }
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      backgroundColor: '#f1f5f9',
+                      color: '#475569',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Dismiss Record
+                  </button>
                 </div>
               </div>
             </div>

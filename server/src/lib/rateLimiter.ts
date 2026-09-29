@@ -29,8 +29,10 @@ export function createRateLimiter(windowMs: number, max: number, message = 'Too 
       (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
       req.socket.remoteAddress ||
       'unknown'
-
     const now = Date.now()
+    const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost'
+    const effectiveMax = process.env.NODE_ENV !== 'production' && isLocalhost ? Math.max(max * 20, 500) : max
+
     const record = hits.get(ip)
 
     if (!record || now > record.resetAt) {
@@ -38,7 +40,7 @@ export function createRateLimiter(windowMs: number, max: number, message = 'Too 
       return next()
     }
 
-    if (record.count >= max) {
+    if (record.count >= effectiveMax) {
       const retryAfter = Math.ceil((record.resetAt - now) / 1000)
       res.setHeader('Retry-After', retryAfter)
       return res.status(429).json({

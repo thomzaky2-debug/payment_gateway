@@ -67,7 +67,7 @@ import { validateWebhookUrl } from '../lib/urlValidator.js'
 settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
-    const { instapayPaymentUrl, webhookUrl, checkoutTtlMin, businessName } = req.body
+    const { instapayPaymentUrl, instapayHandle, webhookUrl, checkoutTtlMin, businessName } = req.body
 
     const cleanWebhookUrl = webhookUrl !== undefined ? webhookUrl?.trim() || null : undefined
     if (cleanWebhookUrl) {
@@ -78,14 +78,24 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
     }
 
     const cleanPaymentUrl = instapayPaymentUrl !== undefined ? instapayPaymentUrl?.trim() || null : undefined
-    if (cleanPaymentUrl && !cleanPaymentUrl.startsWith('https://') && !cleanPaymentUrl.startsWith('http://')) {
-      return res.status(400).json({ ok: false, error: 'InstaPay payment URL must start with https://' })
+    let derivedHandle: string | undefined = undefined
+    if (cleanPaymentUrl) {
+      if (!cleanPaymentUrl.startsWith('https://') && !cleanPaymentUrl.startsWith('http://')) {
+        return res.status(400).json({ ok: false, error: 'InstaPay payment URL must start with https://' })
+      }
+      const match = cleanPaymentUrl.match(/\/S\/([^\/\?#]+)\/([^\/\?#]+)/i)
+      if (match) {
+        derivedHandle = `${match[1]}@${match[2]}`
+      }
     }
+
+    const cleanHandle = instapayHandle !== undefined ? instapayHandle?.trim() || undefined : derivedHandle
 
     const updated = await db.client.update({
       where: { id: client.id },
       data: {
         instapayPaymentUrl: cleanPaymentUrl,
+        instapayHandle: cleanHandle || undefined,
         webhookUrl: cleanWebhookUrl,
         checkoutTtlMin: checkoutTtlMin ? Math.max(1, Math.min(60, Number(checkoutTtlMin))) : undefined,
         businessName: businessName?.trim() || undefined,
