@@ -1,4 +1,4 @@
-import React from 'react';
+import './index.css';
 import { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -158,7 +158,7 @@ function App() {
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
         currentPage={currentPage}
-        onNavigate={(page: Page) => {
+        onNavigate={(page) => {
           setCurrentPage(page);
           setMobileMenuOpen(false);
         }}
