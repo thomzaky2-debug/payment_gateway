@@ -7,7 +7,7 @@ import type { Client } from '@prisma/client'
 export interface CreateCheckoutInput {
   client: Client
   amountEgp: number
-  senderHandle: string
+  senderHandle?: string | null
   note?: string | null
   purpose?: 'CHECKOUT' | 'SUBSCRIPTION'
   subscriptionPlanName?: string | null
@@ -44,10 +44,9 @@ export async function createCheckoutSession(
     throw new Error('amountEgp must be a positive number')
   }
 
-  const sender = normalizeHandle(input.senderHandle)
-  if (!sender) {
-    throw new Error('Valid senderHandle is required')
-  }
+  const sender = input.senderHandle?.trim()
+    ? normalizeHandle(input.senderHandle)
+    : 'pending@instapay'
 
   const ttlMin = client.checkoutTtlMin || 10
   const expiresAt = new Date(Date.now() + ttlMin * 60 * 1000)

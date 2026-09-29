@@ -15,6 +15,10 @@ import {
   Share2,
   Download,
   RefreshCw,
+  User,
+  UserCheck,
+  Edit2,
+  Check,
 } from 'lucide-react'
 import { useDevicePlatform } from '../hooks/useDevicePlatform'
 
@@ -45,6 +49,47 @@ export function CheckoutPayPage() {
   const [timeLeft, setTimeLeft] = useState<number>(0)
   const [showQrModal, setShowQrModal] = useState<boolean>(false)
 
+  // Customer InstaPay Sender Handle state
+  const [senderInput, setSenderInput] = useState<string>('')
+  const [isEditingSender, setIsEditingSender] = useState<boolean>(false)
+  const [isSavingSender, setIsSavingSender] = useState<boolean>(false)
+  const [senderSaveSuccess, setSenderSaveSuccess] = useState<boolean>(false)
+  const [senderSaveError, setSenderSaveError] = useState<string | null>(null)
+
+  const handleSaveSender = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    const trimmed = senderInput.trim()
+    if (!sessionId || !trimmed) {
+      setSenderSaveError('Please enter your InstaPay username')
+      return
+    }
+
+    setIsSavingSender(true)
+    setSenderSaveError(null)
+
+    try {
+      const res = await fetch(`/api/checkout/${sessionId}/sender`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senderHandle: trimmed }),
+      })
+      const data = await res.json()
+      if (data.ok && data.senderHandle) {
+        setCheckout((prev) => (prev ? { ...prev, senderHandle: data.senderHandle } : null))
+        setSenderInput(data.senderHandle)
+        setIsEditingSender(false)
+        setSenderSaveSuccess(true)
+        setTimeout(() => setSenderSaveSuccess(false), 4000)
+      } else {
+        setSenderSaveError(data.error || 'Failed to update InstaPay username')
+      }
+    } catch {
+      setSenderSaveError('Connection error while updating username')
+    } finally {
+      setIsSavingSender(false)
+    }
+  }
+
   // Fetch Checkout Session
   useEffect(() => {
     if (!sessionId) return
@@ -55,6 +100,9 @@ export function CheckoutPayPage() {
         if (data.ok && data.checkout) {
           setCheckout(data.checkout)
           setTimeLeft(data.checkout.secondsRemaining)
+          if (data.checkout.senderHandle && data.checkout.senderHandle !== 'pending@instapay') {
+            setSenderInput(data.checkout.senderHandle)
+          }
           if (data.checkout.status === 'CONFIRMED') {
             confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
           }
@@ -402,6 +450,118 @@ export function CheckoutPayPage() {
                   </div>
                 </div>
 
+                {/* ─── Step 1: Customer Sender Handle Input / Confirmation ─── */}
+                <div className="mb-5">
+                  {checkout.senderHandle && checkout.senderHandle !== 'pending@instapay' && !isEditingSender ? (
+                    <div className="bg-slate-950/70 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                          <UserCheck className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">
+                              Sending From
+                            </span>
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
+                              Verified for Auto-Match
+                            </span>
+                          </div>
+                          <div className="font-mono text-white font-bold text-sm sm:text-base mt-0.5">
+                            {checkout.senderHandle}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSenderInput(checkout.senderHandle)
+                          setIsEditingSender(true)
+                        }}
+                        className="flex items-center justify-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl transition border border-slate-700/80 shrink-0"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                        <span>Change Account</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-950/80 border border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                          <User className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-bold text-white">Enter Your InstaPay Account Username</h4>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Type the username you will send money from so our automated engine instantly matches your payment.
+                          </p>
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleSaveSender} className="space-y-3">
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <div className="relative flex-1">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm font-mono">
+                              @
+                            </div>
+                            <input
+                              type="text"
+                              value={senderInput}
+                              onChange={(e) => {
+                                setSenderInput(e.target.value)
+                                if (senderSaveError) setSenderSaveError(null)
+                              }}
+                              placeholder="yourname or yourname@instapay"
+                              className="w-full pl-8 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                              autoFocus={checkout.senderHandle === 'pending@instapay'}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="submit"
+                              disabled={isSavingSender || !senderInput.trim()}
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition shrink-0"
+                            >
+                              {isSavingSender ? (
+                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Check className="h-3.5 w-3.5" />
+                              )}
+                              <span>{isSavingSender ? 'Saving...' : 'Confirm Handle'}</span>
+                            </button>
+                            {isEditingSender && checkout.senderHandle && checkout.senderHandle !== 'pending@instapay' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsEditingSender(false)
+                                  setSenderSaveError(null)
+                                }}
+                                className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition border border-slate-700"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {senderSaveError && (
+                          <div className="text-xs text-red-400 flex items-center gap-1.5">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>{senderSaveError}</span>
+                          </div>
+                        )}
+
+                        {senderSaveSuccess && (
+                          <div className="text-xs text-emerald-400 flex items-center gap-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                            <span>InstaPay username saved successfully!</span>
+                          </div>
+                        )}
+                      </form>
+                    </div>
+                  )}
+                </div>
+
                 {/* Target Transfer Information */}
                 <div className="space-y-3.5">
                   <div className="p-4 bg-slate-950/60 border border-slate-800/80 rounded-2xl space-y-3">
@@ -504,9 +664,19 @@ export function CheckoutPayPage() {
                   <div className="p-4 bg-slate-950/40 rounded-2xl border border-slate-800/60 text-xs text-slate-400 space-y-1.5 mt-4">
                     <p className="font-semibold text-slate-300">Quick steps:</p>
                     <ol className="list-decimal list-inside space-y-1">
+                      <li>
+                        {checkout.senderHandle && checkout.senderHandle !== 'pending@instapay' ? (
+                          <span>
+                            Sending account set to <strong className="text-emerald-300">{checkout.senderHandle}</strong>
+                          </span>
+                        ) : (
+                          <span className="text-amber-300 font-semibold">
+                            Enter your InstaPay username above before sending
+                          </span>
+                        )}
+                      </li>
                       <li>Open your InstaPay app on your phone</li>
                       <li>Transfer <strong>{checkout.amountEgp.toFixed(2)} EGP</strong> to <strong>{checkout.recipientHandle}</strong></li>
-                      <li>Ensure sender matches <strong>{checkout.senderHandle}</strong></li>
                       <li>This screen updates automatically within seconds!</li>
                     </ol>
                   </div>
