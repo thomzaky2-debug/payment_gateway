@@ -1,5 +1,5 @@
-import './index.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { authApi } from './services/api';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { MobileNav } from './components/MobileNav';
@@ -40,6 +40,17 @@ function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmAction | null>(null);
 
+  useEffect(() => {
+    authApi
+      .getSession()
+      .then((res) => {
+        if (res?.authenticated && res?.client) {
+          setIsAuthenticated(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const showToast = (type: ToastMessage['type'], message: string) => {
     const id = Date.now().toString();
     setToasts((prev) => [...prev, { id, type, message }]);
@@ -67,7 +78,8 @@ function App() {
       confirmLabel: 'Logout',
       cancelLabel: 'Cancel',
       variant: 'warning',
-      onConfirm: () => {
+      onConfirm: async () => {
+        await authApi.logout().catch(() => {});
         setIsAuthenticated(false);
         setCurrentPage('overview');
         closeConfirm();

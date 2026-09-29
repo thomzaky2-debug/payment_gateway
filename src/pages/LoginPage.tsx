@@ -1,6 +1,6 @@
-import React from 'react';
-import { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, Shield, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Eye, EyeOff, Lock, Mail, Shield, Building, AtSign, ArrowRight, UserPlus, LogIn } from 'lucide-react';
+import { authApi } from '../services/api';
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -8,39 +8,73 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLogin, showToast }: LoginPageProps) {
+  const [isRegister, setIsRegister] = useState(false);
+  const [businessName, setBusinessName] = useState('');
+  const [instapayHandle, setInstapayHandle] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-  const [attempts, setAttempts] = useState(0);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const validate = () => {
-    const newErrors: { email?: string; password?: string } = {};
+    const newErrors: { [key: string]: string } = {};
+
+    if (isRegister) {
+      if (!businessName.trim()) {
+        newErrors.businessName = 'Business name is required';
+      }
+      if (!instapayHandle.trim()) {
+        newErrors.instapayHandle = 'InstaPay handle is required';
+      }
+    }
+
     if (!email) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = 'Please enter a valid email';
     }
+
     if (!password) {
       newErrors.password = 'Password is required';
     } else if (password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      if (isRegister) {
+        const res = await authApi.register({
+          businessName: businessName.trim(),
+          instapayHandle: instapayHandle.trim(),
+          email: email.trim(),
+          password,
+        });
+
+        showToast('success', res.message || 'Registration submitted! Please login once approved.');
+        setIsRegister(false);
+      } else {
+        const res = await authApi.login(email.trim(), password);
+        if (res.ok) {
+          onLogin();
+        } else {
+          showToast('error', res.error || 'Login failed');
+        }
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message || 'Authentication failed';
+      showToast('error', msg);
+    } finally {
       setLoading(false);
-      setAttempts(0);
-      onLogin();
-    }, 1200);
+    }
   };
 
   return (
@@ -48,7 +82,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
       style={{
         minHeight: '100vh',
         width: '100vw',
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%)',
+        background: 'linear-gradient(135deg, #070b14 0%, #0f172a 50%, #070b14 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -64,7 +98,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
           left: '-20%',
           width: '80%',
           height: '200%',
-          background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
@@ -72,200 +106,246 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
       <div
         style={{
           width: '100%',
-          maxWidth: '440px',
-          backgroundColor: 'white',
+          maxWidth: '460px',
+          backgroundColor: '#0f172a',
+          border: '1px solid #1e293b',
           borderRadius: '24px',
-          padding: '40px',
-          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+          padding: '36px',
+          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)',
           position: 'relative',
           zIndex: 1,
         }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div
             style={{
-              width: '64px',
-              height: '64px',
+              width: '56px',
+              height: '56px',
               borderRadius: '16px',
-              background: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
+              background: 'linear-gradient(135deg, #10b981, #06b6d4)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '32px',
-              marginBottom: '16px',
-              boxShadow: '0 10px 25px -5px rgba(59,130,246,0.4)',
+              fontSize: '28px',
+              marginBottom: '12px',
+              boxShadow: '0 10px 25px -5px rgba(16,185,129,0.4)',
             }}
           >
             ⚡
           </div>
-          <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b', margin: '0 0 8px 0' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: 'bold', color: '#f8fafc', margin: '0 0 6px 0' }}>
             InstaPay Gateway
           </h1>
-          <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Sign in to your merchant dashboard</p>
+          <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
+            {isRegister ? 'Register your merchant account' : 'Sign in to your merchant dashboard'}
+          </p>
         </div>
 
+        {/* Tab Switcher */}
         <div
           style={{
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #bbf7d0',
-            borderRadius: '12px',
-            padding: '12px 16px',
-            marginBottom: '24px',
             display: 'flex',
-            alignItems: 'flex-start',
-            gap: '10px',
+            backgroundColor: '#1e293b',
+            borderRadius: '12px',
+            padding: '4px',
+            marginBottom: '20px',
           }}
         >
-          <Shield size={16} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
-          <div style={{ fontSize: '12px', color: '#166534', lineHeight: 1.5 }}>
-            Your connection is encrypted and secure. All data is protected with 256-bit SSL encryption.
-          </div>
-        </div>
-
-        {attempts >= 5 && (
-          <div
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(false);
+              setErrors({});
+            }}
             style={{
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: '12px',
-              padding: '12px 16px',
-              marginBottom: '24px',
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: !isRegister ? '#0f172a' : 'transparent',
+              color: !isRegister ? '#38bdf8' : '#94a3b8',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'all 0.2s',
             }}
           >
-            <Lock size={16} style={{ color: '#dc2626' }} />
-            <div style={{ fontSize: '13px', color: '#991b1b' }}>
-              Account temporarily locked. Try again in 15 minutes.
-            </div>
-          </div>
-        )}
+            <LogIn size={14} />
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(true);
+              setErrors({});
+            }}
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: isRegister ? '#0f172a' : 'transparent',
+              color: isRegister ? '#38bdf8' : '#94a3b8',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'all 0.2s',
+            }}
+          >
+            <UserPlus size={14} />
+            Register
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '20px' }}>
-            <label
-              style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '8px' }}
-            >
+          {isRegister && (
+            <>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+                  Business Name
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Building size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                  <input
+                    type="text"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    placeholder="e.g. Cairo Tech Store"
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 42px',
+                      backgroundColor: '#1e293b',
+                      border: `1px solid ${errors.businessName ? '#ef4444' : '#334155'}`,
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      outline: 'none',
+                      color: '#f8fafc',
+                    }}
+                  />
+                </div>
+                {errors.businessName && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.businessName}</p>}
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+                  InstaPay Handle / Address
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <AtSign size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                  <input
+                    type="text"
+                    value={instapayHandle}
+                    onChange={(e) => setInstapayHandle(e.target.value)}
+                    placeholder="e.g. merchant@instapay"
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 42px',
+                      backgroundColor: '#1e293b',
+                      border: `1px solid ${errors.instapayHandle ? '#ef4444' : '#334155'}`,
+                      borderRadius: '10px',
+                      fontSize: '13px',
+                      outline: 'none',
+                      color: '#f8fafc',
+                    }}
+                  />
+                </div>
+                {errors.instapayHandle && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.instapayHandle}</p>}
+              </div>
+            </>
+          )}
+
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
               Email Address
             </label>
             <div style={{ position: 'relative' }}>
-              <Mail
-                size={18}
-                style={{
-                  position: 'absolute',
-                  left: '14px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#94a3b8',
-                }}
-              />
+              <Mail size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
               <input
                 type="email"
                 value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (errors.email) setErrors({ ...errors, email: undefined });
-                }}
-                placeholder="you@example.com"
-                disabled={attempts >= 5}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@domain.com"
                 style={{
                   width: '100%',
-                  padding: '12px 14px 12px 44px',
-                  backgroundColor: '#f8fafc',
-                  border: `1px solid ${errors.email ? '#fca5a5' : '#e2e8f0'}`,
-                  borderRadius: '12px',
-                  fontSize: '14px',
+                  padding: '10px 14px 10px 42px',
+                  backgroundColor: '#1e293b',
+                  border: `1px solid ${errors.email ? '#ef4444' : '#334155'}`,
+                  borderRadius: '10px',
+                  fontSize: '13px',
                   outline: 'none',
-                  color: '#1e293b',
+                  color: '#f8fafc',
                 }}
-                aria-label="Email address"
-                aria-invalid={!!errors.email}
               />
             </div>
-            {errors.email && (
-              <p style={{ fontSize: '12px', color: '#dc2626', margin: '6px 0 0 0' }}>{errors.email}</p>
-            )}
+            {errors.email && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.email}</p>}
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <label
-              style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '8px' }}
-            >
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
               Password
             </label>
             <div style={{ position: 'relative' }}>
-              <Lock
-                size={18}
-                style={{
-                  position: 'absolute',
-                  left: '14px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: '#94a3b8',
-                }}
-              />
+              <Lock size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (errors.password) setErrors({ ...errors, password: undefined });
-                }}
-                placeholder="Enter your password"
-                disabled={attempts >= 5}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
                 style={{
                   width: '100%',
-                  padding: '12px 44px 12px 44px',
-                  backgroundColor: '#f8fafc',
-                  border: `1px solid ${errors.password ? '#fca5a5' : '#e2e8f0'}`,
-                  borderRadius: '12px',
-                  fontSize: '14px',
+                  padding: '10px 40px 10px 42px',
+                  backgroundColor: '#1e293b',
+                  border: `1px solid ${errors.password ? '#ef4444' : '#334155'}`,
+                  borderRadius: '10px',
+                  fontSize: '13px',
                   outline: 'none',
-                  color: '#1e293b',
+                  color: '#f8fafc',
                 }}
-                aria-label="Password"
-                aria-invalid={!!errors.password}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 style={{
                   position: 'absolute',
-                  right: '14px',
+                  right: '12px',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   backgroundColor: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
-                  color: '#94a3b8',
+                  color: '#64748b',
                   padding: '4px',
                 }}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            {errors.password && (
-              <p style={{ fontSize: '12px', color: '#dc2626', margin: '6px 0 0 0' }}>{errors.password}</p>
-            )}
+            {errors.password && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.password}</p>}
           </div>
 
           <button
             type="submit"
-            disabled={loading || attempts >= 5}
+            disabled={loading}
             style={{
               width: '100%',
-              padding: '14px',
-              background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+              padding: '12px',
+              background: 'linear-gradient(135deg, #10b981, #059669)',
               color: 'white',
-              fontSize: '15px',
+              fontSize: '14px',
               fontWeight: 600,
-              borderRadius: '12px',
+              borderRadius: '10px',
               border: 'none',
-              cursor: loading || attempts >= 5 ? 'not-allowed' : 'pointer',
-              opacity: loading || attempts >= 5 ? 0.7 : 1,
-              boxShadow: '0 10px 25px -5px rgba(37,99,235,0.4)',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+              boxShadow: '0 8px 20px -4px rgba(16,185,129,0.4)',
               transition: 'all 0.2s',
               display: 'flex',
               alignItems: 'center',
@@ -274,23 +354,16 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
             }}
           >
             {loading ? (
+              <span>Connecting to gateway...</span>
+            ) : isRegister ? (
               <>
-                <div
-                  style={{
-                    width: '16px',
-                    height: '16px',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTopColor: 'white',
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
-                  }}
-                />
-                Signing in...
+                <UserPlus size={16} />
+                Create Merchant Account
               </>
             ) : (
               <>
-                <Shield size={18} />
-                Sign In Securely
+                <Shield size={16} />
+                Sign In to Dashboard
               </>
             )}
           </button>
@@ -298,18 +371,18 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
 
         <div
           style={{
-            marginTop: '24px',
-            paddingTop: '24px',
-            borderTop: '1px solid #e2e8f0',
+            marginTop: '20px',
+            paddingTop: '16px',
+            borderTop: '1px solid #1e293b',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '6px',
-            fontSize: '12px',
+            fontSize: '11px',
             color: '#64748b',
           }}
         >
-          <Lock size={12} />
+          <Shield size={12} />
           Protected by 256-bit SSL encryption
         </div>
       </div>

@@ -1,17 +1,69 @@
-import React from 'react';
-import { Smartphone, CheckCircle2, AlertTriangle, Wifi, Battery, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Smartphone, CheckCircle2, AlertTriangle, Wifi, Battery, Clock, Download, RefreshCw } from 'lucide-react';
+import { settingsApi } from '../services/api';
 
-export function DetectorPage() {
+interface DetectorPageProps {
+  showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
+}
+
+export function DetectorPage({ showToast }: DetectorPageProps) {
+  const [devices, setDevices] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDetectorData = async () => {
+    setLoading(true);
+    try {
+      const data = await settingsApi.get();
+      if (data.ok) {
+        setDevices(data.devices || []);
+        setSettings(data.settings || null);
+      }
+    } catch (err: any) {
+      if (showToast) {
+        showToast('error', 'Failed to load detector heartbeat data');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDetectorData();
+  }, []);
+
+  const latestDevice = devices.length > 0 ? devices[0] : null;
+  const isOnline = latestDevice && (Date.now() - new Date(latestDevice.lastSeenAt).getTime()) < 10 * 60 * 1000;
+
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>Detector Health</h2>
-        <p style={{ fontSize: '14px', color: '#64748b', margin: '4px 0 0 0' }}>Monitor your Android detector device</p>
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>Detector Companion</h2>
+          <p style={{ fontSize: '14px', color: '#64748b', margin: '4px 0 0 0' }}>Monitor your Android detector device running NotificationListenerService</p>
+        </div>
+        <button
+          onClick={fetchDetectorData}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 16px',
+            backgroundColor: 'white',
+            border: '1px solid #cbd5e1',
+            borderRadius: '10px',
+            fontSize: '13px',
+            cursor: 'pointer',
+          }}
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          Refresh Status
+        </button>
       </div>
 
       {/* Status Banner */}
       <div style={{ 
-        background: 'linear-gradient(135deg, #10b981, #14b8a6)',
+        background: isOnline ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #64748b, #475569)',
         borderRadius: '16px', padding: '24px', color: 'white', marginBottom: '24px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px'
       }}>
@@ -25,92 +77,77 @@ export function DetectorPage() {
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>Detector Online</h3>
-              <div style={{ 
-                width: '12px', height: '12px', borderRadius: '50%', 
-                backgroundColor: 'white',
-                animation: 'pulseGreen 2s ease-in-out infinite'
-              }} />
+              <h3 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>
+                {isOnline ? 'Detector Phone Connected' : 'No Active Heartbeat Detected'}
+              </h3>
+              {isOnline && (
+                <div style={{ 
+                  width: '10px', height: '10px', borderRadius: '50%', 
+                  backgroundColor: 'white',
+                  animation: 'pulseGreen 2s ease-in-out infinite'
+                }} />
+              )}
             </div>
-            <p style={{ fontSize: '14px', color: '#d1fae5', margin: 0 }}>Last heartbeat: 2 minutes ago</p>
+            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', margin: '4px 0 0 0' }}>
+              {latestDevice
+                ? `Last seen: ${new Date(latestDevice.lastSeenAt).toLocaleTimeString()} (${latestDevice.deviceId})`
+                : 'Install the companion APK on your receiving phone to start automatic payment detection.'}
+            </p>
           </div>
         </div>
-        <button style={{ 
-          padding: '8px 16px', backgroundColor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)',
-          color: 'white', fontSize: '14px', fontWeight: 500, borderRadius: '12px',
-          border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'
-        }}>
-          🔄 Refresh
-        </button>
       </div>
 
-      {/* Health Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <MetricCard icon={<Wifi size={20} />} label="Listener Status" value="Active" color="#10b981" />
-        <MetricCard icon={<Battery size={20} />} label="Battery Optimization" value="Exempt" color="#10b981" />
-        <MetricCard icon={<Clock size={20} />} label="Uptime" value="14h 32m" color="#3b82f6" />
-        <MetricCard icon={<span style={{ fontSize: '20px' }}>📊</span>} label="Notifications Today" value="23" color="#06b6d4" />
+      {/* APK Setup Guide & Download Box */}
+      <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', margin: '0 0 12px 0' }}>📲 Detector Companion Setup</h3>
+        <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px 0' }}>
+          The native Android Detector APK runs in the background on your payment phone, captures official Egyptian banks InstaPay push receipts, and reports them to your gateway.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', margin: '0 0 6px 0' }}>1. Download APK</h4>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+              Transfer <strong>apks/InstaPay-Detector.apk</strong> to your Android device and install it.
+            </p>
+          </div>
+
+          <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', margin: '0 0 6px 0' }}>2. Login with Credentials</h4>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+              Sign in with your merchant email and password to securely link the device token.
+            </p>
+          </div>
+
+          <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', margin: '0 0 6px 0' }}>3. Enable Notification Access</h4>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+              Grant "Notification Listener Permission" when prompted so the listener can parse receipts.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Device Info */}
       <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', margin: '0 0 16px 0' }}>🖥️ Device Information</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <InfoRow label="Device Name" value="Samsung Galaxy A54" />
-          <InfoRow label="Android Version" value="14 (API 34)" />
-          <InfoRow label="Min SDK Supported" value="Android 8.0 (API 26)" />
-          <InfoRow label="App Version" value="2.0.0" />
-          <InfoRow label="Package Name" value="com.instapaydetector.merchant" />
-          <InfoRow label="InstaPay Package" value="com.egyptianbanks.instapay" />
-          <InfoRow label="Recipient Handle" value="merchant@instapay" />
+        <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', margin: '0 0 16px 0' }}>🖥️ Device & Integration Info</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <InfoRow label="Merchant Handle" value={settings?.instapayHandle || 'Not set'} />
+          <InfoRow label="App Version" value={latestDevice?.appVersion || '2.0.0'} />
+          <InfoRow label="Android Version" value={latestDevice?.androidVersion || 'Android 12+'} />
+          <InfoRow label="Target Package" value="com.egyptianbanks.instapay" />
+          <InfoRow label="Detector Token Status" value={settings?.detectToken ? 'Configured & Active' : 'Pending Approval'} />
         </div>
       </div>
-
-      {/* OEM Warning */}
-      <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '16px', padding: '24px' }}>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <AlertTriangle size={20} style={{ color: '#d97706', flexShrink: 0 }} />
-          <div>
-            <h4 style={{ fontSize: '14px', fontWeight: 600, color: '#92400e', margin: '0 0 8px 0' }}>OEM Battery Protection</h4>
-            <p style={{ fontSize: '12px', color: '#78350f', margin: '0 0 8px 0' }}>Some manufacturers aggressively kill background apps. Ensure you:</p>
-            <ul style={{ fontSize: '12px', color: '#78350f', margin: 0, paddingLeft: '16px' }}>
-              <li><strong>Xiaomi/Redmi:</strong> Enable auto-start in Security app</li>
-              <li><strong>Samsung:</strong> Disable battery optimization in Device Care</li>
-              <li><strong>Huawei/Honor:</strong> Add to "Launch Manager" whitelist</li>
-              <li><strong>Oppo/Realme:</strong> Enable auto-start in Battery settings</li>
-              <li><strong>Vivo:</strong> Allow background activity in iManager</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
-  return (
-    <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <div style={{ 
-          width: '40px', height: '40px', borderRadius: '12px',
-          backgroundColor: `${color}20`, color: color,
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-          {icon}
-        </div>
-        <CheckCircle2 size={16} style={{ color: '#10b981' }} />
-      </div>
-      <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>{value}</p>
-      <p style={{ fontSize: '14px', color: '#64748b', margin: '4px 0 0 0' }}>{label}</p>
     </div>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f8fafc' }}>
-      <span style={{ fontSize: '14px', color: '#64748b' }}>{label}</span>
-      <span style={{ fontSize: '14px', fontWeight: 500, color: '#1e293b', fontFamily: 'monospace' }}>{value}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f8fafc' }}>
+      <span style={{ fontSize: '13px', color: '#64748b' }}>{label}</span>
+      <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', fontFamily: 'monospace' }}>{value}</span>
     </div>
   );
 }
