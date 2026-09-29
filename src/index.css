@@ -29,7 +29,40 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.settings-layout > div:first-child {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .settings-layout {
+    flex-direction: row !important;
+  }
+  .settings-layout > div:first-child {
+    width: 250px !important;
+    flex-shrink: 0;
+  }
+  .settings-layout > div:last-child {
+    flex: 1;
+    min-width: 0;
+  }
 }
