@@ -38,6 +38,8 @@ export function generateWebhookSignature(
  * Dispatches an event to the merchant's configured webhook URL,
  * creates an audit record in WebhookLog, and schedules retry if failed.
  */
+import { validateWebhookUrl } from '../lib/urlValidator.js'
+
 export async function forwardToClientWebhook(
   clientId: string,
   webhookUrl: string,
@@ -47,6 +49,11 @@ export async function forwardToClientWebhook(
 ): Promise<{ success: boolean; statusCode?: number; error?: string }> {
   if (!webhookUrl) {
     return { success: false, error: 'No webhookUrl configured' }
+  }
+
+  const urlCheck = validateWebhookUrl(webhookUrl)
+  if (!urlCheck.valid) {
+    return { success: false, error: `Invalid webhookUrl: ${urlCheck.error}` }
   }
 
   const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`

@@ -17,19 +17,37 @@ import { transactionRouter } from './routes/transactionRoutes.js'
 import { adminRouter } from './routes/adminRoutes.js'
 import { settingsRouter } from './routes/settingsRoutes.js'
 
+import { createRateLimiter } from './lib/rateLimiter.js'
+
 const app = express()
 const server = http.createServer(app)
 
 const PORT = Number(process.env.PORT) || 3001
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173'
 
+const allowedOrigins = [
+  CLIENT_URL,
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+]
+
 // ─── Middlewares ───────────────────────────────────────────────────
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, postman) or matching dev client
-      callback(null, true)
+      // Allow requests with no origin (like mobile apps, curl, native tools)
+      if (!origin) return callback(null, true)
+      if (
+        allowedOrigins.includes(origin) ||
+        process.env.NODE_ENV !== 'production' ||
+        (process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS.split(',').includes(origin))
+      ) {
+        return callback(null, true)
+      }
+      callback(new Error('Blocked by CORS policy'))
     },
     credentials: true,
   })
@@ -37,6 +55,10 @@ app.use(
 
 app.use(express.json())
 app.use(cookieParser())
+
+// Rate limiters for sensitive endpoints
+const authLimiter = createRateLimiter(15 * 60 * 1000, 30, 'Too many login attempts. Please try again in 15 minutes.')
+const webhookLimiter = createRateLimiter(60 * 1000, 120, 'Webhook rate limit exceeded.')
 
 // Request Logger
 app.use((req, _res, next) => {
@@ -63,13 +85,23 @@ app.get('/api/health', (_req, res) => {
   })
 })
 
-app.use('/api/auth', authRouter)
-app.use('/api/webhooks', webhookRouter)
+app.use('/api/auth', authLimiter, authRouter)
+app.use('/api/webhooks', webhookLimiter, webhookRouter)
 app.use('/api/v1/checkout', v1CheckoutRouter)
 app.use('/api/checkout', checkoutRouter)
 app.use('/api/transactions', transactionRouter)
-app.use('/api/admin', adminRouter)
+app.use('/api/admin', authLimiter, adminRouter)
 app.use('/api/settings', settingsRouter)
+
+// ─── Global Error Handler ──────────────────────────────────────────
+
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[Global Error Handler]', err)
+  res.status(err.status || 500).json({
+    ok: false,
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message || 'Internal server error',
+  })
+})
 
 // ─── Graceful Shutdown ─────────────────────────────────────────────
 

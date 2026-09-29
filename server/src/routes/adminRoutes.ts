@@ -4,7 +4,10 @@ import {
   createOwnerSessionToken,
   verifyOwnerSessionToken,
   generateMerchantKeys,
+  timingSafeCompare,
 } from '../services/authService.js'
+import { emitCheckoutUpdate } from '../services/notificationService.js'
+import { forwardToClientWebhook } from '../services/webhookService.js'
 
 export const adminRouter = Router()
 
@@ -24,9 +27,13 @@ function requireAdmin(req: Request, res: Response, next: () => void) {
 
 adminRouter.post('/auth', async (req: Request, res: Response) => {
   const { password } = req.body
-  const expectedPassword = process.env.ADMIN_PASSWORD || 'ChangeMeInProduction123!'
+  const expectedPassword = process.env.ADMIN_PASSWORD
+  if (!expectedPassword && process.env.NODE_ENV === 'production') {
+    return res.status(500).json({ ok: false, error: 'ADMIN_PASSWORD environment variable is not configured' })
+  }
+  const targetPassword = expectedPassword || 'ChangeMeInProduction123!'
 
-  if (!password || password !== expectedPassword) {
+  if (!password || typeof password !== 'string' || !timingSafeCompare(password, targetPassword)) {
     return res.status(401).json({ ok: false, error: 'Invalid admin credentials' })
   }
 
@@ -40,6 +47,17 @@ adminRouter.post('/auth', async (req: Request, res: Response) => {
   })
 
   return res.json({ ok: true, token })
+})
+
+// ─── Admin Logout ───────────────────────────────────────────────────
+
+adminRouter.post('/logout', (_req: Request, res: Response) => {
+  res.clearCookie('instapay_owner_session', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+  })
+  return res.json({ ok: true, message: 'Admin logged out' })
 })
 
 // ─── List Merchants ─────────────────────────────────────────────────
@@ -143,7 +161,41 @@ adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: R
         detectedRef: 'ADMIN_FORCE_CONFIRM',
         detectedAmountEgp: tx.amountEgp,
       },
+      include: { client: true },
     })
+
+    // Emit live update to Customer Checkout Waiting Screen
+    emitCheckoutUpdate({
+      sessionId: updated.sessionId,
+      status: 'CONFIRMED',
+      amountEgp: updated.amountEgp,
+      detectedAmountEgp: updated.detectedAmountEgp,
+      senderHandle: updated.senderHandle,
+      detectedRef: updated.detectedRef,
+      detectedAt: updated.detectedAt?.toISOString() ?? null,
+    })
+
+    // Deliver signed webhook to Merchant server
+    if (updated.client.webhookUrl) {
+      void forwardToClientWebhook(updated.client.id, updated.client.webhookUrl, updated.client.webhookSecret, {
+        event: 'payment.confirmed',
+        clientId: updated.client.id,
+        businessName: updated.client.businessName,
+        transaction: {
+          sessionId: updated.sessionId,
+          senderHandle: updated.senderHandle,
+          recipientHandle: updated.recipientHandle,
+          amountEgp: updated.amountEgp,
+          detectedAmountEgp: updated.detectedAmountEgp,
+          currency: updated.currency,
+          status: updated.status,
+          detectedRef: updated.detectedRef,
+          detectedAt: updated.detectedAt?.toISOString() ?? null,
+          note: updated.note,
+          createdAt: updated.createdAt.toISOString(),
+        },
+      })
+    }
 
     await db.auditLog.create({
       data: {

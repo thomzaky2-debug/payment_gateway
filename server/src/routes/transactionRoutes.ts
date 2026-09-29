@@ -151,6 +151,16 @@ transactionRouter.get('/review-queue', requireMerchant, async (req: Request, res
 
 // ─── Export CSV ─────────────────────────────────────────────────────
 
+// Helper to neutralize CSV Formula Injection (=, +, -, @, \t, \r)
+function sanitizeCsvCell(value: string | number | null | undefined): string {
+  if (value == null) return '""'
+  const str = String(value).replace(/"/g, '""')
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return `"'${str}"`
+  }
+  return `"${str}"`
+}
+
 transactionRouter.get('/export', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
@@ -164,13 +174,15 @@ transactionRouter.get('/export', requireMerchant, async (req: Request, res: Resp
     const rows = transactions
       .map(
         (t) =>
-          `"${t.sessionId}","${t.status}",${t.amountEgp},"${t.senderHandle}","${t.recipientHandle}","${
-            t.detectedRef || ''
-          }","${t.createdAt.toISOString()}"`
+          `${sanitizeCsvCell(t.sessionId)},${sanitizeCsvCell(t.status)},${t.amountEgp},${sanitizeCsvCell(
+            t.senderHandle
+          )},${sanitizeCsvCell(t.recipientHandle)},${sanitizeCsvCell(t.detectedRef || '')},${sanitizeCsvCell(
+            t.createdAt.toISOString()
+          )}`
       )
       .join('\n')
 
-    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8')
     res.setHeader('Content-Disposition', `attachment; filename="transactions_${client.slug}.csv"`)
     return res.send(headers + rows)
   } catch (err: unknown) {

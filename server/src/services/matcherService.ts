@@ -288,6 +288,7 @@ export async function processInstaPayNotification(
     where: { id: match.id, status: { in: ['PENDING', 'EXPIRED'] } },
     data: {
       status: 'CONFIRMED',
+      senderHandle,
       detectedRef: reference,
       detectedAt: now,
       detectedAmountEgp: receivedAmountRounded,

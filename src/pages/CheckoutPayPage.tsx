@@ -28,6 +28,7 @@ interface CheckoutData {
   secondsRemaining: number
   detectedRef?: string | null
   detectedAt?: string | null
+  detectedAmountEgp?: number | null
   note?: string | null
 }
 
@@ -38,6 +39,7 @@ export function CheckoutPayPage() {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState<number>(0)
+  const [showQr, setShowQr] = useState<boolean>(false)
 
   // Fetch Checkout Session
   useEffect(() => {
@@ -56,11 +58,37 @@ export function CheckoutPayPage() {
           setError(data.error || 'Checkout session not found')
         }
       })
-      .catch((err) => {
+      .catch(() => {
         setError('Failed to connect to checkout gateway')
       })
       .finally(() => setLoading(false))
   }, [sessionId])
+
+  // Polling fallback to ensure confirmation even if WebSockets are interrupted
+  useEffect(() => {
+    if (!sessionId || checkout?.status === 'CONFIRMED' || checkout?.status === 'EXPIRED') return
+
+    const poll = setInterval(() => {
+      fetch(`/api/checkout/${sessionId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.ok && data.checkout) {
+            setCheckout((prev) => {
+              if (!prev || prev.status !== data.checkout.status) {
+                if (data.checkout.status === 'CONFIRMED') {
+                  confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } })
+                }
+                return { ...prev, ...data.checkout }
+              }
+              return prev
+            })
+          }
+        })
+        .catch(() => {})
+    }, 4000)
+
+    return () => clearInterval(poll)
+  }, [sessionId, checkout?.status])
 
   // Socket.IO Real-time updates
   useEffect(() => {
@@ -205,6 +233,35 @@ export function CheckoutPayPage() {
                 )}
               </div>
             </div>
+          ) : checkout.status === 'UNDERPAID' ? (
+            <div className="text-center py-6">
+              <div className="h-16 w-16 bg-amber-500/20 border border-amber-500/40 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-400">
+                <AlertCircle className="h-8 w-8" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Underpayment Detected</h2>
+              <p className="text-amber-400 text-sm mb-4">
+                Received {checkout.detectedAmountEgp?.toFixed(2) || 'partial'} EGP, but {checkout.amountEgp.toFixed(2)} EGP was required.
+              </p>
+              <div className="bg-slate-950/80 rounded-2xl p-5 border border-slate-800 text-left space-y-2 mb-6">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Total Required:</span>
+                  <span className="text-white font-medium">{checkout.amountEgp.toFixed(2)} EGP</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">Amount Received:</span>
+                  <span className="text-amber-300 font-medium">{(checkout.detectedAmountEgp || 0).toFixed(2)} EGP</span>
+                </div>
+                <div className="flex justify-between text-sm border-t border-slate-800 pt-2 font-semibold">
+                  <span className="text-red-400">Remaining Balance:</span>
+                  <span className="text-red-400">
+                    {Math.max(0, checkout.amountEgp - (checkout.detectedAmountEgp || 0)).toFixed(2)} EGP
+                  </span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400">
+                Please transfer the remaining balance to <strong>{checkout.recipientHandle}</strong> to complete your order.
+              </p>
+            </div>
           ) : checkout.status === 'EXPIRED' ? (
             <div className="text-center py-6">
               <div className="h-16 w-16 bg-red-500/20 border border-red-500/40 rounded-full flex items-center justify-center mx-auto mb-4 text-red-400">
@@ -278,17 +335,43 @@ export function CheckoutPayPage() {
                   </div>
                 </div>
 
-                {/* Open InstaPay App Button */}
-                <a
-                  href={checkout.deepLinkUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
-                >
-                  <Smartphone className="h-4 w-4" />
-                  <span>Open InstaPay App</span>
-                  <ExternalLink className="h-4 w-4 ml-1" />
-                </a>
+                {/* Action Buttons: App & QR */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <a
+                    href={checkout.deepLinkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.01] active:scale-[0.99] text-sm"
+                  >
+                    <Smartphone className="h-4 w-4" />
+                    <span>Open InstaPay App</span>
+                    <ExternalLink className="h-3.5 w-3.5 ml-0.5" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowQr((prev) => !prev)}
+                    className="flex items-center justify-center gap-2 py-3.5 px-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-2xl border border-slate-700 transition-all text-sm"
+                  >
+                    <QrCode className="h-4 w-4 text-emerald-400" />
+                    <span>{showQr ? 'Hide QR Code' : 'Scan QR Code'}</span>
+                  </button>
+                </div>
+
+                {/* Optional QR Code View */}
+                {showQr && (
+                  <div className="p-4 bg-white rounded-2xl flex flex-col items-center justify-center space-y-2 text-center animate-fade-in">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                        checkout.recipientHandle
+                      )}`}
+                      alt="InstaPay QR Code"
+                      className="w-44 h-44 rounded-lg"
+                    />
+                    <p className="text-slate-900 font-mono text-xs font-bold">{checkout.recipientHandle}</p>
+                    <p className="text-slate-500 text-[11px]">Scan with any banking app supporting InstaPay QR</p>
+                  </div>
+                )}
 
                 {/* Instructions */}
                 <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-800/60 text-xs text-slate-400 space-y-1.5">

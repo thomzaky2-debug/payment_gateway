@@ -53,9 +53,12 @@ export function SettingsPage({ showToast }: SettingsPageProps) {
         setSaved(true);
         if (showToast) showToast('success', 'Settings updated successfully!');
         setTimeout(() => setSaved(false), 2500);
+      } else {
+        if (showToast) showToast('error', res.error || 'Failed to save settings');
       }
-    } catch {
-      if (showToast) showToast('error', 'Failed to save settings');
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message || 'Failed to save settings';
+      if (showToast) showToast('error', msg);
     } finally {
       setSaving(false);
     }

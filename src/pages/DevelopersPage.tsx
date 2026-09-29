@@ -20,6 +20,9 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   const [simLoading, setSimLoading] = useState(false);
   const [simResult, setSimResult] = useState<any>(null);
 
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
+  const [copiedSecret, setCopiedSecret] = useState(false);
+
   const fetchSettings = async () => {
     setLoading(true);
     try {
@@ -27,7 +30,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
       if (data.ok) {
         setSettings(data.settings);
       }
-    } catch (err: any) {
+    } catch {
       if (showToast) {
         showToast('error', 'Failed to load developer keys');
       }
@@ -40,17 +43,22 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
     fetchSettings();
   }, []);
 
-  const handleCopy = (text: string) => {
+  const handleCopy = (text: string, isSecret = false) => {
     navigator.clipboard.writeText(text);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
+    if (isSecret) {
+      setCopiedSecret(true);
+      setTimeout(() => setCopiedSecret(false), 2000);
+    } else {
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2000);
+    }
   };
 
   const handleRotateKeys = () => {
     if (showConfirm) {
       showConfirm({
         title: 'Rotate API Keys',
-        message: 'Are you sure you want to rotate your API key and detect token? Any active services using the old keys will stop working immediately.',
+        message: 'Are you sure you want to rotate your API key, detect token, and webhook secret? Any active services using the old keys will stop working immediately.',
         confirmLabel: 'Rotate Keys',
         cancelLabel: 'Cancel',
         variant: 'danger',
@@ -58,8 +66,13 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
           try {
             const res = await settingsApi.rotateKeys();
             if (res.ok) {
-              setSettings((prev: any) => ({ ...prev, apiKey: res.apiKey, detectToken: res.detectToken }));
-              if (showToast) showToast('success', 'API Keys rotated successfully!');
+              setSettings((prev: any) => ({
+                ...prev,
+                apiKey: res.apiKey,
+                detectToken: res.detectToken,
+                webhookSecret: res.webhookSecret,
+              }));
+              if (showToast) showToast('success', 'API Keys and Webhook Secret rotated successfully!');
             }
           } catch {
             if (showToast) showToast('error', 'Failed to rotate keys');
@@ -108,6 +121,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   };
 
   const apiKey = settings?.apiKey || 'Waiting for account approval...';
+  const webhookSecret = settings?.webhookSecret || 'Waiting for account approval...';
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
@@ -117,7 +131,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
       </div>
 
       {/* API Key Box */}
-      <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', marginBottom: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+      <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', marginBottom: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: '#dbeafe', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -142,8 +156,34 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
           <button onClick={() => setShowApiKey(!showApiKey)} style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
             {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-          <button onClick={() => handleCopy(apiKey)} style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+          <button onClick={() => handleCopy(apiKey, false)} style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
             {copiedKey ? <CheckCircle2 size={16} style={{ color: '#059669' }} /> : <Copy size={16} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Webhook Secret Box */}
+      <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', marginBottom: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Terminal size={20} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b', margin: 0 }}>Webhook HMAC Signing Secret</h3>
+              <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Used to verify `X-Instapay-Signature` header on callback deliveries</p>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ flex: 1, backgroundColor: '#0f172a', borderRadius: '12px', padding: '12px 16px', fontFamily: 'monospace', fontSize: '13px', color: '#fbbf24', overflowX: 'auto' }}>
+            {showWebhookSecret ? webhookSecret : '••••••••••••••••••••••••••••••••••••••••••••'}
+          </div>
+          <button onClick={() => setShowWebhookSecret(!showWebhookSecret)} style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+            {showWebhookSecret ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+          <button onClick={() => handleCopy(webhookSecret, true)} style={{ padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+            {copiedSecret ? <CheckCircle2 size={16} style={{ color: '#059669' }} /> : <Copy size={16} />}
           </button>
         </div>
       </div>

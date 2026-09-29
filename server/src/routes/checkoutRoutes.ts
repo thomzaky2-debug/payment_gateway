@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import { db } from '../db.js'
 import { getCheckoutSession } from '../services/checkoutService.js'
 
 export const checkoutRouter = Router()
@@ -19,6 +20,17 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
     const expiresAt = new Date(tx.expiresAt).getTime()
     const secondsRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000))
 
+    let currentStatus = tx.status
+    if (secondsRemaining === 0 && currentStatus === 'PENDING') {
+      currentStatus = 'EXPIRED'
+      void db.transaction
+        .update({
+          where: { id: tx.id },
+          data: { status: 'EXPIRED' },
+        })
+        .catch(() => {})
+    }
+
     return res.json({
       ok: true,
       checkout: {
@@ -28,7 +40,7 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
         senderHandle: tx.senderHandle,
         amountEgp: tx.amountEgp,
         currency: tx.currency,
-        status: tx.status,
+        status: currentStatus,
         deepLinkUrl: tx.deepLinkUrl,
         expiresAt: tx.expiresAt.toISOString(),
         secondsRemaining,
