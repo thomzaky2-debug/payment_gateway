@@ -1,0 +1,115 @@
+<resources>
+    <string name="app_name">InstaPay Detector</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_transactions">Transactions</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Dashboard -->
+    <string name="dash_today">Today</string>
+    <string name="dash_7days">Last 7 days</string>
+    <string name="dash_pending">Pending</string>
+    <string name="dash_avg">Avg/day</string>
+    <string name="dash_revenue_trend">Revenue trend (30 days)</string>
+    <string name="dash_recent">Recent payments</string>
+    <string name="dash_view_all">View all</string>
+    <string name="dash_no_recent">No payments yet</string>
+    <string name="dash_live">Live</string>
+    <string name="dash_offline">Offline</string>
+    <string name="dash_best_day">Best day</string>
+    <string name="dash_total_30d">30-day total</string>
+    <string name="dash_payments">payments</string>
+    <string name="dash_payment">payment</string>
+
+    <!-- Transactions -->
+    <string name="tx_search_hint">Search by sender, ref, note…</string>
+    <string name="tx_filter_all">All</string>
+    <string name="tx_filter_confirmed">Confirmed</string>
+    <string name="tx_filter_pending">Pending</string>
+    <string name="tx_filter_expired">Expired</string>
+    <string name="tx_empty">No transactions found</string>
+    <string name="tx_export">Export CSV</string>
+    <string name="tx_loading">Loading…</string>
+    <string name="tx_load_more">Load more</string>
+
+    <!-- Transaction detail -->
+    <string name="tx_detail_from">From</string>
+    <string name="tx_detail_to">To</string>
+    <string name="tx_detail_amount">Amount</string>
+    <string name="tx_detail_status">Status</string>
+    <string name="tx_detail_reference">Reference</string>
+    <string name="tx_detail_date">Date</string>
+    <string name="tx_detail_note">Note</string>
+    <string name="tx_detail_session">Session ID</string>
+    <string name="tx_detail_close">Close</string>
+
+    <!-- Settings -->
+    <string name="title_settings">Settings</string>
+    <string name="title_status">Status</string>
+
+    <string name="gateway_url_label">Gateway Detector Endpoint</string>
+    <string name="gateway_url_hint">https://instapay-ruddy.vercel.app/api/webhooks/instapay</string>
+    <string name="merchant_webhook_url_label">Store Webhook URL</string>
+    <string name="merchant_webhook_url_hint">Configure in web dashboard</string>
+    <string name="auth_token_label">Auth token (Bearer)</string>
+    <string name="auth_token_hint">Must match DETECT_TOKEN on the gateway</string>
+    <string name="save_button">Save</string>
+
+    <string name="permission_status_unknown">Notification access: unknown</string>
+    <string name="permission_status_granted">Notification access: granted ✓</string>
+    <string name="permission_status_denied">Notification access: not granted ✗</string>
+    <string name="grant_permission_button">Grant notification access</string>
+
+    <string name="listener_running">Listening for InstaPay notifications…</string>
+    <string name="listener_idle">Listener idle</string>
+
+    <string name="test_button">Send test notification</string>
+
+    <string name="monitored_package_label">Monitored package: com.egyptianbanks.instapay</string>
+    <string name="monitored_handle_label">Reporting payments received by: %1$s</string>
+
+    <string name="last_detection_label">Last detection</string>
+    <string name="last_detection_none">No detections yet</string>
+
+    <string name="settings_about_title">About</string>
+    <string name="settings_about_body">InstaPay Detector v2.2.2 — Merchant dashboard. Real-time payment detection via InstaPay notifications. Release build.</string>
+
+    <!-- Theme & Language preferences -->
+    <string name="pref_category_title">App Preferences</string>
+    <string name="pref_theme_label">Theme Mode</string>
+    <string name="pref_theme_light">Light</string>
+    <string name="pref_theme_dark">Dark</string>
+    <string name="pref_theme_system">System Default</string>
+    <string name="pref_lang_label">Application Language</string>
+    <string name="pref_lang_en">English</string>
+    <string name="pref_lang_ar">العربية (Arabic)</string>
+
+    <!-- Permissions Setup Popup -->
+    <string name="perm_dialog_title">Required Permissions</string>
+    <string name="perm_dialog_subtitle">To automatically detect InstaPay transfers and keep notifications running in the background, please grant the following permissions:</string>
+    <string name="perm_notification_listener_title">Notification Listener Access</string>
+    <string name="perm_notification_listener_desc">Required to read incoming InstaPay transfer notifications and confirm customer payments.</string>
+    <string name="perm_post_notifications_title">Notification Alerts (Post Notifications)</string>
+    <string name="perm_post_notifications_desc">Keeps the background detector service active and alerts you when money is received.</string>
+    <string name="perm_battery_optimization_title">Background Battery Exemption</string>
+    <string name="perm_battery_optimization_desc">Prevents Android from stopping the detector when screen is locked or asleep.</string>
+    <string name="perm_grant_btn">Grant</string>
+    <string name="perm_granted">Granted ✓</string>
+    <string name="perm_done_btn">🚀 Start Detecting Transfers</string>
+    <string name="perm_remind_later">Remind me later</string>
+
+    <!-- Transaction Status Actions -->
+    <string name="tx_action_confirm">⚡ Mark as Confirmed (Fix)</string>
+    <string name="tx_action_expire">Mark as Expired</string>
+    <string name="tx_action_cancel">Mark as Cancelled</string>
+    <string name="tx_status_confirmed_badge">✓ Payment Confirmed &amp; Webhook Dispatched</string>
+    <string name="tx_status_updated">Transaction status updated successfully</string>
+    <string name="tx_status_update_failed">Failed to update transaction status</string>
+
+    <!-- Support -->
+    <string name="support_title">Help &amp; Customer Support</string>
+    <string name="support_desc">Need assistance with gateway setup, APK detection, or transactions?</string>
+    <string name="support_whatsapp_btn">💬 WhatsApp: +201114671033</string>
+    <string name="support_email_btn">✉️ Email: instapay.payment.gateway@gmail.com</string>
+</resources>

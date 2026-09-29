@@ -1,8 +1,20 @@
 node_modules/
-.next/
 dist/
 build/
 *.log
+.env
+.env.local
+.env.*.local
+.DS_Store
+
+# Server build output
+server/dist/
+
+# Android build outputs
+.gradle/
+android/**/build/
+android/.gradle/
+local.properties
 
 # Local Netlify folder
 .netlify
