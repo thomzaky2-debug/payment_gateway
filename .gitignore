@@ -18,3 +18,7 @@ local.properties
 
 # Local Netlify folder
 .netlify
+
+# Local Deployment runtime data
+local-deploy/data/
+local-deploy/*.log
