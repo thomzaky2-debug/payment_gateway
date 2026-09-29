@@ -52,9 +52,21 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     setLoading(true);
     try {
       if (isRegister) {
+        let handle = instapayHandle.trim();
+        let paymentUrl: string | undefined = undefined;
+
+        if (handle.startsWith('http://') || handle.startsWith('https://') || handle.includes('ipn.eg')) {
+          paymentUrl = handle;
+          const match = handle.match(/ipn\.eg\/S\/([^\/\s?#]+)/i);
+          if (match && match[1]) {
+            handle = `${match[1].toLowerCase()}@instapay`;
+          }
+        }
+
         const res = await authApi.register({
           businessName: businessName.trim(),
-          instapayHandle: instapayHandle.trim(),
+          instapayHandle: handle,
+          instapayPaymentUrl: paymentUrl,
           email: email.trim(),
           password,
         });
@@ -236,7 +248,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
-                  InstaPay Handle / Address
+                  InstaPay Payment Link / Address
                 </label>
                 <div style={{ position: 'relative' }}>
                   <AtSign size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
@@ -244,19 +256,23 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                     type="text"
                     value={instapayHandle}
                     onChange={(e) => setInstapayHandle(e.target.value)}
-                    placeholder="e.g. merchant@instapay"
+                    placeholder="https://ipn.eg/S/platform/instapay/TOKEN or merchant@instapay"
                     style={{
                       width: '100%',
                       padding: '10px 14px 10px 42px',
                       backgroundColor: '#1e293b',
                       border: `1px solid ${errors.instapayHandle ? '#ef4444' : '#334155'}`,
                       borderRadius: '10px',
-                      fontSize: '13px',
+                      fontSize: '12px',
+                      fontFamily: 'monospace',
                       outline: 'none',
                       color: '#f8fafc',
                     }}
                   />
                 </div>
+                <p style={{ fontSize: '11px', color: '#94a3b8', margin: '4px 0 0 0' }}>
+                  Paste your full InstaPay payment link (e.g. <code>https://ipn.eg/S/username/instapay/TOKEN</code>) or your <code>@instapay</code> handle.
+                </p>
                 {errors.instapayHandle && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.instapayHandle}</p>}
               </div>
             </>

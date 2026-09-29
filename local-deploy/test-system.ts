@@ -11,19 +11,19 @@ async function runSystemVerification() {
   console.log('======================================================\n');
 
   let passed = 0;
-  let total = 9;
+  let total = 10;
 
   // ─── Test 1: Backend Health Check ─────────────────────────────────
   try {
     const res = await axios.get(`${BACKEND_URL}/api/health`);
     if (res.data.status === 'healthy') {
-      console.log('✅ [1/9] Backend Health API: Healthy (v2.0.0)');
+      console.log('✅ [1/10] Backend Health API: Healthy (v2.0.0)');
       passed++;
     } else {
       throw new Error(`Unexpected health status: ${JSON.stringify(res.data)}`);
     }
   } catch (err: any) {
-    console.error('❌ [1/9] Backend Health API Failed:', err.message);
+    console.error('❌ [1/10] Backend Health API Failed:', err.message);
   }
 
   // ─── Test 2: Platform Superadmin Authentication ───────────────────
@@ -34,13 +34,13 @@ async function runSystemVerification() {
     });
     if (res.data.ok && res.data.token) {
       adminToken = res.data.token;
-      console.log('✅ [2/9] Superadmin Authentication: Passed (Token issued)');
+      console.log('✅ [2/10] Superadmin Authentication: Passed (Token issued)');
       passed++;
     } else {
       throw new Error('Admin auth token missing');
     }
   } catch (err: any) {
-    console.error('❌ [2/9] Superadmin Authentication Failed:', err.message);
+    console.error('❌ [2/10] Superadmin Authentication Failed:', err.message);
   }
 
   // ─── Test 3: Superadmin Dashboard Clients & Audit ────────────────
@@ -49,16 +49,35 @@ async function runSystemVerification() {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
     if (res.data.ok && Array.isArray(res.data.clients)) {
-      console.log(`✅ [3/9] Superadmin Clients API: Passed (${res.data.clients.length} merchants loaded)`);
+      console.log(`✅ [3/10] Superadmin Clients API: Passed (${res.data.clients.length} merchants loaded)`);
       passed++;
     } else {
       throw new Error('Failed to retrieve merchants');
     }
   } catch (err: any) {
-    console.error('❌ [3/9] Superadmin Clients API Failed:', err.message);
+    console.error('❌ [3/10] Superadmin Clients API Failed:', err.message);
   }
 
-  // ─── Test 4: Merchant Login ───────────────────────────────────────
+  // ─── Test 4: Merchant Signup with InstaPay Payment Link (https://ipn.eg/S/...) ─
+  const regTestId = Date.now().toString().slice(-4);
+  try {
+    const res = await axios.post(`${BACKEND_URL}/api/auth/register`, {
+      businessName: `Store ${regTestId}`,
+      email: `merchant_${regTestId}@teststore.com`,
+      password: 'Password123!',
+      instapayHandle: 'https://ipn.eg/S/platform/instapay/TOKEN',
+    });
+    if (res.data.ok && res.data.client) {
+      console.log(`✅ [4/10] Signup with InstaPay Payment Link: Passed (URL parsed into platform@instapay)`);
+      passed++;
+    } else {
+      throw new Error('Registration failed with payment link');
+    }
+  } catch (err: any) {
+    console.error('❌ [4/10] Signup with InstaPay Payment Link Failed:', err.message);
+  }
+
+  // ─── Test 5: Merchant Login ───────────────────────────────────────
   let merchantSessionCookie = '';
   try {
     const res = await axios.post(`${BACKEND_URL}/api/auth/login`, {
@@ -70,16 +89,16 @@ async function runSystemVerification() {
       if (setCookie) {
         merchantSessionCookie = setCookie[0];
       }
-      console.log(`✅ [4/9] Merchant Login: Passed (${res.data.client.businessName})`);
+      console.log(`✅ [5/10] Merchant Login: Passed (${res.data.client.businessName})`);
       passed++;
     } else {
       throw new Error('Merchant login unsuccessful');
     }
   } catch (err: any) {
-    console.error('❌ [4/9] Merchant Login Failed:', err.message);
+    console.error('❌ [5/10] Merchant Login Failed:', err.message);
   }
 
-  // ─── Test 5: Create Checkout via Merchant API (v1) ────────────────
+  // ─── Test 6: Create Checkout via Merchant API (v1) ────────────────
   let createdSessionId = '';
   const apiKey = 'sk_test_cairo_hub_live_89412a';
   try {
@@ -98,29 +117,29 @@ async function runSystemVerification() {
     );
     if (res.data.ok && res.data.checkout?.sessionId) {
       createdSessionId = res.data.checkout.sessionId;
-      console.log(`✅ [5/9] Merchant API Checkout Creation: Passed (Session: ${createdSessionId}, 250.00 EGP)`);
+      console.log(`✅ [6/10] Merchant API Checkout Creation: Passed (Session: ${createdSessionId}, 250.00 EGP)`);
       passed++;
     } else {
       throw new Error('Failed to create checkout session');
     }
   } catch (err: any) {
-    console.error('❌ [5/9] Merchant API Checkout Creation Failed:', err.message);
+    console.error('❌ [6/10] Merchant API Checkout Creation Failed:', err.message);
   }
 
-  // ─── Test 6: Hosted Checkout Retrieval ────────────────────────────
+  // ─── Test 7: Hosted Checkout Retrieval ────────────────────────────
   try {
     const res = await axios.get(`${BACKEND_URL}/api/checkout/${createdSessionId}`);
     if (res.data.ok && res.data.checkout.status === 'PENDING') {
-      console.log(`✅ [6/9] Customer Hosted Checkout Retrieval: Passed (Status: PENDING, Amount: ${res.data.checkout.amountEgp} EGP)`);
+      console.log(`✅ [7/10] Customer Hosted Checkout Retrieval: Passed (Status: PENDING, Amount: ${res.data.checkout.amountEgp} EGP)`);
       passed++;
     } else {
       throw new Error('Hosted checkout session invalid');
     }
   } catch (err: any) {
-    console.error('❌ [6/9] Customer Hosted Checkout Retrieval Failed:', err.message);
+    console.error('❌ [7/10] Customer Hosted Checkout Retrieval Failed:', err.message);
   }
 
-  // ─── Test 7: Customer Submits/Normalizes InstaPay Username ─────────
+  // ─── Test 8: Customer Submits/Normalizes InstaPay Username ─────────
   const testId = Date.now().toString().slice(-4);
   const rawCustomerHandle = `tariq_${testId}`;
   const normalizedCustomerHandle = `tariq_${testId}@instapay`;
@@ -131,16 +150,16 @@ async function runSystemVerification() {
       senderHandle: rawCustomerHandle, // Intentionally without @instapay to test normalization
     });
     if (res.data.ok && res.data.senderHandle === normalizedCustomerHandle) {
-      console.log(`✅ [7/9] Customer Handle Submission & Normalization: Passed (Result: ${res.data.senderHandle})`);
+      console.log(`✅ [8/10] Customer Handle Submission & Normalization: Passed (Result: ${res.data.senderHandle})`);
       passed++;
     } else {
       throw new Error(`Normalization error: ${JSON.stringify(res.data)}`);
     }
   } catch (err: any) {
-    console.error('❌ [7/9] Customer Handle Submission Failed:', err.message);
+    console.error('❌ [8/10] Customer Handle Submission Failed:', err.message);
   }
 
-  // ─── Test 8: Companion Android Detector Webhook Simulation ────────
+  // ─── Test 9: Companion Android Detector Webhook Simulation ────────
   const detectToken = 'dtk_test_cairo_hub_detector_99812';
   try {
     const res = await axios.post(
@@ -159,26 +178,26 @@ async function runSystemVerification() {
       }
     );
     if (res.data.ok && res.data.matched && res.data.sessionId === createdSessionId) {
-      console.log(`✅ [8/9] Android Detector Webhook & Real-time Matching: Passed (Matched Session: ${res.data.sessionId})`);
+      console.log(`✅ [9/10] Android Detector Webhook & Real-time Matching: Passed (Matched Session: ${res.data.sessionId})`);
       passed++;
     } else {
       throw new Error(`Matching failed: ${JSON.stringify(res.data)}`);
     }
   } catch (err: any) {
-    console.error('❌ [8/9] Android Detector Webhook Failed:', err.message);
+    console.error('❌ [9/10] Android Detector Webhook Failed:', err.message);
   }
 
-  // ─── Test 9: Verify Transaction State Transitions to CONFIRMED ────
+  // ─── Test 10: Verify Transaction State Transitions to CONFIRMED ───
   try {
     const res = await axios.get(`${BACKEND_URL}/api/checkout/${createdSessionId}`);
     if (res.data.ok && res.data.checkout.status === 'CONFIRMED' && res.data.checkout.detectedRef === paymentRef) {
-      console.log(`✅ [9/9] Transaction State Verification: Confirmed (Ref: ${res.data.checkout.detectedRef})`);
+      console.log(`✅ [10/10] Transaction State Verification: Confirmed (Ref: ${res.data.checkout.detectedRef})`);
       passed++;
     } else {
       throw new Error(`Transaction state not confirmed: ${res.data.checkout?.status}`);
     }
   } catch (err: any) {
-    console.error('❌ [9/9] Transaction State Verification Failed:', err.message);
+    console.error('❌ [10/10] Transaction State Verification Failed:', err.message);
   }
 
   console.log('\n======================================================');

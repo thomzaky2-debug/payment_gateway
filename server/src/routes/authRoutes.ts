@@ -86,6 +86,29 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
     const passwordHash = hashPassword(password)
 
+    // Normalize InstaPay Payment Link & Handle
+    let finalHandle = (instapayHandle || '').trim()
+    let finalPaymentUrl = instapayPaymentUrl?.trim() || null
+
+    if (finalHandle.startsWith('http://') || finalHandle.startsWith('https://') || finalHandle.includes('ipn.eg')) {
+      if (!finalPaymentUrl) {
+        finalPaymentUrl = finalHandle
+      }
+      const match = finalHandle.match(/ipn\.eg\/S\/([^\/\s?#]+)/i)
+      if (match && match[1]) {
+        finalHandle = `${match[1].toLowerCase()}@instapay`
+      } else {
+        const fallback = finalHandle.replace(/^https?:\/\//i, '').replace(/[^a-z0-9_.-]/gi, '')
+        finalHandle = `${fallback}@instapay`
+      }
+    } else {
+      const clean = finalHandle.replace(/^@/, '').split('@')[0].toLowerCase()
+      finalHandle = `${clean}@instapay`
+      if (!finalPaymentUrl) {
+        finalPaymentUrl = `https://ipn.eg/S/${clean}/instapay/link`
+      }
+    }
+
     // Account starts as PENDING until approved by admin
     const client = await db.client.create({
       data: {
@@ -94,8 +117,8 @@ authRouter.post('/register', async (req: Request, res: Response) => {
         businessType: businessType || 'E-commerce',
         email: cleanEmail,
         passwordHash,
-        instapayHandle: instapayHandle.toLowerCase().trim(),
-        instapayPaymentUrl: instapayPaymentUrl?.trim() || null,
+        instapayHandle: finalHandle,
+        instapayPaymentUrl: finalPaymentUrl,
         whatsappNumber: whatsappNumber || null,
         approvalStatus: 'PENDING',
         isActive: false,
