@@ -323,3 +323,139 @@ adminRouter.get('/webhooks', requireAdmin, async (_req: Request, res: Response) 
     return res.status(500).json({ ok: false, error: error.message })
   }
 })
+
+// ─── Subscription Plans Management ──────────────────────────────────
+
+adminRouter.get('/plans', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const plans = await db.plan.findMany({
+      orderBy: { priceEgp: 'asc' },
+    })
+    return res.json({ ok: true, plans })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.patch('/plans', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { name, priceEgp, maxTransactions } = req.body
+    if (!name) {
+      return res.status(400).json({ ok: false, error: 'Plan name is required.' })
+    }
+
+    const data: Record<string, any> = {}
+    if (priceEgp !== undefined) data.priceEgp = Number(priceEgp)
+    if (maxTransactions !== undefined) data.maxTransactions = Number(maxTransactions)
+
+    const updated = await db.plan.update({
+      where: { name: String(name).toUpperCase() },
+      data,
+    })
+
+    await db.auditLog.create({
+      data: {
+        action: 'UPDATE_PLAN',
+        details: `Updated plan ${updated.name}: ${updated.priceEgp} EGP, max ${updated.maxTransactions} txs`,
+      },
+    })
+
+    return res.json({ ok: true, plan: updated })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+// ─── Manual Merchant Plan Assignment ────────────────────────────────
+
+adminRouter.post('/clients/:id/plan', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const { planName, customTxLimit, extendDays = 30 } = req.body
+
+    const plan = await db.plan.findUnique({ where: { name: String(planName).toUpperCase() } })
+    if (!plan && planName) {
+      return res.status(404).json({ ok: false, error: 'Specified plan does not exist.' })
+    }
+
+    const txLimit = customTxLimit !== undefined ? Number(customTxLimit) : plan?.maxTransactions ?? 1000
+    const subscriptionEndsAt = new Date(Date.now() + Number(extendDays) * 24 * 60 * 60 * 1000)
+
+    const updated = await db.client.update({
+      where: { id },
+      data: {
+        subscriptionPlan: plan?.name || String(planName).toUpperCase(),
+        txLimit,
+        isFreeTrial: false,
+        subscriptionEndsAt,
+      },
+    })
+
+    await db.auditLog.create({
+      data: {
+        action: 'OVERRIDE_MERCHANT_PLAN',
+        details: `Superadmin set plan for ${updated.businessName} to ${updated.subscriptionPlan} (Limit: ${txLimit} txs)`,
+      },
+    })
+
+    return res.json({ ok: true, client: updated })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+// ─── Broadcast / Targeted Merchant Notification ─────────────────────
+
+adminRouter.post('/notifications', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { target = 'ALL', clientId, title, message, severity = 'INFO' } = req.body
+
+    if (!title || !message) {
+      return res.status(400).json({ ok: false, error: 'Title and message are required.' })
+    }
+
+    let targetClients: { id: string }[] = []
+    if (clientId) {
+      targetClients = [{ id: clientId }]
+    } else if (target === 'ALL') {
+      targetClients = await db.client.findMany({
+        where: { isActive: true },
+        select: { id: true },
+      })
+    } else {
+      targetClients = await db.client.findMany({
+        where: { approvalStatus: target },
+        select: { id: true },
+      })
+    }
+
+    if (targetClients.length === 0) {
+      return res.status(404).json({ ok: false, error: 'No matching merchants found.' })
+    }
+
+    await db.merchantNotification.createMany({
+      data: targetClients.map((c) => ({
+        clientId: c.id,
+        title: String(title).slice(0, 150),
+        message: String(message).slice(0, 2000),
+        severity: String(severity).toUpperCase(),
+      })),
+    })
+
+    await db.auditLog.create({
+      data: {
+        action: 'BROADCAST_NOTIFICATION',
+        details: `Dispatched "${title}" (${severity}) to ${targetClients.length} merchant(s)`,
+      },
+    })
+
+    return res.json({ ok: true, count: targetClients.length, sentCount: targetClients.length })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+

@@ -99,16 +99,41 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
 
       {/* APK Setup Guide & Download Box */}
       <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', margin: '0 0 12px 0' }}>📲 Detector Companion Setup</h3>
-        <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px 0' }}>
-          The native Android Detector APK runs in the background on your payment phone, captures official Egyptian banks InstaPay push receipts, and reports them to your gateway.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+          <div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', margin: '0 0 6px 0' }}>📲 Detector Companion Setup</h3>
+            <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+              The native Android Detector APK runs in the background on your payment phone, captures official Egyptian banks InstaPay push receipts, and reports them to your gateway.
+            </p>
+          </div>
+          <a
+            href="/api/apks/detector"
+            download="InstaPay-Detector.apk"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 22px',
+              backgroundColor: '#4f46e5',
+              color: '#ffffff',
+              borderRadius: '12px',
+              fontWeight: 600,
+              fontSize: '14px',
+              textDecoration: 'none',
+              boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)',
+              cursor: 'pointer',
+            }}
+          >
+            <Download size={18} />
+            Download Detector APK (v2.0)
+          </a>
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '16px' }}>
           <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', margin: '0 0 6px 0' }}>1. Download APK</h4>
             <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-              Transfer <strong>apks/InstaPay-Detector.apk</strong> to your Android device and install it.
+              Click the download button above or download <strong>InstaPay-Detector.apk</strong> directly to your Android device and install it.
             </p>
           </div>
 

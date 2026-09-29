@@ -1,23 +1,26 @@
-import React from 'react';
 import type { Page } from '../App';
+import { useLanguage } from '../context/LanguageContext';
 
 interface SidebarProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
 }
 
-const navItems: { page: Page; label: string; emoji: string; badge?: number }[] = [
-  { page: 'overview', label: 'Overview', emoji: '📊' },
-  { page: 'transactions', label: 'Transactions', emoji: '💳' },
-  { page: 'review', label: 'Manual Review', emoji: '🛡️', badge: 3 },
-  { page: 'detector', label: 'Detector', emoji: '📱' },
-  { page: 'developers', label: 'Developers', emoji: '💻' },
-  { page: 'audit', label: 'Audit Log', emoji: '📋' },
-  { page: 'security', label: 'Security', emoji: '🔒' },
-  { page: 'settings', label: 'Settings', emoji: '⚙️' },
+const navItems: { page: Page; key: string; label: string; emoji: string; badge?: number }[] = [
+  { page: 'overview', key: 'overview', label: 'Overview', emoji: '📊' },
+  { page: 'transactions', key: 'transactions', label: 'Transactions', emoji: '💳' },
+  { page: 'review', key: 'review', label: 'Manual Review', emoji: '🛡️' },
+  { page: 'billing', key: 'billing', label: 'Plans & Billing', emoji: '💎' },
+  { page: 'detector', key: 'detector', label: 'Detector', emoji: '📱' },
+  { page: 'developers', key: 'developers', label: 'Developers', emoji: '💻' },
+  { page: 'audit', key: 'audit', label: 'Audit Log', emoji: '📋' },
+  { page: 'security', key: 'security', label: 'Security', emoji: '🔒' },
+  { page: 'settings', key: 'settings', label: 'Settings', emoji: '⚙️' },
 ];
 
 export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+  const { t, isRtl } = useLanguage();
+
   return (
     <aside className="hidden md:flex flex-col" style={{ minWidth: '256px', maxWidth: '256px', backgroundColor: '#0f172a', color: 'white' }}>
       <div style={{ padding: '24px', borderBottom: '1px solid rgba(51,65,85,0.5)' }}>
@@ -54,12 +57,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#cbd5e1'; } }}
             >
               <span style={{ fontSize: '18px' }}>{item.emoji}</span>
-              <span>{item.label}</span>
-              {item.badge && (
-                <span style={{ marginLeft: 'auto', backgroundColor: '#f59e0b', color: 'white', fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '9999px' }}>
-                  {item.badge}
-                </span>
-              )}
+              <span>{t(item.key) || item.label}</span>
             </button>
           );
         })}

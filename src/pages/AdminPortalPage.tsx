@@ -20,6 +20,11 @@ import {
   DollarSign,
   Smartphone,
   Check,
+  Download,
+  CreditCard,
+  Bell,
+  Edit2,
+  Save,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
 
@@ -65,12 +70,22 @@ export function AdminPortalPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   // Portal State
-  const [activeTab, setActiveTab] = useState<'merchants' | 'transactions' | 'audit' | 'webhooks'>('merchants');
+  const [activeTab, setActiveTab] = useState<'merchants' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications'>('merchants');
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [merchants, setMerchants] = useState<MerchantClient[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [webhookLogs, setWebhookLogs] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [editingPlan, setEditingPlan] = useState<any | null>(null);
+
+  // Notification Broadcast State
+  const [notifTarget, setNotifTarget] = useState<'ALL' | string>('ALL');
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifMessage, setNotifMessage] = useState('');
+  const [notifSeverity, setNotifSeverity] = useState<'INFO' | 'WARNING' | 'ALERT'>('INFO');
+  const [sendingNotif, setSendingNotif] = useState(false);
+
   const [loading, setLoading] = useState(false);
 
   // Filters & Search
@@ -114,12 +129,13 @@ export function AdminPortalPage() {
     if (!isAdminAuthenticated) return;
     setLoading(true);
     try {
-      const [statsRes, clientsRes, txRes, auditRes, webhooksRes] = await Promise.allSettled([
+      const [statsRes, clientsRes, txRes, auditRes, webhooksRes, plansRes] = await Promise.allSettled([
         adminApi.getStats(),
         adminApi.listClients(),
         adminApi.getTransactions(),
         adminApi.getAuditLogs(),
         adminApi.getWebhooks(),
+        adminApi.getPlans(),
       ]);
 
       if (statsRes.status === 'fulfilled' && statsRes.value?.ok) {
@@ -136,6 +152,9 @@ export function AdminPortalPage() {
       }
       if (webhooksRes.status === 'fulfilled' && webhooksRes.value?.ok) {
         setWebhookLogs(webhooksRes.value.logs);
+      }
+      if (plansRes.status === 'fulfilled' && plansRes.value?.ok) {
+        setPlans(plansRes.value.plans || []);
       }
     } catch {
       showToast('Error syncing admin records', 'error');
@@ -228,6 +247,58 @@ export function AdminPortalPage() {
       showToast(err.response?.data?.error || 'Failed to confirm transaction', 'error');
     } finally {
       setConfirmingId(null);
+    }
+  };
+
+  // Plan Management
+  const handleSavePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPlan) return;
+    try {
+      const res = await adminApi.updatePlan({
+        name: editingPlan.name,
+        priceEgp: Number(editingPlan.priceEgp),
+        maxTransactions: Number(editingPlan.maxTransactions),
+      });
+      if (res.ok) {
+        showToast(`Plan ${editingPlan.name} updated successfully!`);
+        setEditingPlan(null);
+        fetchData();
+      } else {
+        showToast(res.error || 'Failed to update plan', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to update plan', 'error');
+    }
+  };
+
+  // Broadcast Notification
+  const handleSendBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifTitle.trim() || !notifMessage.trim()) {
+      showToast('Title and message are required', 'error');
+      return;
+    }
+    setSendingNotif(true);
+    try {
+      const res = await adminApi.sendNotification({
+        target: notifTarget === 'ALL' ? 'ALL' : undefined,
+        clientId: notifTarget !== 'ALL' ? notifTarget : undefined,
+        title: notifTitle,
+        message: notifMessage,
+        severity: notifSeverity,
+      });
+      if (res.ok) {
+        showToast(`Notification broadcasted to ${res.sentCount || 1} merchant(s)`);
+        setNotifTitle('');
+        setNotifMessage('');
+      } else {
+        showToast(res.error || 'Failed to dispatch notification', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to dispatch notification', 'error');
+    } finally {
+      setSendingNotif(false);
     }
   };
 
@@ -511,6 +582,27 @@ export function AdminPortalPage() {
           </button>
 
           <a
+            href="/api/apks/admin"
+            download="InstaPay-Admin.apk"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              backgroundColor: 'rgba(124, 58, 237, 0.2)',
+              border: '1px solid rgba(124, 58, 237, 0.4)',
+              borderRadius: '8px',
+              color: '#c084fc',
+              fontSize: '13px',
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            <Download size={14} />
+            Admin APK
+          </a>
+
+          <a
             href="/"
             style={{
               padding: '8px 14px',
@@ -763,6 +855,44 @@ export function AdminPortalPage() {
             }}
           >
             <Send size={16} /> Webhook Logs ({webhookLogs.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('plans')}
+            style={{
+              padding: '8px 18px',
+              borderRadius: '10px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 600,
+              backgroundColor: activeTab === 'plans' ? '#7c3aed' : 'transparent',
+              color: activeTab === 'plans' ? '#ffffff' : '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <CreditCard size={16} /> Plans & Pricing ({plans.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('notifications')}
+            style={{
+              padding: '8px 18px',
+              borderRadius: '10px',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 600,
+              backgroundColor: activeTab === 'notifications' ? '#7c3aed' : 'transparent',
+              color: activeTab === 'notifications' ? '#ffffff' : '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <Bell size={16} /> Broadcast Notifications
           </button>
         </div>
 
@@ -1325,6 +1455,465 @@ export function AdminPortalPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ─── TAB 5: PLANS & BILLING MANAGEMENT ───────────────────── */}
+        {activeTab === 'plans' && (
+          <div>
+            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: '0 0 4px 0' }}>
+                  Subscription Tiers & Transaction Limits
+                </h3>
+                <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
+                  Configure monthly merchant tiers, pricing, and automated quota caps.
+                </p>
+              </div>
+            </div>
+
+            {/* Plans Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+              {plans.map((p) => (
+                <div
+                  key={p.name}
+                  style={{
+                    backgroundColor: '#0f172a',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '24px',
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        TIER {p.name}
+                      </span>
+                      <h4 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '4px 0 0 0' }}>
+                        {p.name}
+                      </h4>
+                    </div>
+                    <button
+                      onClick={() => setEditingPlan({ ...p })}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: 'rgba(124, 58, 237, 0.15)',
+                        border: '1px solid rgba(124, 58, 237, 0.3)',
+                        borderRadius: '8px',
+                        color: '#c084fc',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Edit2 size={13} /> Edit
+                    </button>
+                  </div>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <span style={{ fontSize: '32px', fontWeight: 900, color: '#38bdf8' }}>{p.priceEgp}</span>
+                    <span style={{ fontSize: '14px', color: '#94a3b8', marginLeft: '4px' }}>EGP / month</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                      <span style={{ color: '#94a3b8' }}>Transaction Quota:</span>
+                      <span style={{ fontWeight: 600, color: '#ffffff' }}>{p.maxTransactions.toLocaleString()} tx/mo</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                      <span style={{ color: '#94a3b8' }}>Active Subscribers:</span>
+                      <span style={{ fontWeight: 600, color: '#34d399' }}>
+                        {merchants.filter((m) => m.subscriptionPlan === p.name).length} merchants
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Edit Plan Modal */}
+            {editingPlan && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999,
+                  padding: '20px',
+                }}
+              >
+                <form
+                  onSubmit={handleSavePlan}
+                  style={{
+                    width: '100%',
+                    maxWidth: '460px',
+                    backgroundColor: '#111827',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '20px',
+                    padding: '24px',
+                    color: '#ffffff',
+                  }}
+                >
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px 0' }}>
+                    Edit {editingPlan.name} Plan
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                        Monthly Price (EGP)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editingPlan.priceEgp}
+                        onChange={(e) => setEditingPlan({ ...editingPlan, priceEgp: Number(e.target.value) })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          backgroundColor: '#1e293b',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          color: '#ffffff',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                        Monthly Transaction Limit
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingPlan.maxTransactions}
+                        onChange={(e) => setEditingPlan({ ...editingPlan, maxTransactions: Number(e.target.value) })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          backgroundColor: '#1e293b',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          color: '#ffffff',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPlan(null)}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#334155',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '8px 18px',
+                        backgroundColor: '#7c3aed',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Merchant Plan Assignment Table */}
+            <div style={{ backgroundColor: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '16px', padding: '20px' }}>
+              <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', margin: '0 0 16px 0' }}>
+                Merchant Plan Allocations & Usage
+              </h4>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
+                      <th style={{ padding: '10px 14px' }}>Business</th>
+                      <th style={{ padding: '10px 14px' }}>Current Plan</th>
+                      <th style={{ padding: '10px 14px' }}>Monthly Usage</th>
+                      <th style={{ padding: '10px 14px' }}>Quota Limit</th>
+                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {merchants.map((m) => {
+                      const usagePct = Math.min(100, Math.round(((m.txCount || 0) / (m.txLimit || 1)) * 100));
+                      return (
+                        <tr key={m.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                          <td style={{ padding: '12px 14px' }}>
+                            <div style={{ fontWeight: 600, color: '#ffffff' }}>{m.businessName}</div>
+                            <div style={{ fontSize: '12px', color: '#64748b' }}>{m.email}</div>
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <span
+                              style={{
+                                padding: '3px 10px',
+                                borderRadius: '9999px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                backgroundColor:
+                                  m.subscriptionPlan === 'ENTERPRISE'
+                                    ? 'rgba(168, 85, 247, 0.2)'
+                                    : m.subscriptionPlan === 'PRO'
+                                    ? 'rgba(59, 130, 246, 0.2)'
+                                    : 'rgba(100, 116, 139, 0.2)',
+                                color:
+                                  m.subscriptionPlan === 'ENTERPRISE'
+                                    ? '#c084fc'
+                                    : m.subscriptionPlan === 'PRO'
+                                    ? '#60a5fa'
+                                    : '#cbd5e1',
+                              }}
+                            >
+                              {m.subscriptionPlan || 'FREE'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span>{m.txCount || 0}</span>
+                              <div style={{ width: '60px', height: '6px', backgroundColor: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
+                                <div
+                                  style={{
+                                    width: `${usagePct}%`,
+                                    height: '100%',
+                                    backgroundColor: usagePct > 90 ? '#ef4444' : usagePct > 70 ? '#f59e0b' : '#10b981',
+                                  }}
+                                />
+                              </div>
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>{usagePct}%</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 14px', color: '#94a3b8' }}>
+                            {m.txLimit?.toLocaleString() || '100'} tx
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                            <select
+                              value={m.subscriptionPlan || 'FREE'}
+                              onChange={async (e) => {
+                                const newPlan = e.target.value;
+                                try {
+                                  const res = await adminApi.assignClientPlan(m.id, { planName: newPlan });
+                                  if (res.ok) {
+                                    showToast(`Plan for ${m.businessName} updated to ${newPlan}`);
+                                    fetchData();
+                                  } else {
+                                    showToast(res.error || 'Failed to assign plan', 'error');
+                                  }
+                                } catch (err: any) {
+                                  showToast(err.response?.data?.error || 'Failed to assign plan', 'error');
+                                }
+                              }}
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#1e293b',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderRadius: '6px',
+                                color: '#ffffff',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <option value="FREE">FREE</option>
+                              <option value="BASIC">BASIC</option>
+                              <option value="PRO">PRO</option>
+                              <option value="ENTERPRISE">ENTERPRISE</option>
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 6: BROADCAST NOTIFICATIONS ──────────────────────── */}
+        {activeTab === 'notifications' && (
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div
+              style={{
+                backgroundColor: '#0f172a',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '20px',
+                padding: '28px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(124, 58, 237, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Bell size={22} color="#c084fc" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                    Dispatch Merchant Notification
+                  </h3>
+                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                    Send high-priority alerts, maintenance notices, or system updates directly to merchant topbars & APKs.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+                    Target Audience
+                  </label>
+                  <select
+                    value={notifTarget}
+                    onChange={(e) => setNotifTarget(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      backgroundColor: '#1e293b',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '10px',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                    }}
+                  >
+                    <option value="ALL">📢 All Approved Merchants (Global Broadcast)</option>
+                    {merchants.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        🏢 {m.businessName} ({m.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+                    Severity / Type
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                    {(['INFO', 'WARNING', 'ALERT'] as const).map((sev) => (
+                      <button
+                        type="button"
+                        key={sev}
+                        onClick={() => setNotifSeverity(sev)}
+                        style={{
+                          padding: '10px',
+                          borderRadius: '10px',
+                          border: notifSeverity === sev ? '2px solid #7c3aed' : '1px solid rgba(255, 255, 255, 0.1)',
+                          backgroundColor:
+                            notifSeverity === sev
+                              ? 'rgba(124, 58, 237, 0.2)'
+                              : '#1e293b',
+                          color: '#ffffff',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        {sev === 'ALERT' ? '🚨 Urgent Alert' : sev === 'WARNING' ? '⚠️ Warning' : 'ℹ️ System Info'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+                    Notification Title
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Scheduled InstaPay Maintenance Tonight at 02:00 UTC"
+                    value={notifTitle}
+                    onChange={(e) => setNotifTitle(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      backgroundColor: '#1e293b',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '10px',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+                    Notification Message
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Enter full notification details for merchants..."
+                    value={notifMessage}
+                    onChange={(e) => setNotifMessage(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px',
+                      backgroundColor: '#1e293b',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '10px',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={sendingNotif}
+                  style={{
+                    marginTop: '8px',
+                    padding: '14px 20px',
+                    backgroundColor: '#7c3aed',
+                    border: 'none',
+                    borderRadius: '12px',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 8px 20px rgba(124, 58, 237, 0.35)',
+                  }}
+                >
+                  <Send size={16} />
+                  {sendingNotif ? 'Dispatching...' : 'Broadcast Notification Now'}
+                </button>
+              </form>
+            </div>
           </div>
         )}
 

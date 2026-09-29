@@ -204,4 +204,66 @@ export const adminApi = {
     const res = await api.get('/admin/webhooks', { headers })
     return res.data
   },
+  async getPlans() {
+    const token = localStorage.getItem('instapay_admin_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+    const res = await api.get('/admin/plans', { headers })
+    return res.data
+  },
+  async updatePlan(data: { name: string; priceEgp?: number; maxTransactions?: number }) {
+    const token = localStorage.getItem('instapay_admin_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+    const res = await api.patch('/admin/plans', data, { headers })
+    return res.data
+  },
+  async assignClientPlan(clientId: string, data: { planName: string; customTxLimit?: number; extendDays?: number }) {
+    const token = localStorage.getItem('instapay_admin_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+    const res = await api.post(`/admin/clients/${clientId}/plan`, data, { headers })
+    return res.data
+  },
+  async sendNotification(data: { target?: string; clientId?: string; title: string; message: string; severity?: string }) {
+    const token = localStorage.getItem('instapay_admin_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+    const res = await api.post('/admin/notifications', data, { headers })
+    return res.data
+  },
 }
+
+// ─── Plans & Subscription API ───────────────────────────────────────
+
+export const plansApi = {
+  async list() {
+    const res = await api.get('/plans')
+    return res.data
+  },
+}
+
+export const subscriptionApi = {
+  async checkout(planName: string) {
+    const res = await api.post('/subscription/checkout', { planName })
+    return res.data
+  },
+  async getStatus(sessionId: string) {
+    const res = await api.get(`/subscription/status/${sessionId}`)
+    return res.data
+  },
+}
+
+// ─── Merchant Notifications API ─────────────────────────────────────
+
+export const notificationsApi = {
+  async list() {
+    const res = await api.get('/notifications')
+    return res.data
+  },
+  async markRead(id: string) {
+    const res = await api.post(`/notifications/${id}/read`)
+    return res.data
+  },
+  async markAllRead() {
+    const res = await api.post('/notifications/read-all')
+    return res.data
+  },
+}
+

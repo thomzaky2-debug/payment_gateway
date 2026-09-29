@@ -167,6 +167,83 @@ async function runPortalsAudit() {
     }
   });
 
+  // 13. Public Subscription Plans Listing
+  await check('Public Subscription Plans (/plans)', async () => {
+    const res = await axios.get(`${BASE_URL}/plans`);
+    if (!res.data?.ok || !Array.isArray(res.data?.plans) || res.data.plans.length < 3) {
+      throw new Error('Plans listing failed or missing tiers');
+    }
+  });
+
+  // 14. Merchant Subscription Checkout
+  let subSessionId = '';
+  await check('Merchant Subscription Checkout (/subscription/checkout)', async () => {
+    const res = await axios.post(
+      `${BASE_URL}/subscription/checkout`,
+      {
+        planName: 'PRO',
+        senderHandle: 'merchant_payer@instapay',
+      },
+      { headers: { Authorization: `Bearer ${merchantToken}` } }
+    );
+    if (!res.data?.ok || !res.data?.sessionId) {
+      throw new Error('Subscription checkout failed');
+    }
+    subSessionId = res.data.sessionId;
+  });
+
+  // 15. Admin Broadcast Notification
+  await check('Admin Broadcast Notification (/admin/notifications)', async () => {
+    const res = await axios.post(
+      `${BASE_URL}/admin/notifications`,
+      {
+        title: 'Platform Maintenance Notice',
+        message: 'Upcoming maintenance window scheduled for tonight.',
+        severity: 'INFO',
+        target: 'ALL',
+      },
+      { headers: { Authorization: `Bearer ${adminToken}` } }
+    );
+    if (!res.data?.ok || res.data?.sentCount === undefined) {
+      throw new Error('Admin notification dispatch failed');
+    }
+  });
+
+  // 16. Merchant Notification Inbox & Mark Read
+  await check('Merchant Notifications Inbox (/notifications)', async () => {
+    const res = await axios.get(`${BASE_URL}/notifications`, {
+      headers: { Authorization: `Bearer ${merchantToken}` },
+    });
+    if (!res.data?.ok || !Array.isArray(res.data?.notifications)) {
+      throw new Error('Fetching notifications failed');
+    }
+    if (res.data.notifications.length > 0) {
+      const markRes = await axios.post(
+        `${BASE_URL}/notifications/read-all`,
+        {},
+        { headers: { Authorization: `Bearer ${merchantToken}` } }
+      );
+      if (!markRes.data?.ok) throw new Error('Marking notifications read failed');
+    }
+  });
+
+  // 17. Direct APK Download Verification
+  await check('APK Endpoints (/apks/detector & /apks/admin)', async () => {
+    const detectorRes = await axios.get(`${BASE_URL}/apks/detector`, {
+      responseType: 'arraybuffer',
+    });
+    if (detectorRes.status !== 200 || !detectorRes.data || detectorRes.data.length === 0) {
+      throw new Error('Detector APK download failed');
+    }
+
+    const adminRes = await axios.get(`${BASE_URL}/apks/admin`, {
+      responseType: 'arraybuffer',
+    });
+    if (adminRes.status !== 200 || !adminRes.data || adminRes.data.length === 0) {
+      throw new Error('Admin APK download failed');
+    }
+  });
+
   console.log('\n======================================================');
   console.log(`Summary: ${passed}/${total} TESTS PASSED`);
   if (passed === total) {

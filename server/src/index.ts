@@ -16,6 +16,9 @@ import { checkoutRouter } from './routes/checkoutRoutes.js'
 import { transactionRouter } from './routes/transactionRoutes.js'
 import { adminRouter } from './routes/adminRoutes.js'
 import { settingsRouter } from './routes/settingsRoutes.js'
+import { planRouter } from './routes/planRoutes.js'
+import { notificationRouter } from './routes/notificationRoutes.js'
+import { apkRouter } from './routes/apkRoutes.js'
 
 import { createRateLimiter } from './lib/rateLimiter.js'
 
@@ -92,6 +95,10 @@ app.use('/api/checkout', checkoutRouter)
 app.use('/api/transactions', transactionRouter)
 app.use('/api/admin', adminRouter)
 app.use('/api/settings', settingsRouter)
+app.use('/api/plans', planRouter)
+app.use('/api/subscription', planRouter)
+app.use('/api/notifications', notificationRouter)
+app.use('/api/apks', apkRouter)
 
 // ─── Global Error Handler ──────────────────────────────────────────
 

@@ -14,8 +14,9 @@ import { DevelopersPage } from './pages/DevelopersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { SecurityPage } from './pages/SecurityPage';
+import { BillingPage } from './pages/BillingPage';
 
-export type Page = 'overview' | 'transactions' | 'review' | 'detector' | 'developers' | 'settings' | 'audit' | 'security';
+export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'detector' | 'developers' | 'settings' | 'audit' | 'security';
 
 export interface ToastMessage {
   id: string;
@@ -110,6 +111,8 @@ function App() {
         return <TransactionsPage showToast={showToast} />;
       case 'review':
         return <ReviewPage showToast={showToast} showConfirm={showConfirm} />;
+      case 'billing':
+        return <BillingPage showToast={showToast} />;
       case 'detector':
         return <DetectorPage showToast={showToast} />;
       case 'developers':
