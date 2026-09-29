@@ -1,0 +1,221 @@
+// Multi-tenant Paymob-Style Payment Gateway — Prisma Schema (PostgreSQL for Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Platform owner (admin) ────────────────────────────────────────
+model Owner {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  dstMode      String   @default("AUTO")
+  createdAt    DateTime @default(now())
+}
+
+// ─── Merchant email verification OTPs ─────────────────────────────
+model EmailVerification {
+  id         String    @id @default(cuid())
+  email      String
+  otpHash    String
+  purpose    String    @default("MERCHANT_SIGNUP")
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, purpose, createdAt])
+  @@index([expiresAt])
+}
+
+// ─── Client / Merchant Account (Self-Service) ──────────────────────
+model Client {
+  id                 String   @id @default(cuid())
+  slug               String   @unique
+  businessName       String
+  businessType       String?
+  instapayHandle     String
+  instapayPaymentUrl String?
+
+  // Self-registration contact & credentials
+  firstName      String?
+  lastName       String?
+  whatsappNumber String?
+  email          String   @unique
+  passwordHash   String
+
+  // Authentication keys (Generated ONLY after Admin Approval)
+  apiKey                String?   @unique
+  detectToken           String?   @unique
+  apiKeyHash            String?   @unique
+  detectTokenHash       String?   @unique
+  apiKeyLastUsedAt      DateTime?
+  detectTokenLastUsedAt DateTime?
+
+  // Status: PENDING | APPROVED | REJECTED
+  approvalStatus String  @default("PENDING")
+  isActive       Boolean @default(false)
+
+  // Webhook integration
+  webhookUrl        String?
+  webhookSecret     String?
+  webhookSecretHash String?
+
+  // Settings
+  checkoutTtlMin Int @default(10)
+
+  // Subscription & Free Trial
+  subscriptionPlan   String    @default("FREE_TRIAL")
+  subscriptionEndsAt DateTime?
+  isFreeTrial        Boolean   @default(true)
+  txLimit            Int       @default(5)
+  txCount            Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions       Transaction[]
+  webhookLogs        WebhookLog[]
+  mismatchedPayments MismatchedPayment[]
+  detectorDevices    DetectorDevice[]
+  notifications      MerchantNotification[]
+
+  @@index([instapayHandle])
+  @@index([instapayPaymentUrl])
+  @@index([apiKey])
+  @@index([detectToken])
+  @@index([apiKeyHash])
+  @@index([detectTokenHash])
+}
+
+model MerchantNotification {
+  id        String    @id @default(cuid())
+  clientId  String
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  severity  String    @default("INFO")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([clientId, readAt])
+}
+
+// ─── Checkout / payment transaction ────────────────────────────────
+model Transaction {
+  id        String @id @default(cuid())
+  sessionId String @unique @default(cuid())
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  senderHandle    String
+  recipientHandle String
+
+  amountEgp   Float
+  amountCents Int?
+  currency    String @default("EGP")
+
+  status               String  @default("PENDING")
+  purpose              String  @default("CHECKOUT") // CHECKOUT | SUBSCRIPTION
+  subscriptionPlanName String?
+  note                 String?
+
+  deepLinkUrl   String
+  deepLinkToken String
+
+  detectedRef         String?
+  detectedAt          DateTime?
+  detectedAmountEgp   Float?
+  detectedAmountCents Int?
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([clientId, status, createdAt])
+  @@index([clientId, purpose, status])
+  @@index([clientId, senderHandle, amountEgp, status])
+  @@index([clientId, senderHandle, amountCents, status])
+  @@index([status, expiresAt])
+  @@index([deepLinkToken])
+  @@index([createdAt])
+}
+
+// ─── Webhook Delivery Log ──────────────────────────────────────────
+model WebhookLog {
+  id            String    @id @default(cuid())
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  url           String
+  event         String
+  eventId       String?
+  payload       String    // Stringified JSON payload
+  statusCode    Int?      // HTTP status code returned
+  response      String?   // Response body from merchant server
+  isSuccess     Boolean
+  attempt       Int       @default(1)
+  nextAttemptAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([eventId])
+  @@index([isSuccess, nextAttemptAt])
+}
+
+// ─── Administrative Audit Log ──────────────────────────────────────
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   // e.g. "APPROVE_MERCHANT", "DISABLE_MERCHANT", "UPDATE_TZ", "FORCE_CONFIRM"
+  details   String   // Text description
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ─── Unmatched / Mismatched Payment Logs ────────────────────────────
+model MismatchedPayment {
+  id           String   @id @default(cuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  senderHandle String
+  amountEgp    Float
+  amountCents  Int?
+  reference    String?
+  status       String   @default("UNMATCHED") // UNMATCHED | RESOLVED
+  createdAt    DateTime @default(now())
+
+  @@index([clientId, createdAt])
+}
+
+// ─── Android Detector Device Health ────────────────────────────────
+model DetectorDevice {
+  id             String   @id @default(cuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deviceId       String
+  appVersion     String?
+  androidVersion String?
+  lastSeenAt     DateTime @default(now())
+  lastIp         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([clientId, deviceId])
+  @@index([clientId, lastSeenAt])
+}
+
+// ─── Subscription & Pricing Plans ───────────────────────────────────
+model Plan {
+  id              String @id @default(cuid())
+  name            String @unique // FREE_TRIAL, BASIC, PRO, ENTERPRISE
+  priceEgp        Float
+  maxTransactions Int
+}
