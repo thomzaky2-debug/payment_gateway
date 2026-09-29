@@ -29,11 +29,11 @@ const revenueData = [
 ];
 
 const recentTransactions = [
-  { id: 'ORD-7842', amount: '150.00', sender: 'ahmed@instapay', status: 'PAID', time: '2 min ago' },
-  { id: 'ORD-7841', amount: '89.50', sender: 'sara.m@instapay', status: 'PAID', time: '15 min ago' },
-  { id: 'ORD-7840', amount: '250.00', sender: 'youssef@instapay', status: 'NEEDS_REVIEW', time: '32 min ago' },
-  { id: 'ORD-7839', amount: '75.00', sender: 'nour@instapay', status: 'PENDING', time: '1 hr ago' },
-  { id: 'ORD-7838', amount: '320.00', sender: 'khaled@instapay', status: 'PAID', time: '2 hrs ago' },
+  { id: 'ORD-7842', amount: '150.00', sender: 'a.hassan@instapay', status: 'PAID', time: '2 min ago' },
+  { id: 'ORD-7841', amount: '89.50', sender: 's.mahmoud@instapay', status: 'PAID', time: '15 min ago' },
+  { id: 'ORD-7840', amount: '250.00', sender: 'y.ibrahim@instapay', status: 'NEEDS_REVIEW', time: '32 min ago' },
+  { id: 'ORD-7839', amount: '75.00', sender: 'n.ali@instapay', status: 'PENDING', time: '1 hr ago' },
+  { id: 'ORD-7838', amount: '320.00', sender: 'k.fathy@instapay', status: 'PAID', time: '2 hrs ago' },
 ];
 
 export function OverviewPage({ showToast }: OverviewPageProps = {}) {

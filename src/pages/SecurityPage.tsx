@@ -11,8 +11,8 @@ interface SecurityPageProps {
 export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
   const [twoFAEnabled, setTwoFAEnabled] = useState(true);
   const [ipWhitelist, setIpWhitelist] = useState([
-    { id: 1, ip: '197.45.123.45', label: 'Office - Cairo', addedAt: '2026-09-01' },
-    { id: 2, ip: '41.33.55.77', label: 'Home - Alex', addedAt: '2026-08-15' },
+    { id: 1, ip: '197.45.123.45', label: 'Main Office', addedAt: '2026-09-01' },
+    { id: 2, ip: '41.33.55.77', label: 'Branch Office', addedAt: '2026-08-15' },
   ]);
   const [newIp, setNewIp] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -243,7 +243,7 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
             {[
               { device: 'Chrome on Windows', location: 'Cairo, Egypt', current: true },
-              { device: 'Safari on iPhone', location: 'Alexandria, Egypt', current: false },
+              { device: 'Safari on iOS', location: 'Alexandria, Egypt', current: false },
             ].map((session, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '10px' }}>
                 <div>

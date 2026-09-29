@@ -91,10 +91,10 @@ export function DetectorPage({ showToast }: DetectorPageProps = {}) {
               { label: 'Android Version', value: '14 (API 34)' },
               { label: 'Min SDK Supported', value: 'Android 8.0 (API 26)' },
               { label: 'App Version', value: '2.0.0' },
-              { label: 'Package Name', value: 'com.instapaydetector.merchant' },
+              { label: 'Package Name', value: 'com.instapay.detector' },
               { label: 'InstaPay Package', value: 'com.egyptianbanks.instapay' },
-              { label: 'Recipient Handle', value: 'merchant@instapay' },
-              { label: 'Device ID', value: 'dev_a1b2c3d4e5' },
+              { label: 'Recipient Handle', value: 'configured-handle@instapay' },
+              { label: 'Device ID', value: 'dev_8f3a2b1c4d' },
             ].map((row, i, arr) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid #f8fafc' : 'none' }}>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>{row.label}</span>

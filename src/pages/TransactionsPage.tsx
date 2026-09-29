@@ -6,16 +6,16 @@ interface TransactionsPageProps {
 }
 
 const transactions = [
-  { id: 'ORD-7842', orderId: 'INV-2024-001', amount: '150.00', sender: 'ahmed@instapay', senderLocal: 'ahmed', status: 'PAID', date: '2026-09-28 14:32', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
-  { id: 'ORD-7841', orderId: 'INV-2024-002', amount: '89.50', sender: 'sara.m@instapay', senderLocal: 'sara.m', status: 'PAID', date: '2026-09-28 14:15', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
-  { id: 'ORD-7840', orderId: 'INV-2024-003', amount: '250.00', sender: 'youssef@instapay', senderLocal: 'youssef', status: 'NEEDS_REVIEW', date: '2026-09-28 13:58', confidence: 70, method: 'local_username', matchScore: 85 },
-  { id: 'ORD-7839', orderId: 'INV-2024-004', amount: '75.00', sender: 'nour@instapay', senderLocal: 'nour', status: 'PENDING', date: '2026-09-28 13:30', confidence: 0, method: null, matchScore: 0 },
-  { id: 'ORD-7838', orderId: 'INV-2024-005', amount: '320.00', sender: 'khaled@instapay', senderLocal: 'khaled', status: 'PAID', date: '2026-09-28 12:45', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
-  { id: 'ORD-7837', orderId: 'INV-2024-006', amount: '180.00', sender: 'fatma@instapay', senderLocal: 'fatma', status: 'PAID', date: '2026-09-28 11:20', confidence: 85, method: 'local_username', matchScore: 85 },
-  { id: 'ORD-7836', orderId: 'INV-2024-007', amount: '95.00', sender: 'omar.k@instapay', senderLocal: 'omar.k', status: 'REJECTED', date: '2026-09-28 10:15', confidence: 40, method: null, matchScore: 40 },
-  { id: 'ORD-7835', orderId: 'INV-2024-008', amount: '450.00', sender: 'mariam@instapay', senderLocal: 'mariam', status: 'PAID', date: '2026-09-27 18:30', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
-  { id: 'ORD-7834', orderId: 'INV-2024-009', amount: '60.00', sender: 'hassan@instapay', senderLocal: 'hassan', status: 'EXPIRED', date: '2026-09-27 16:00', confidence: 0, method: null, matchScore: 0 },
-  { id: 'ORD-7833', orderId: 'INV-2024-010', amount: '200.00', sender: 'layla@instapay', senderLocal: 'layla', status: 'PAID', date: '2026-09-27 14:22', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
+  { id: 'ORD-7842', orderId: 'INV-2024-001', amount: '150.00', sender: 'a.hassan@instapay', senderLocal: 'a.hassan', status: 'PAID', date: '2026-09-28 14:32', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
+  { id: 'ORD-7841', orderId: 'INV-2024-002', amount: '89.50', sender: 's.mahmoud@instapay', senderLocal: 's.mahmoud', status: 'PAID', date: '2026-09-28 14:15', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
+  { id: 'ORD-7840', orderId: 'INV-2024-003', amount: '250.00', sender: 'y.ibrahim@instapay', senderLocal: 'y.ibrahim', status: 'NEEDS_REVIEW', date: '2026-09-28 13:58', confidence: 70, method: 'local_username', matchScore: 85 },
+  { id: 'ORD-7839', orderId: 'INV-2024-004', amount: '75.00', sender: 'n.ali@instapay', senderLocal: 'n.ali', status: 'PENDING', date: '2026-09-28 13:30', confidence: 0, method: null, matchScore: 0 },
+  { id: 'ORD-7838', orderId: 'INV-2024-005', amount: '320.00', sender: 'k.fathy@instapay', senderLocal: 'k.fathy', status: 'PAID', date: '2026-09-28 12:45', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
+  { id: 'ORD-7837', orderId: 'INV-2024-006', amount: '180.00', sender: 'f.nasser@instapay', senderLocal: 'f.nasser', status: 'PAID', date: '2026-09-28 11:20', confidence: 85, method: 'local_username', matchScore: 85 },
+  { id: 'ORD-7836', orderId: 'INV-2024-007', amount: '95.00', sender: 'o.khaled@instapay', senderLocal: 'o.khaled', status: 'REJECTED', date: '2026-09-28 10:15', confidence: 40, method: null, matchScore: 40 },
+  { id: 'ORD-7835', orderId: 'INV-2024-008', amount: '450.00', sender: 'm.said@instapay', senderLocal: 'm.said', status: 'PAID', date: '2026-09-27 18:30', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
+  { id: 'ORD-7834', orderId: 'INV-2024-009', amount: '60.00', sender: 'h.amin@instapay', senderLocal: 'h.amin', status: 'EXPIRED', date: '2026-09-27 16:00', confidence: 0, method: null, matchScore: 0 },
+  { id: 'ORD-7833', orderId: 'INV-2024-010', amount: '200.00', sender: 'l.farouk@instapay', senderLocal: 'l.farouk', status: 'PAID', date: '2026-09-27 14:22', confidence: 95, method: 'exact_sender_handle', matchScore: 95 },
 ];
 
 const statusColors: Record<string, { bg: string; text: string }> = {

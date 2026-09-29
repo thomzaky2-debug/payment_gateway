@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Page } from '../App';
-import { LogOut } from 'lucide-react';
+import { LogOut, User } from 'lucide-react';
 
 interface TopbarProps {
   currentPage: Page;
@@ -26,7 +26,7 @@ export function Topbar({ currentPage, onLogout }: TopbarProps) {
     >
       <div>
         <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>{pageTitles[currentPage]}</h1>
-        <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Welcome back, Merchant</p>
+        <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Payment Gateway Dashboard</p>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -54,10 +54,12 @@ export function Topbar({ currentPage, onLogout }: TopbarProps) {
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingLeft: '16px', borderLeft: '1px solid #e2e8f0' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '600', fontSize: '14px' }}>M</div>
+          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '600', fontSize: '14px' }}>
+            <User size={18} />
+          </div>
           <div>
-            <p style={{ fontSize: '14px', fontWeight: 500, color: '#334155', margin: 0 }}>Merchant</p>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>merchant@instapay</p>
+            <p style={{ fontSize: '14px', fontWeight: 500, color: '#334155', margin: 0 }}>Account</p>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Manage Profile</p>
           </div>
         </div>
       </div>

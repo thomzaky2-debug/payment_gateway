@@ -3,16 +3,16 @@ import { useState } from 'react';
 import { FileText, Filter, Download, User, Key, Shield, CreditCard, Settings } from 'lucide-react';
 
 const auditLogs = [
-  { id: 1, action: 'checkout.created', user: 'merchant@instapay.com', ip: '197.45.123.45', timestamp: '2026-09-28 14:32:15', details: 'Created checkout ORD-7842 for 150.00 EGP', category: 'transaction' },
+  { id: 1, action: 'checkout.created', user: 'admin@company.com', ip: '197.45.123.45', timestamp: '2026-09-28 14:32:15', details: 'Created checkout ORD-7842 for 150.00 EGP', category: 'transaction' },
   { id: 2, action: 'checkout.paid', user: 'system', ip: '10.0.0.1', timestamp: '2026-09-28 14:32:18', details: 'Payment matched for ORD-7842 via detector', category: 'transaction' },
-  { id: 3, action: 'api_key.viewed', user: 'merchant@instapay.com', ip: '197.45.123.45', timestamp: '2026-09-28 14:30:00', details: 'API key revealed in dashboard', category: 'security' },
-  { id: 4, action: 'webhook.sent', user: 'system', ip: '10.0.0.1', timestamp: '2026-09-28 14:32:20', details: 'Webhook delivered to https://store.com/api/webhook (200)', category: 'webhook' },
-  { id: 5, action: 'login.success', user: 'merchant@instapay.com', ip: '197.45.123.45', timestamp: '2026-09-28 14:00:00', details: 'Successful login from Chrome on Windows', category: 'auth' },
-  { id: 6, action: 'login.failed', user: 'unknown@example.com', ip: '45.67.89.12', timestamp: '2026-09-28 13:45:22', details: 'Failed login attempt - invalid password', category: 'auth' },
-  { id: 7, action: 'settings.updated', user: 'merchant@instapay.com', ip: '197.45.123.45', timestamp: '2026-09-28 12:30:00', details: 'Updated webhook URL', category: 'settings' },
-  { id: 8, action: 'detector.heartbeat', user: 'system', ip: '41.33.55.77', timestamp: '2026-09-28 14:17:00', details: 'Heartbeat received from device dev_a1b2c3', category: 'system' },
+  { id: 3, action: 'api_key.viewed', user: 'admin@company.com', ip: '197.45.123.45', timestamp: '2026-09-28 14:30:00', details: 'API key revealed in dashboard', category: 'security' },
+  { id: 4, action: 'webhook.sent', user: 'system', ip: '10.0.0.1', timestamp: '2026-09-28 14:32:20', details: 'Webhook delivered to https://yourdomain.com/api/webhook (200)', category: 'webhook' },
+  { id: 5, action: 'login.success', user: 'admin@company.com', ip: '197.45.123.45', timestamp: '2026-09-28 14:00:00', details: 'Successful login from Chrome on Windows', category: 'auth' },
+  { id: 6, action: 'login.failed', user: 'unknown@external.com', ip: '45.67.89.12', timestamp: '2026-09-28 13:45:22', details: 'Failed login attempt - invalid password', category: 'auth' },
+  { id: 7, action: 'settings.updated', user: 'admin@company.com', ip: '197.45.123.45', timestamp: '2026-09-28 12:30:00', details: 'Updated webhook URL', category: 'settings' },
+  { id: 8, action: 'detector.heartbeat', user: 'system', ip: '41.33.55.77', timestamp: '2026-09-28 14:17:00', details: 'Heartbeat received from device dev_8f3a2b', category: 'system' },
   { id: 9, action: 'checkout.expired', user: 'system', ip: '10.0.0.1', timestamp: '2026-09-28 11:00:00', details: 'Checkout ORD-7834 expired (no payment received)', category: 'transaction' },
-  { id: 10, action: 'api_key.regenerated', user: 'merchant@instapay.com', ip: '197.45.123.45', timestamp: '2026-09-27 16:00:00', details: 'API key regenerated - old key revoked', category: 'security' },
+  { id: 10, action: 'api_key.regenerated', user: 'admin@company.com', ip: '197.45.123.45', timestamp: '2026-09-27 16:00:00', details: 'API key regenerated - old key revoked', category: 'security' },
 ];
 
 const categoryIcons: Record<string, any> = {

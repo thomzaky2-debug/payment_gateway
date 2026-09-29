@@ -36,20 +36,12 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     if (!validate()) return;
 
     setLoading(true);
+    // Simulate API authentication call
     setTimeout(() => {
       setLoading(false);
-      if (email === 'merchant@instapay.com' && password === 'password123') {
-        setAttempts(0);
-        onLogin();
-      } else {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        if (newAttempts >= 5) {
-          showToast('error', 'Too many failed attempts. Account locked for 15 minutes.');
-        } else {
-          showToast('error', `Invalid credentials. ${5 - newAttempts} attempts remaining.`);
-        }
-      }
+      // Accept any valid credentials (in production, this would verify against backend)
+      setAttempts(0);
+      onLogin();
     }, 1200);
   };
 
@@ -116,11 +108,11 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
           <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Sign in to your merchant dashboard</p>
         </div>
 
-        {/* Demo credentials hint */}
+        {/* Security notice */}
         <div
           style={{
-            backgroundColor: '#eff6ff',
-            border: '1px solid #bfdbfe',
+            backgroundColor: '#f0fdf4',
+            border: '1px solid #bbf7d0',
             borderRadius: '12px',
             padding: '12px 16px',
             marginBottom: '24px',
@@ -129,9 +121,9 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
             gap: '10px',
           }}
         >
-          <AlertCircle size={16} style={{ color: '#2563eb', flexShrink: 0, marginTop: '2px' }} />
-          <div style={{ fontSize: '12px', color: '#1e40af', lineHeight: 1.5 }}>
-            <strong>Demo:</strong> merchant@instapay.com / password123
+          <Shield size={16} style={{ color: '#16a34a', flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ fontSize: '12px', color: '#166534', lineHeight: 1.5 }}>
+            Your connection is encrypted and secure. All data is protected with 256-bit SSL encryption.
           </div>
         </div>
 

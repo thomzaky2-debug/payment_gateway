@@ -14,8 +14,8 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps =
   const [testResult, setTestResult] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [activeTab, setActiveTab] = useState<'keys' | 'webhooks' | 'docs'>('keys');
 
-  const apiKey = 'ipg_live_sk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6';
-  const webhookSecret = 'whsec_x9y8z7w6v5u4t3s2r1q0p9o8n7m6l5';
+  const apiKey = 'ipg_live_sk_7f8a9b2c4d6e1f3a5b8c9d2e4f6a1b3c';
+  const webhookSecret = 'whsec_9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b';
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -139,7 +139,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps =
             <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '16px', overflowX: 'auto', position: 'relative' }}>
               <button
                 onClick={() => {
-                  const code = `curl -X POST https://api.instapay-gateway.com/v1/checkouts \\\n  -H "Authorization: Bearer ${apiKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "amountPiastres": 15000,\n    "currency": "EGP",\n    "merchantOrderId": "INV-2024-001",\n    "expectedSenderHandle": "customer@instapay",\n    "expiresIn": 3600\n  }'`;
+                  const code = `curl -X POST https://api.instapay-gateway.com/v1/checkouts \\\n  -H "Authorization: Bearer ${apiKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "amountPiastres": 15000,\n    "currency": "EGP",\n    "merchantOrderId": "INV-2024-001",\n    "expectedSenderHandle": "customer-handle@instapay",\n    "expiresIn": 3600\n  }'`;
                   handleCopy(code, 'curl-example');
                 }}
                 style={{
@@ -160,7 +160,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps =
     "amountPiastres": 15000,
     "currency": "EGP",
     "merchantOrderId": "INV-2024-001",
-    "expectedSenderHandle": "customer@instapay",
+    "expectedSenderHandle": "customer-handle@instapay",
     "expiresIn": 3600
   }'`}
               </pre>
@@ -189,7 +189,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps =
               </span>
             </div>
             <div style={{ backgroundColor: '#f8fafc', borderRadius: '12px', padding: '12px 16px', fontFamily: 'monospace', fontSize: '14px', color: '#334155', marginBottom: '16px' }}>
-              https://your-store.com/api/webhooks/instapay
+              https://yourdomain.com/api/webhooks/instapay
             </div>
 
             {/* Webhook Secret */}
@@ -229,7 +229,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps =
               <pre style={{ fontSize: '12px', color: '#cbd5e1', fontFamily: 'monospace', margin: 0, lineHeight: 1.6 }}>
 {`{
   "event": "checkout.paid",
-  "checkoutId": "chk_test_123",
+  "checkoutId": "chk_8f3a2b1c",
   "merchantOrderId": "INV-2024-001",
   "status": "PAID",
   "amountPiastres": "15000",
@@ -347,15 +347,15 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps =
             <div style={{ backgroundColor: '#0f172a', borderRadius: '12px', padding: '16px', overflowX: 'auto' }}>
               <pre style={{ fontSize: '12px', color: '#cbd5e1', fontFamily: 'monospace', margin: 0, lineHeight: 1.6 }}>
 {`{
-  "id": "chk_a1b2c3d4",
+  "id": "chk_8f3a2b1c",
   "merchantOrderId": "INV-2024-001",
   "status": "PENDING",
   "amountPiastres": "15000",
   "currency": "EGP",
-  "expectedSenderHandle": "customer@instapay",
+  "expectedSenderHandle": "customer-handle@instapay",
   "expiresAt": "2026-09-28T15:32:00.000Z",
   "createdAt": "2026-09-28T14:32:00.000Z",
-  "paymentUrl": "https://pay.instapay-gateway.com/chk_a1b2c3d4"
+  "paymentUrl": "https://pay.instapay-gateway.com/chk_8f3a2b1c"
 }`}
               </pre>
             </div>

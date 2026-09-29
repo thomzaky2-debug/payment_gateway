@@ -10,15 +10,15 @@ export function SettingsPage({ showToast }: SettingsPageProps = {}) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: 'Merchant Admin',
-    email: 'merchant@instapay.com',
-    phone: '+20 100 123 4567',
+    fullName: '',
+    email: '',
+    phone: '',
     timezone: 'Africa/Cairo (UTC+2)',
-    businessName: 'My Store LLC',
-    businessEmail: 'billing@mystore.com',
-    businessPhone: '+20 2 1234 5678',
-    taxId: '123-456-789',
-    address: '123 Tahrir Square, Cairo, Egypt',
+    businessName: '',
+    businessEmail: '',
+    businessPhone: '',
+    taxId: '',
+    address: '',
   });
 
   const handleSave = () => {
@@ -156,7 +156,7 @@ export function SettingsPage({ showToast }: SettingsPageProps = {}) {
                   <span style={{ fontSize: '16px' }}>🌐</span>
                   <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e40af' }}>InstaPay Handle</span>
                 </div>
-                <p style={{ fontSize: '14px', color: '#1e40af', fontFamily: 'monospace', margin: '0 0 4px 0' }}>merchant@instapay</p>
+                <p style={{ fontSize: '14px', color: '#1e40af', fontFamily: 'monospace', margin: '0 0 4px 0' }}>{formData.businessEmail ? formData.businessEmail.split('@')[0] + '@instapay' : 'Not configured'}</p>
                 <p style={{ fontSize: '12px', color: '#3b82f6', margin: 0 }}>This is the handle customers send payments to</p>
               </div>
             </div>
@@ -244,7 +244,7 @@ export function SettingsPage({ showToast }: SettingsPageProps = {}) {
                 </div>
                 <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '12px', border: '1px solid #e2e8f0' }}>
                   <p style={{ fontSize: '14px', fontFamily: 'monospace', color: '#1e293b', margin: 0 }}>**** **** **** 4567</p>
-                  <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>Commercial International Bank - Egypt</p>
+                  <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0' }}>Bank Account - Egypt</p>
                 </div>
               </div>
 
