@@ -49,7 +49,7 @@
     <string name="title_status">الحالة</string>
 
     <string name="gateway_url_label">نقطة استقبال الكاشف (Gateway Endpoint)</string>
-    <string name="gateway_url_hint">https://instapay-ruddy.vercel.app/api/webhooks/instapay</string>
+    <string name="gateway_url_hint">https://api.yourdomain.com/api/webhooks/instapay</string>
     <string name="merchant_webhook_url_label">رابط الـ Webhook الخاص بمتجرك</string>
     <string name="merchant_webhook_url_hint">يتم ضبطه من لوحة التحكم</string>
     <string name="auth_token_label">رمز المصادقة (Auth token)</string>

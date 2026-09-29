@@ -106,7 +106,7 @@
                             android:textSize="12sp"
                             android:maxLines="1"
                             android:ellipsize="middle"
-                            android:text="https://instapay-ruddy.vercel.app" />
+                            android:text="Configured Gateway" />
                     </LinearLayout>
 
                     <LinearLayout

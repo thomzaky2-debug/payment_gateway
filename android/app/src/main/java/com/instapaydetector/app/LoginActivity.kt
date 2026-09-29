@@ -41,11 +41,18 @@ class LoginActivity : AppCompatActivity() {
         binding.tvBuildInfo.text = "Build ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
         config = GatewayConfig.get(this)
+        binding.etServerUrl.setText(config.serverBaseUrl)
 
-        binding.btnSendOtp.setOnClickListener { requestOtp(config) }
+        binding.btnSendOtp.setOnClickListener { 
+            val serverUrl = binding.etServerUrl.text?.toString()?.trim()?.trimEnd('/') ?: ""
+            if (serverUrl.isNotBlank()) config.serverBaseUrl = serverUrl
+            requestOtp(config) 
+        }
         updateOtpUi(false)
 
         binding.btnLogin.setOnClickListener {
+            val serverUrl = binding.etServerUrl.text?.toString()?.trim()?.trimEnd('/') ?: ""
+            if (serverUrl.isNotBlank()) config.serverBaseUrl = serverUrl
             handleLogin(config)
         }
     }
@@ -108,7 +115,7 @@ class LoginActivity : AppCompatActivity() {
                         showError("[v${BuildConfig.VERSION_NAME}] Verification code sent to your email.")
                         binding.btnLogin.isEnabled = true
                     } else if (apiKey.isNotEmpty() && detectToken.isNotEmpty() && instapayHandle.isNotEmpty()) {
-                        config.gatewayUrl = "https://instapay-ruddy.vercel.app/api/webhooks/instapay"
+                        config.gatewayUrl = "${config.serverBaseUrl}/api/webhooks/instapay"
                         config.dashboardApiKey = apiKey
                         config.authToken = detectToken
                         config.merchantHandle = instapayHandle
@@ -237,8 +244,9 @@ class LoginActivity : AppCompatActivity() {
             if (otp.isNotBlank()) put("otp", otp)
         }
         val requestBody = jsonBody.toString().toRequestBody(mediaType)
+        val baseUrl = config.serverBaseUrl
         val request = Request.Builder()
-            .url("https://instapay-ruddy.vercel.app/api/auth/apk-login")
+            .url("$baseUrl/api/auth/apk-login")
             .post(requestBody)
             .build()
 

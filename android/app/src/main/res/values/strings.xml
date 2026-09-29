@@ -49,7 +49,7 @@
     <string name="title_status">Status</string>
 
     <string name="gateway_url_label">Gateway Detector Endpoint</string>
-    <string name="gateway_url_hint">https://instapay-ruddy.vercel.app/api/webhooks/instapay</string>
+    <string name="gateway_url_hint">https://api.yourdomain.com/api/webhooks/instapay</string>
     <string name="merchant_webhook_url_label">Store Webhook URL</string>
     <string name="merchant_webhook_url_hint">Configure in web dashboard</string>
     <string name="auth_token_label">Auth token (Bearer)</string>

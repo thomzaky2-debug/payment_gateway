@@ -28,6 +28,23 @@ class GatewayConfig private constructor(ctx: Context) {
         )
     }
 
+    var serverBaseUrl: String
+        get() {
+            val saved = prefs.getString(KEY_SERVER_BASE_URL, "") ?: ""
+            if (saved.isNotEmpty()) return saved
+            val currentGw = gatewayUrl
+            return if (currentGw.contains("/api/webhooks/instapay")) {
+                currentGw.replace("/api/webhooks/instapay", "")
+            } else {
+                DEFAULT_SERVER_BASE_URL
+            }
+        }
+        set(value) {
+            val normalized = value.trim().trimEnd('/')
+            prefs.edit().putString(KEY_SERVER_BASE_URL, normalized).apply()
+            gatewayUrl = "$normalized/api/webhooks/instapay"
+        }
+
     var gatewayUrl: String
         get() = prefs.getString(KEY_URL, DEFAULT_URL) ?: DEFAULT_URL
         set(value) {
@@ -131,6 +148,7 @@ class GatewayConfig private constructor(ctx: Context) {
 
     companion object {
         private const val FILE_NAME = "gateway_config.xml"
+        private const val KEY_SERVER_BASE_URL = "server_base_url"
         private const val KEY_URL = "gateway_url"
         private const val KEY_TOKEN = "auth_token"
         private const val KEY_DASHBOARD_API_KEY = "dashboard_api_key"
@@ -144,10 +162,10 @@ class GatewayConfig private constructor(ctx: Context) {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
         private const val KEY_PENDING_VERIFICATION = "pending_verification"
 
-        private const val DEFAULT_URL =
-            "https://instapay-ruddy.vercel.app/api/webhooks/instapay"
+        private const val DEFAULT_SERVER_BASE_URL = "http://10.0.2.2:3001"
+        private const val DEFAULT_URL = "$DEFAULT_SERVER_BASE_URL/api/webhooks/instapay"
         private const val DEFAULT_TOKEN = "instapay-sandbox-detector-token-2026"
-        private const val DEFAULT_MERCHANT_HANDLE = "mohammedshabana77@instapay"
+        private const val DEFAULT_MERCHANT_HANDLE = "merchant@instapay"
 
         @Volatile
         private var instance: GatewayConfig? = null

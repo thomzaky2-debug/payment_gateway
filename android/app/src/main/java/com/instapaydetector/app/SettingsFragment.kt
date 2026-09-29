@@ -57,7 +57,7 @@ class SettingsFragment : Fragment() {
         updateSummaryHeader()
         loadDashboardSnapshot()
         binding.openDashboardButton.setOnClickListener {
-            val dashboardUrl = "https://instapay-ruddy.vercel.app/dashboard"
+            val dashboardUrl = "${config.serverBaseUrl}/dashboard"
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(dashboardUrl)))
         }
         binding.grantPermissionButton.setOnClickListener { openNotificationAccessSettings() }
@@ -67,7 +67,7 @@ class SettingsFragment : Fragment() {
             config.isLoggedIn = false
             // Reset to defaults
             config.authToken = "instapay-sandbox-detector-token-2026"
-            config.merchantHandle = "mohammedshabana77@instapay"
+            config.merchantHandle = "merchant@instapay"
             config.merchantBusinessName = ""
             config.merchantWebhookUrl = ""
             config.merchantPaymentUrl = ""
