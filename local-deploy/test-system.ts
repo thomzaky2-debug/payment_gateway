@@ -58,17 +58,30 @@ async function runSystemVerification() {
     console.error('❌ [3/10] Superadmin Clients API Failed:', err.message);
   }
 
-  // ─── Test 4: Merchant Signup with InstaPay Payment Link (https://ipn.eg/S/...) ─
+  // ─── Test 4: Merchant Signup with Email OTP Verification & Payment Link ─
   const regTestId = Date.now().toString().slice(-4);
+  const testSignupEmail = `merchant_${regTestId}@teststore.com`;
   try {
+    // 4a. Request Email OTP
+    const otpRes = await axios.post(`${BACKEND_URL}/api/auth/email-otp`, {
+      email: testSignupEmail,
+      purpose: 'MERCHANT_SIGNUP',
+    });
+    if (!otpRes.data.ok || !otpRes.data.verificationId) {
+      throw new Error('Failed to generate signup OTP');
+    }
+
+    // 4b. Register with verified OTP
     const res = await axios.post(`${BACKEND_URL}/api/auth/register`, {
       businessName: `Store ${regTestId}`,
-      email: `merchant_${regTestId}@teststore.com`,
+      email: testSignupEmail,
       password: 'Password123!',
       instapayHandle: 'https://ipn.eg/S/platform/instapay/TOKEN',
+      verificationId: otpRes.data.verificationId,
+      otp: otpRes.data.devOtp,
     });
     if (res.data.ok && res.data.client) {
-      console.log(`✅ [4/10] Signup with InstaPay Payment Link: Passed (URL parsed into platform@instapay)`);
+      console.log(`✅ [4/10] Signup with Email OTP Verification & Link: Passed (URL parsed into platform@instapay)`);
       passed++;
     } else {
       throw new Error('Registration failed with payment link');
@@ -77,19 +90,30 @@ async function runSystemVerification() {
     console.error('❌ [4/10] Signup with InstaPay Payment Link Failed:', err.message);
   }
 
-  // ─── Test 5: Merchant Login ───────────────────────────────────────
+  // ─── Test 5: Merchant Two-Step OTP Login ──────────────────────────
   let merchantSessionCookie = '';
   try {
-    const res = await axios.post(`${BACKEND_URL}/api/auth/login`, {
+    let res = await axios.post(`${BACKEND_URL}/api/auth/login`, {
       email: 'merchant@localtest.com',
       password: 'MerchantPassword123!',
     });
+
+    if (res.data.ok && res.data.otpRequired) {
+      // Step 2: verify the email OTP
+      res = await axios.post(`${BACKEND_URL}/api/auth/login`, {
+        email: 'merchant@localtest.com',
+        password: 'MerchantPassword123!',
+        verificationId: res.data.verificationId,
+        otp: res.data.devOtp,
+      });
+    }
+
     if (res.data.ok && res.data.client) {
       const setCookie = res.headers['set-cookie'];
       if (setCookie) {
         merchantSessionCookie = setCookie[0];
       }
-      console.log(`✅ [5/10] Merchant Login: Passed (${res.data.client.businessName})`);
+      console.log(`✅ [5/10] Merchant Two-Step OTP Login: Passed (${res.data.client.businessName})`);
       passed++;
     } else {
       throw new Error('Merchant login unsuccessful');

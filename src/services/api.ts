@@ -34,8 +34,8 @@ try {
 // ─── Auth API ───────────────────────────────────────────────────────
 
 export const authApi = {
-  async sendOtp(email: string) {
-    const res = await api.post('/auth/email-otp', { email })
+  async sendOtp(email: string, purpose: 'MERCHANT_SIGNUP' | 'MERCHANT_LOGIN' | 'PASSWORD_RESET' = 'MERCHANT_SIGNUP') {
+    const res = await api.post('/auth/email-otp', { email, purpose })
     return res.data
   },
   async register(data: {
@@ -46,16 +46,25 @@ export const authApi = {
     instapayHandle: string
     instapayPaymentUrl?: string
     whatsappNumber?: string
+    verificationId?: string
     otp?: string
   }) {
     const res = await api.post('/auth/register', data)
     return res.data
   },
-  async login(email: string, password: string) {
-    const res = await api.post('/auth/login', { email, password })
+  async login(email: string, password: string, verificationId?: string, otp?: string, skipOtp?: boolean) {
+    const res = await api.post('/auth/login', { email, password, verificationId, otp, skipOtp })
     if (res.data?.token) {
       setAuthToken(res.data.token)
     }
+    return res.data
+  },
+  async resetPasswordRequest(email: string) {
+    const res = await api.post('/auth/password-reset/request', { email })
+    return res.data
+  },
+  async resetPasswordConfirm(data: { email: string; verificationId: string; otp: string; password: string }) {
+    const res = await api.post('/auth/password-reset/confirm', data)
     return res.data
   },
   async getSession() {

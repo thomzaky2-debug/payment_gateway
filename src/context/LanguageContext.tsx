@@ -55,6 +55,20 @@ const translations: Record<Language, Record<string, string>> = {
     notifications: 'Notifications',
     no_notifications: 'No new notifications',
     mark_all_read: 'Mark all as read',
+
+    // Auth & OTP
+    sign_in: 'Sign In',
+    register: 'Register',
+    email: 'Email Address',
+    password: 'Password',
+    verification_code: 'Verification Code (OTP)',
+    send_code: 'Send Code',
+    verify_and_login: 'Verify & Sign In',
+    verify_and_register: 'Verify & Complete Registration',
+    code_sent_to: 'We sent a 6-digit verification code to',
+    resend_code: 'Resend Code',
+    back_to_login: 'Back to Sign In',
+    otp_help_note: 'Check your email inbox or spam folder for your 6-digit code.',
   },
   ar: {
     // Nav
@@ -101,6 +115,20 @@ const translations: Record<Language, Record<string, string>> = {
     notifications: 'الإشعارات',
     no_notifications: 'لا توجد إشعارات جديدة',
     mark_all_read: 'تحديد الكل كمقروء',
+
+    // Auth & OTP
+    sign_in: 'تسجيل الدخول',
+    register: 'إنشاء حساب جديد',
+    email: 'البريد الإلكتروني',
+    password: 'كلمة المرور',
+    verification_code: 'رمز التحقق (OTP)',
+    send_code: 'إرسال الرمز',
+    verify_and_login: 'تحقق وتأكيد الدخول',
+    verify_and_register: 'تحقق واستكمال التسجيل',
+    code_sent_to: 'أرسلنا رمز تحقق مكون من 6 أرقام إلى',
+    resend_code: 'إعادة إرسال الرمز',
+    back_to_login: 'العودة لتسجيل الدخول',
+    otp_help_note: 'تحقق من صندوق الوارد أو الرسائل غير المرغوب فيها للرمز المكون من 6 أرقام.',
   },
 };
 
