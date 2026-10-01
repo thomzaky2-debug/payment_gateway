@@ -70,6 +70,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
+  const [lastNotifRefreshedAt, setLastNotifRefreshedAt] = useState<Date>(new Date());
   const [, setTick] = useState(0);
 
   // General Gateway settings
@@ -200,6 +201,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
       if (res?.ok) {
         setNotifications(res.notifications || []);
       }
+      setLastNotifRefreshedAt(new Date());
     } catch {
       // silently ignore or notify if needed
     } finally {
@@ -291,6 +293,25 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
       if (diffSeconds < 60) return isRtl ? `منذ ${diffSeconds} ث` : `${diffSeconds}s ago`;
       if (diffSeconds < 3600) return isRtl ? `منذ ${Math.floor(diffSeconds / 60)} د` : `${Math.floor(diffSeconds / 60)}m ago`;
       return isRtl ? `منذ ${Math.floor(diffSeconds / 3600)} س` : `${Math.floor(diffSeconds / 3600)}h ago`;
+    } catch {
+      return isoString;
+    }
+  };
+
+  const formatFullTimestamp = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      const dateStr = date.toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+      const timeStr = date.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      return `${dateStr} • ${timeStr}`;
     } catch {
       return isoString;
     }
@@ -1393,8 +1414,33 @@ function verify_webhook($payload, $signatureHeader, $secret) {
                     </div>
                   </div>
 
-                  {/* Filter & Action Buttons */}
+                  {/* Filter & Action Buttons with Live Synced Timestamp */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {/* Live Timestamp for Merchant Notification Inbox */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '5px 12px',
+                      borderRadius: '8px',
+                      backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#eff6ff',
+                      border: isDark ? '1px solid rgba(37, 99, 235, 0.25)' : '1px solid #bfdbfe',
+                      fontSize: '11.5px',
+                      color: isDark ? '#60a5fa' : '#1d4ed8',
+                      fontWeight: 600,
+                    }}>
+                      <Clock size={13} color="#3b82f6" />
+                      <span>
+                        {isRtl ? 'آخر تحديث للصندوق: ' : 'Inbox Synced: '}
+                        <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                          {lastNotifRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </strong>
+                        <span style={{ opacity: 0.8, [isRtl ? 'marginRight' : 'marginLeft']: '4px' }}>
+                          ({formatRelativeTime(lastNotifRefreshedAt.toISOString())})
+                        </span>
+                      </span>
+                    </div>
+
                     <div style={{ display: 'flex', gap: '4px', backgroundColor: isDark ? '#162033' : '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
                       {(['all', 'unread', 'urgent'] as const).map((filter) => (
                         <button
@@ -1422,7 +1468,10 @@ function verify_webhook($payload, $signatureHeader, $secret) {
                     </div>
 
                     <button
-                      onClick={fetchNotificationsList}
+                      onClick={async () => {
+                        await fetchNotificationsList();
+                        if (showToast) showToast('info', isRtl ? 'تم تحديث صندوق التنبيهات' : 'Notification inbox refreshed');
+                      }}
                       disabled={loadingNotifs}
                       style={{
                         padding: '6px 12px',
@@ -1536,10 +1585,31 @@ function verify_webhook($payload, $signatureHeader, $secret) {
                           </p>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
-                          <span style={{ fontSize: '11px', color: textMuted, whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace" }}>
-                            {formatRelativeTime(n.createdAt)}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isRtl ? 'flex-start' : 'flex-end', gap: '4px', flexShrink: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Clock size={12} color="#3b82f6" />
+                            <span style={{ fontSize: '11.5px', fontWeight: 700, color: textPrimary, fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
+                              {formatRelativeTime(n.createdAt)}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '10.5px', color: textMuted, fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
+                            {formatFullTimestamp(n.createdAt)}
                           </span>
+                          {n.readAt && (
+                            <span style={{
+                              fontSize: '10px',
+                              color: '#10b981',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              backgroundColor: isDark ? 'rgba(16,185,129,0.1)' : '#ecfdf5',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                            }}>
+                              <Check size={11} />
+                              <span>{isRtl ? `قُرئ ${formatRelativeTime(n.readAt)}` : `Read ${formatRelativeTime(n.readAt)}`}</span>
+                            </span>
+                          )}
                           {!n.readAt && (
                             <button
                               type="button"
@@ -1547,11 +1617,14 @@ function verify_webhook($payload, $signatureHeader, $secret) {
                               style={{
                                 fontSize: '11px',
                                 color: '#2563eb',
-                                background: 'transparent',
-                                border: 'none',
+                                background: isDark ? 'rgba(37,99,235,0.1)' : '#eff6ff',
+                                border: isDark ? '1px solid rgba(37,99,235,0.25)' : '1px solid #bfdbfe',
                                 cursor: 'pointer',
-                                fontWeight: 600,
-                                padding: '2px 4px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                marginTop: '2px',
+                                transition: 'all 0.15s',
                               }}
                             >
                               {isRtl ? 'تحديد كمقروء' : 'Mark read'}
