@@ -174,3 +174,54 @@ settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: R
     return res.status(500).json({ ok: false, error: error.message })
   }
 })
+
+// ─── Merchant Audit & Webhook Logs ──────────────────────────────────
+
+settingsRouter.get('/audit-logs', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+
+    // Webhook logs for this merchant
+    const webhookLogs = await db.webhookLog.findMany({
+      where: { clientId: client.id },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+    })
+
+    // Transactions for this merchant
+    const transactions = await db.transaction.findMany({
+      where: { clientId: client.id },
+      orderBy: { createdAt: 'desc' },
+      take: 60,
+      select: {
+        id: true,
+        sessionId: true,
+        amountEgp: true,
+        status: true,
+        senderHandle: true,
+        recipientHandle: true,
+        detectedRef: true,
+        note: true,
+        createdAt: true,
+        detectedAt: true,
+      },
+    })
+
+    // Device health / companion events
+    const devices = await db.detectorDevice.findMany({
+      where: { clientId: client.id },
+      orderBy: { lastSeenAt: 'desc' },
+    })
+
+    return res.json({
+      ok: true,
+      webhookLogs,
+      transactions,
+      devices,
+    })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+

@@ -264,7 +264,7 @@ function App() {
           />
         );
       case 'audit':
-        return <AuditLogPage />;
+        return <AuditLogPage showToast={showToast} />;
       case 'security':
         return <SecurityPage showToast={showToast} showConfirm={showConfirm} />;
       default:

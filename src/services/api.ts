@@ -135,6 +135,10 @@ export const settingsApi = {
     const res = await api.post('/settings/rotate-keys')
     return res.data
   },
+  async getAuditLogs() {
+    const res = await api.get('/settings/audit-logs')
+    return res.data
+  },
 }
 
 // ─── Admin API ──────────────────────────────────────────────────────
