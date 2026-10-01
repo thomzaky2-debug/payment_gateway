@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BookOpen, Shield, Code2, Terminal, Check, Copy, ExternalLink,
   Lock, RefreshCw, AlertCircle, CheckCircle2, ChevronDown, ChevronUp,
   Server, Zap, Clock, Send, FileCode2, ArrowRight, ShieldCheck,
-  Eye, EyeOff, Layers, Hash, Info
+  Eye, EyeOff, Layers, Hash, Info, Play, CheckCircle
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -14,7 +14,7 @@ interface DocumentationSectionProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
 }
 
-type TabType = 'quickstart' | 'endpoints' | 'webhook' | 'code' | 'events' | 'errors';
+type TabType = 'quickstart' | 'endpoints' | 'webhook' | 'tester' | 'code' | 'events' | 'errors';
 
 export function DocumentationSection({ apiKey, webhookSecret, showToast }: DocumentationSectionProps) {
   const { isDark } = useTheme();
@@ -24,17 +24,80 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
   const [useRealKeys, setUseRealKeys] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedEndpoint, setSelectedEndpoint] = useState<'create' | 'status' | 'snippets'>('create');
+  const [codeType, setCodeType] = useState<'webhook' | 'create'>('webhook');
   const [selectedLang, setSelectedLang] = useState<'node' | 'python' | 'php'>('node');
   const [selectedEvent, setSelectedEvent] = useState<'confirmed' | 'underpaid' | 'overpaid' | 'subscription'>('confirmed');
+
+  // Interactive Webhook Signature Tester State
+  const [testPayload, setTestPayload] = useState('{\n  "event": "payment.confirmed",\n  "transaction": {\n    "sessionId": "cmt_8f1b2c3d4e5f6a7b",\n    "amountEgp": 150.00,\n    "status": "PAID"\n  }\n}');
+  const [testTimestamp, setTestTimestamp] = useState(Math.floor(Date.now() / 1000).toString());
+  const [testSecret, setTestSecret] = useState(webhookSecret || 'whsec_e8f2a1b9c3d4e5f6a7b8c9d0');
+  const [calculatedBaseString, setCalculatedBaseString] = useState('');
+  const [calculatedSignature, setCalculatedSignature] = useState('');
+  const [verifyInputSig, setVerifyInputSig] = useState('');
+  const [verifyResult, setVerifyResult] = useState<boolean | null>(null);
 
   const textPrimary = isDark ? '#f8fafc' : '#1e293b';
   const textSecondary = isDark ? '#94a3b8' : '#64748b';
   const textMuted = isDark ? '#64748b' : '#94a3b8';
   const borderColor = isDark ? 'rgba(51, 65, 85, 0.4)' : '#e2e8f0';
 
-  const displayApiKey = useRealKeys && apiKey ? apiKey : 'egp_live_9a7b3c2d1e0f8a4b6c8d0e2f';
-  const displayWebhookSecret = useRealKeys && webhookSecret ? webhookSecret : 'whsec_e8f2a1b9c3d4e5f6a7b8c9d0';
+  // Secure credential display: only show real keys if they match expected live prefixes
+  const isValidApiKey = typeof apiKey === 'string' && apiKey.startsWith('egp_');
+  const isValidWebhookSecret = typeof webhookSecret === 'string' && webhookSecret.startsWith('whsec_');
+
+  const displayApiKey = useRealKeys && isValidApiKey ? apiKey : 'egp_live_9a7b3c2d1e0f8a4b6c8d0e2f';
+  const displayWebhookSecret = useRealKeys && isValidWebhookSecret ? webhookSecret : 'whsec_e8f2a1b9c3d4e5f6a7b8c9d0';
   const baseUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3001` : 'http://localhost:3001';
+
+  // Update tester secret when real secret is received
+  useEffect(() => {
+    if (isValidWebhookSecret && webhookSecret) {
+      setTestSecret(webhookSecret);
+    }
+  }, [isValidWebhookSecret, webhookSecret]);
+
+  // Compute live HMAC-SHA256 signature in browser using Web Crypto API
+  const calculateTestSignature = async () => {
+    try {
+      const ts = testTimestamp.trim();
+      const body = testPayload.trim();
+      const secret = testSecret.trim();
+
+      const baseString = `${ts}.${body}`;
+      setCalculatedBaseString(baseString);
+
+      const enc = new TextEncoder();
+      const key = await window.crypto.subtle.importKey(
+        'raw',
+        enc.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      const signatureBuffer = await window.crypto.subtle.sign('HMAC', key, enc.encode(baseString));
+      const hexSignature = Array.from(new Uint8Array(signatureBuffer))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      setCalculatedSignature(hexSignature);
+
+      if (verifyInputSig.trim()) {
+        const cleanInput = verifyInputSig.trim().replace(/^v1=/, '');
+        setVerifyResult(cleanInput.toLowerCase() === hexSignature.toLowerCase());
+      } else {
+        setVerifyResult(null);
+      }
+    } catch {
+      if (showToast) {
+        showToast('error', isRtl ? 'فشل حساب التوقيع المشفر' : 'Failed to calculate HMAC signature');
+      }
+    }
+  };
+
+  useEffect(() => {
+    calculateTestSignature();
+  }, [testPayload, testTimestamp, testSecret, verifyInputSig]);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -63,14 +126,14 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
     ...extra,
   });
 
-  /* ──────────────── Code Snippets for Webhook Verification ──────────────── */
+  /* ──────────────── Webhook Verification Code Snippets ──────────────── */
   const nodeVerificationCode = `import express from 'express';
 import crypto from 'crypto';
 
 const app = express();
 const WEBHOOK_SECRET = process.env.INSTAPAY_WEBHOOK_SECRET || '${displayWebhookSecret}';
 
-// IMPORTANT: Retain raw body buffer for HMAC-SHA256 signature verification
+// IMPORTANT: Capture raw unparsed body for HMAC-SHA256 signature verification
 app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) => {
   const signatureHeader = req.headers['x-instapay-signature'] as string;
   const timestamp = req.headers['x-instapay-timestamp'] as string;
@@ -80,13 +143,14 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) =
     return res.status(400).send('Missing X-Instapay-Signature or X-Instapay-Timestamp');
   }
 
-  // 1. Anti-Replay: Verify timestamp is within 300 seconds (5 minutes)
+  // 1. Anti-Replay: Verify timestamp is valid and within 300 seconds (5 minutes)
   const currentTime = Math.floor(Date.now() / 1000);
-  if (Math.abs(currentTime - Number(timestamp)) > 300) {
-    return res.status(400).send('Webhook timestamp outside tolerance window');
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts) || Math.abs(currentTime - ts) > 300) {
+    return res.status(400).send('Webhook timestamp invalid or outside 5-minute tolerance');
   }
 
-  // 2. Extract hex signature from 'v1=<signature>' header
+  // 2. Extract hex digest from 'v1=<signature>' header
   const signature = signatureHeader.startsWith('v1=') 
     ? signatureHeader.slice(3) 
     : signatureHeader;
@@ -101,32 +165,38 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) =
     .digest('hex');
 
   // 5. Timing-safe comparison to prevent side-channel timing attacks
-  const signatureBuffer = Buffer.from(signature, 'hex');
-  const computedBuffer = Buffer.from(computedSignature, 'hex');
+  const signatureBuffer = Buffer.from(signature, 'utf8');
+  const computedBuffer = Buffer.from(computedSignature, 'utf8');
 
-  if (signatureBuffer.length !== computedBuffer.length || !crypto.timingSafeEqual(signatureBuffer, computedBuffer)) {
+  if (
+    signatureBuffer.length !== 64 ||
+    computedBuffer.length !== 64 ||
+    !crypto.timingSafeEqual(signatureBuffer, computedBuffer)
+  ) {
     console.error('Invalid InstaPay webhook signature');
     return res.status(401).send('Signature verification failed');
   }
 
   // 6. Signature verified! Safely parse and process transaction payload
   const payload = JSON.parse(rawBody);
-  console.log(\`Received \${payload.event} for Session \${payload.transaction.sessionId}\`);
+  const { event, transaction } = payload;
+  console.log(\`Verified event \${event} for Session \${transaction.sessionId}\`);
 
-  if (payload.event === 'payment.confirmed') {
-    // Exact payment matched: Fulfill customer order
-    // payload.transaction.amountEgp, payload.transaction.detectedRef
-  } else if (payload.event === 'payment.underpaid') {
-    // Underpaid: Alert customer of remaining balance
-  } else if (payload.event === 'payment.overpaid') {
-    // Overpaid: Confirm order and record merchant credit
+  // IDEMPOTENCY: Check if transaction.sessionId has already been processed in your DB
+  if (event === 'payment.confirmed') {
+    // Exact payment matched: Fulfill order
+    // e.g. fulfillOrder(transaction.sessionId, transaction.amountEgp, transaction.detectedRef);
+  } else if (event === 'payment.underpaid') {
+    // Customer paid less than amountEgp: notify customer of remaining balance
+  } else if (event === 'payment.overpaid') {
+    // Customer paid more than amountEgp: confirm order and issue customer credit
   }
 
-  // Acknowledge receipt with 2xx status within 10 seconds to stop retry attempts
+  // Acknowledge receipt with HTTP 200 within 10 seconds to stop gateway retry attempts
   return res.status(200).json({ received: true });
 });
 
-app.listen(8080, () => console.log('Webhook receiver active on port 8080'));`;
+app.listen(8080, () => console.log('Webhook server listening on port 8080'));`;
 
   const pythonVerificationCode = `import hmac
 import hashlib
@@ -147,9 +217,12 @@ def instapay_webhook():
         return jsonify({"error": "Missing signature headers"}), 400
 
     # 1. Anti-Replay: Verify timestamp freshness (within 5 minutes)
-    current_time = int(time.time())
-    if abs(current_time - int(timestamp_header)) > 300:
-        return jsonify({"error": "Timestamp outside tolerance window"}), 400
+    try:
+        ts = int(timestamp_header)
+        if abs(int(time.time()) - ts) > 300:
+            return jsonify({"error": "Timestamp outside tolerance window"}), 400
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid timestamp format"}), 400
 
     # 2. Extract hex signature from 'v1=<hex>'
     signature = signature_header[3:] if signature_header.startswith("v1=") else signature_header
@@ -168,14 +241,14 @@ def instapay_webhook():
     if not hmac.compare_digest(signature, computed_signature):
         return jsonify({"error": "Signature mismatch"}), 401
 
-    # 6. Payload is authentic! Process event
+    # 6. Payload is authentic! Process event idempotently
     payload = json.loads(raw_body)
     event_type = payload.get("event")
     tx = payload.get("transaction", {})
 
     print(f"Verified event: {event_type} - Session ID: {tx.get('sessionId')}")
 
-    # Return HTTP 200 within 10s
+    # Return HTTP 200 within 10s to acknowledge receipt
     return jsonify({"received": True}), 200
 
 if __name__ == "__main__":
@@ -195,11 +268,11 @@ if (empty($signatureHeader) || empty($timestampHeader)) {
     exit('Missing signature headers');
 }
 
-// 2. Anti-Replay check: 300 second tolerance
+// 2. Anti-Replay check: 300 second (5 min) tolerance window
 $currentTime = time();
-if (abs($currentTime - intval($timestampHeader)) > 300) {
+if (!is_numeric($timestampHeader) || abs($currentTime - intval($timestampHeader)) > 300) {
     http_response_code(400);
-    exit('Timestamp outside 5-minute tolerance window');
+    exit('Timestamp invalid or outside 5-minute tolerance window');
 }
 
 // 3. Extract v1 signature
@@ -209,7 +282,7 @@ $signature = str_replace('v1=', '', $signatureHeader);
 $baseString        = $timestampHeader . '.' . $rawBody;
 $computedSignature = hash_hmac('sha256', $baseString, $webhookSecret);
 
-// 5. Constant-time string comparison
+// 5. Constant-time string comparison (timing attack protection)
 if (!hash_equals($signature, $computedSignature)) {
     http_response_code(401);
     exit('Webhook signature verification failed');
@@ -220,9 +293,107 @@ $data = json_decode($rawBody, true);
 $event = $data['event'] ?? '';
 $tx = $data['transaction'] ?? [];
 
-// Return 200 OK
+// Acknowledge receipt with 200 OK
 http_response_code(200);
 echo json_encode(['received' => true]);`;
+
+  /* ──────────────── Checkout Creation Code Snippets ──────────────── */
+  const nodeCreateCode = `import axios from 'axios';
+
+const API_KEY = process.env.INSTAPAY_API_KEY || '${displayApiKey}';
+const BASE_URL = '${baseUrl}';
+
+async function createCheckoutSession(amountEgp, orderId, customerHandle) {
+  try {
+    const response = await axios.post(
+      \`\${BASE_URL}/api/v1/checkout/create\`,
+      {
+        amountEgp: Number(amountEgp),
+        senderHandle: customerHandle || 'customer@instapay',
+        note: \`Order #\${orderId}\`,
+      },
+      {
+        headers: {
+          'Authorization': \`Bearer \${API_KEY}\`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000,
+      }
+    );
+
+    const { checkout } = response.data;
+    console.log('Session Created:', checkout.sessionId);
+    console.log('Customer Payment URL:', checkout.checkoutUrl);
+    console.log('Direct InstaPay App Deep Link:', checkout.deepLinkUrl);
+
+    // Redirect customer to checkout.checkoutUrl
+    return checkout;
+  } catch (error) {
+    console.error('Failed to create checkout:', error.response?.data || error.message);
+    throw error;
+  }
+}`;
+
+  const pythonCreateCode = `import requests
+
+API_KEY = "${displayApiKey}"
+BASE_URL = "${baseUrl}"
+
+def create_checkout_session(amount_egp, order_id, customer_handle="customer@instapay"):
+    url = f"{BASE_URL}/api/v1/checkout/create"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "amountEgp": float(amount_egp),
+        "senderHandle": customer_handle,
+        "note": f"Order #{order_id}"
+    }
+
+    response = requests.post(url, json=payload, headers=headers, timeout=10)
+    response.raise_for_status()
+
+    data = response.json()
+    checkout = data["checkout"]
+    print("Session ID:", checkout["sessionId"])
+    print("Checkout URL:", checkout["checkoutUrl"])
+    return checkout`;
+
+  const phpCreateCode = `<?php
+function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer@instapay') {
+    $apiKey  = '${displayApiKey}';
+    $baseUrl = '${baseUrl}';
+
+    $payload = json_encode([
+        'amountEgp'    => floatval($amountEgp),
+        'senderHandle' => $customerHandle,
+        'note'         => 'Order #' . $orderId,
+    ]);
+
+    $ch = curl_init("$baseUrl/api/v1/checkout/create");
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $apiKey,
+            'Content-Type: application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 201) {
+        throw new Exception("Checkout creation failed with HTTP $httpCode: $response");
+    }
+
+    $result = json_decode($response, true);
+    return $result['checkout'];
+}`;
 
   /* ──────────────── Webhook Payloads ──────────────── */
   const webhookPayloadExamples = {
@@ -302,7 +473,7 @@ echo json_encode(['received' => true]);`;
 
   return (
     <div style={{ marginTop: '36px', direction: isRtl ? 'rtl' : 'ltr' }}>
-      {/* ─── Main Section Banner / Header ─── */}
+      {/* ─── Main Section Header Banner ─── */}
       <div style={{
         ...cardStyle({ padding: '24px 28px' }),
         background: isDark
@@ -403,9 +574,10 @@ echo json_encode(['received' => true]);`;
         }}>
           {[
             { id: 'quickstart', label: isRtl ? 'البداية السريعة والمصادقة' : 'Quickstart & Auth', icon: Zap },
-            { id: 'endpoints', label: isRtl ? 'واجهات API (Checkout)' : 'Checkout Endpoints', icon: Code2 },
-            { id: 'webhook', label: isRtl ? 'التحقق من الويب هوك (HMAC)' : 'HMAC-SHA256 Webhook', icon: ShieldCheck },
-            { id: 'code', label: isRtl ? 'أكواد التحقق حسب اللغة' : 'Verification Code (SDK)', icon: Terminal },
+            { id: 'endpoints', label: isRtl ? 'نقاط API (Checkout)' : 'Checkout Endpoints', icon: Code2 },
+            { id: 'webhook', label: isRtl ? 'التحقق من التوقيع (HMAC)' : 'HMAC-SHA256 Webhook', icon: ShieldCheck },
+            { id: 'tester', label: isRtl ? 'مختبر التوقيع الحي' : 'Live Signature Tester', icon: Play },
+            { id: 'code', label: isRtl ? 'نماذج الشيفرة (SDK)' : 'Code Examples (SDK)', icon: Terminal },
             { id: 'events', label: isRtl ? 'الأحداث والحمولات (Events)' : 'Events & Payloads', icon: Layers },
             { id: 'errors', label: isRtl ? 'دورة الحياة والأخطاء' : 'Lifecycle & Errors', icon: AlertCircle },
           ].map((tab) => {
@@ -523,35 +695,40 @@ echo json_encode(['received' => true]);`;
             </div>
           </div>
 
-          {/* Key Formats Guide */}
-          <div style={{ ...cardStyle({ padding: '24px' }) }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 700, color: textPrimary, marginBottom: '14px' }}>
-              {isRtl ? 'صيغ المعرّفات والمفاتيح' : 'Credential & Identifier Prefixes'}
-            </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+          {/* Security & Production Checklist Card */}
+          <div style={{
+            ...cardStyle({ padding: '24px' }),
+            background: isDark
+              ? 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(56,189,248,0.05))'
+              : 'linear-gradient(135deg, #f0fdf4, #eff6ff)',
+            border: isDark ? '1px solid rgba(16,185,129,0.25)' : '1px solid #bbf7d0',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <ShieldCheck size={20} color="#10b981" />
+              <h4 style={{ fontSize: '15px', fontWeight: 800, color: textPrimary, margin: 0 }}>
+                {isRtl ? 'قائمة الأمان وأفضل ممارسات الإنتاج' : 'Security & Production Best Practices Checklist'}
+              </h4>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
               {[
-                { prefix: 'egp_live_', desc: isRtl ? 'مفتاح API الخاص بالتاجر لإجراء طلبات إنشاء ومتابعة الجلسات' : 'Merchant Live API Key for REST endpoints', color: '#38bdf8' },
-                { prefix: 'whsec_', desc: isRtl ? 'مفتاح توقيع HMAC السري للتحقق من سلامة وصحة إشعارات الويب هوك' : 'Webhook HMAC Secret for inbound signature verification', color: '#f59e0b' },
-                { prefix: 'cmt_', desc: isRtl ? 'معرّف جلسة الدفع الفريد لكل معاملة دفع ينشئها المتجر' : 'Unique Checkout Session ID generated per transaction', color: '#a78bfa' },
-                { prefix: 'evt_', desc: isRtl ? 'معرّف الحدث الفريد المرسل في ترويسة X-Instapay-Event-Id' : 'Unique Event ID dispatched in X-Instapay-Event-Id header', color: '#ec4899' },
+                { title: isRtl ? 'حفظ المفاتيح على الخادم فقط' : 'Server-Side Secret Storage', desc: isRtl ? 'لا تضع مفتاح API أو سر الويب هوك أبداً في كود الواجهة الأمامية أو تطبيقات الهاتف.' : 'Never expose API Keys or Webhook Secrets in frontend code or mobile applications.' },
+                { title: isRtl ? 'إلزامية HTTPS للإنتاج' : 'Mandatory HTTPS in Production', desc: isRtl ? 'يجب أن يكون رابط الويب هوك في بيئة الإنتاج مشفراً بـ HTTPS وبشهادة صالحة.' : 'Webhook callback URLs must use valid TLS/HTTPS in production. HTTP is restricted to localhost.' },
+                { title: isRtl ? 'منع المعالجة المكررة (Idempotency)' : 'Idempotent Webhook Handling', desc: isRtl ? 'احفظ معرّف الحدث X-Instapay-Event-Id وتأكد من عدم تنفيذ الطلب أكثر من مرة عند إعادة الإرسال.' : 'Track X-Instapay-Event-Id to ensure duplicate retried webhooks do not double-fulfill orders.' },
+                { title: isRtl ? 'الرد الفوري بكود 200' : 'Acknowledge Within 10 Seconds', desc: isRtl ? 'أرسل كود HTTP 200 فور التحقق من التوقيع ثم نفذ المهام الثقيلة في الخلفية لتجنب انتهاء المهلة.' : 'Return HTTP 200 within 10s. Offload heavy processing to background worker queues.' },
               ].map((item, idx) => (
                 <div key={idx} style={{
-                  padding: '12px 16px',
+                  padding: '12px 14px',
                   borderRadius: '10px',
-                  backgroundColor: isDark ? '#162033' : '#f8fafc',
+                  backgroundColor: isDark ? '#162033' : '#ffffff',
                   border: `1px solid ${borderColor}`,
                 }}>
-                  <span style={{
-                    fontSize: '12px',
-                    fontWeight: 800,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    color: item.color,
-                  }}>
-                    {item.prefix}
-                  </span>
-                  <p style={{ fontSize: '11.5px', color: textSecondary, margin: '4px 0 0 0' }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#10b981', marginBottom: '4px' }}>
+                    ✓ {item.title}
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: textSecondary, lineHeight: 1.5 }}>
                     {item.desc}
-                  </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -713,7 +890,7 @@ echo json_encode(['received' => true]);`;
                           amountEgp: 150.0,
                           currency: 'EGP',
                           deepLinkUrl: 'instapay://pay?handle=merchant@instapay&amount=150.00&ref=cmt_8f1b2c3d4e5f6a7b',
-                          checkoutUrl: 'http://localhost:3000/pay/cmt_8f1b2c3d4e5f6a7b',
+                          checkoutUrl: `${baseUrl}/pay/cmt_8f1b2c3d4e5f6a7b`,
                           recipientHandle: 'merchant@instapay',
                           senderHandle: 'customer@instapay',
                           expiresAt: '2026-10-02T00:45:00.000Z'
@@ -757,7 +934,6 @@ echo json_encode(['received' => true]);`;
                 </span>
               </div>
 
-              {/* Query Param */}
               <div style={{ marginBottom: '16px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: textSecondary }}>
                   {isRtl ? 'المعامل المطلوب:' : 'Required Query Parameter:'}
@@ -946,7 +1122,7 @@ echo json_encode(['received' => true]);`;
                 </div>
                 <p style={{ fontSize: '12px', color: textSecondary, margin: 0, lineHeight: 1.5 }}>
                   {isRtl
-                    ? 'تحقق من ترويسة X-Instapay-Timestamp واشترط أن يكون الفارق الزمني أقل من 300 ثانية (5 دقائق) لمنع المهاجمين من إعادة إرسال طلبات قديمة.'
+                    ? 'تحقق من ترويسة X-Instapay-Timestamp واشترط أن يكون الفارق الزمني أقل من 300 ثانية (5 دقائق) ورقمياً صالحاً لمنع المهاجمين من إعادة إرسال طلبات قديمة.'
                     : 'Compare X-Instapay-Timestamp against current system time with a 300-second (5 minute) tolerance window to reject stale or replayed webhook requests.'}
                 </p>
               </div>
@@ -958,7 +1134,7 @@ echo json_encode(['received' => true]);`;
                 </div>
                 <p style={{ fontSize: '12px', color: textSecondary, margin: 0, lineHeight: 1.5 }}>
                   {isRtl
-                    ? 'استخدم دالة مقارنة ثابتة التوقيت مثل crypto.timingSafeEqual أو hmac.compare_digest لمنع هجمات التحليل الزمني.'
+                    ? 'استخدم دالة مقارنة ثابتة التوقيت مثل crypto.timingSafeEqual أو hmac.compare_digest لمنع هجمات التحليل الزمني (Timing Attacks).'
                     : 'Always compare signature digests using a constant-time comparison helper like crypto.timingSafeEqual or hmac.compare_digest to prevent side-channel timing leaks.'}
                 </p>
               </div>
@@ -1055,47 +1231,271 @@ echo json_encode(['received' => true]);`;
         </div>
       )}
 
-      {/* ─── Tab 4: Multi-Language SDK Snippets ─── */}
+      {/* ─── Tab 4: Live Webhook Signature Tester & Debugger ─── */}
+      {activeTab === 'tester' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ ...cardStyle({ padding: '24px' }) }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '10px',
+                background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Play size={18} color="white" />
+              </div>
+              <div>
+                <h4 style={{ fontSize: '16px', fontWeight: 800, color: textPrimary, margin: 0 }}>
+                  {isRtl ? 'مختبر وحاسبة التوقيع اللحظي (HMAC-SHA256 Tester)' : 'Live Webhook Signature Calculator & Validator'}
+                </h4>
+                <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                  {isRtl ? 'احسب التوقيع فورياً وتحقق من تطابق كود الخادم الخاص بك مع محرك البوابة' : 'Compute and test HMAC signatures live in browser to verify your integration against the gateway.'}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px', marginBottom: '18px' }}>
+              {/* Inputs */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: textSecondary, marginBottom: '6px' }}>
+                    {isRtl ? 'مفتاح الويب هوك السري (Webhook Secret)' : 'Webhook Secret'}
+                  </label>
+                  <input
+                    type="text"
+                    value={testSecret}
+                    onChange={(e) => setTestSecret(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      border: `1px solid ${borderColor}`,
+                      color: textPrimary,
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: textSecondary }}>
+                      {isRtl ? 'الطابع الزمني (Unix Timestamp)' : 'Timestamp (Unix seconds)'}
+                    </label>
+                    <button
+                      onClick={() => setTestTimestamp(Math.floor(Date.now() / 1000).toString())}
+                      style={{ fontSize: '11px', color: '#38bdf8', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      {isRtl ? 'الآن (Now)' : 'Set to Now'}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={testTimestamp}
+                    onChange={(e) => setTestTimestamp(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      border: `1px solid ${borderColor}`,
+                      color: textPrimary,
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: textSecondary, marginBottom: '6px' }}>
+                    {isRtl ? 'نص الطلب الخام (Raw JSON Body)' : 'Raw JSON Body'}
+                  </label>
+                  <textarea
+                    rows={6}
+                    value={testPayload}
+                    onChange={(e) => setTestPayload(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                      border: `1px solid ${borderColor}`,
+                      color: textPrimary,
+                      outline: 'none',
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Live Output */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: textSecondary, display: 'block', marginBottom: '6px' }}>
+                    {isRtl ? 'النص الأساسي للتوقيع (Base String):' : 'Constructed Base String:'}
+                  </span>
+                  <div style={{
+                    ...codeBox({ padding: '10px 14px' }),
+                    fontSize: '11px',
+                    color: '#94a3b8',
+                    fontFamily: "'JetBrains Mono', monospace",
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                    maxHeight: '90px',
+                    overflowY: 'auto',
+                  }}>
+                    {calculatedBaseString}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#34d399' }}>
+                      {isRtl ? 'التوقيع المحسوب (Computed X-Instapay-Signature):' : 'Computed X-Instapay-Signature Header:'}
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard(`v1=${calculatedSignature}`, 'calculatedsig')}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+                    >
+                      {copiedId === 'calculatedsig' ? <Check size={12} color="#34d399" /> : <Copy size={12} />}
+                      <span>{copiedId === 'calculatedsig' ? (isRtl ? 'تم النسخ' : 'Copied') : (isRtl ? 'نسخ' : 'Copy')}</span>
+                    </button>
+                  </div>
+                  <div style={{
+                    ...codeBox({ padding: '12px 14px' }),
+                    fontSize: '12px',
+                    color: '#4ade80',
+                    fontFamily: "'JetBrains Mono', monospace",
+                    wordBreak: 'break-all',
+                  }}>
+                    v1={calculatedSignature || '...'}
+                  </div>
+                </div>
+
+                {/* Match checker */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: textSecondary, marginBottom: '6px' }}>
+                    {isRtl ? 'اختبار تطابق توقيع خارجي (Compare incoming signature):' : 'Paste signature to test match:'}
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="v1=..."
+                      value={verifyInputSig}
+                      onChange={(e) => setVerifyInputSig(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                        border: `1px solid ${borderColor}`,
+                        color: textPrimary,
+                        outline: 'none',
+                      }}
+                    />
+                    {verifyResult !== null && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '0 12px',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        backgroundColor: verifyResult
+                          ? (isDark ? 'rgba(16,185,129,0.2)' : '#dcfce7')
+                          : (isDark ? 'rgba(239,68,68,0.2)' : '#fee2e2'),
+                        color: verifyResult ? '#10b981' : '#ef4444',
+                      }}>
+                        {verifyResult ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+                        <span>{verifyResult ? (isRtl ? 'متطابق بنجاح ✓' : 'MATCH ✓') : (isRtl ? 'غير متطابق ✕' : 'MISMATCH ✕')}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Tab 5: Multi-Language Integration & Verification Code (SDK) ─── */}
       {activeTab === 'code' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ ...cardStyle({ padding: '24px' }) }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {[
-                  { id: 'node', label: 'Node.js (Express / TypeScript)' },
-                  { id: 'python', label: 'Python (Flask / FastAPI)' },
-                  { id: 'php', label: 'PHP' },
-                ].map((l) => (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderRadius: '8px', padding: '3px' }}>
                   <button
-                    key={l.id}
-                    onClick={() => setSelectedLang(l.id as any)}
+                    onClick={() => setCodeType('webhook')}
                     style={{
-                      padding: '8px 14px',
-                      borderRadius: '8px',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
                       fontSize: '12px',
-                      fontWeight: selectedLang === l.id ? 700 : 500,
+                      fontWeight: codeType === 'webhook' ? 700 : 500,
                       cursor: 'pointer',
                       border: 'none',
-                      backgroundColor: selectedLang === l.id
-                        ? (isDark ? '#8b5cf6' : '#7c3aed')
-                        : (isDark ? '#1e293b' : '#f1f5f9'),
-                      color: selectedLang === l.id ? '#ffffff' : textSecondary,
-                      transition: 'all 0.2s ease',
+                      backgroundColor: codeType === 'webhook' ? (isDark ? '#8b5cf6' : '#7c3aed') : 'transparent',
+                      color: codeType === 'webhook' ? '#ffffff' : textSecondary,
                     }}
                   >
-                    {l.label}
+                    {isRtl ? 'التحقق من الويب هوك (HMAC)' : 'Verify Webhook'}
                   </button>
-                ))}
+                  <button
+                    onClick={() => setCodeType('create')}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: codeType === 'create' ? 700 : 500,
+                      cursor: 'pointer',
+                      border: 'none',
+                      backgroundColor: codeType === 'create' ? (isDark ? '#8b5cf6' : '#7c3aed') : 'transparent',
+                      color: codeType === 'create' ? '#ffffff' : textSecondary,
+                    }}
+                  >
+                    {isRtl ? 'إنشاء جلسة دفع (Checkout)' : 'Create Checkout'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {[
+                    { id: 'node', label: 'Node.js' },
+                    { id: 'python', label: 'Python' },
+                    { id: 'php', label: 'PHP' },
+                  ].map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => setSelectedLang(l.id as any)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: selectedLang === l.id ? 700 : 500,
+                        cursor: 'pointer',
+                        border: selectedLang === l.id ? `1px solid ${isDark ? '#8b5cf6' : '#7c3aed'}` : `1px solid ${borderColor}`,
+                        backgroundColor: selectedLang === l.id ? (isDark ? 'rgba(139,92,246,0.15)' : '#ede9fe') : 'transparent',
+                        color: selectedLang === l.id ? (isDark ? '#c084fc' : '#6d28d9') : textSecondary,
+                      }}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <button
                 onClick={() => {
-                  const code = selectedLang === 'node'
-                    ? nodeVerificationCode
-                    : selectedLang === 'python'
-                    ? pythonVerificationCode
-                    : phpVerificationCode;
-                  copyToClipboard(code, `code_${selectedLang}`);
+                  const code = codeType === 'webhook'
+                    ? (selectedLang === 'node' ? nodeVerificationCode : selectedLang === 'python' ? pythonVerificationCode : phpVerificationCode)
+                    : (selectedLang === 'node' ? nodeCreateCode : selectedLang === 'python' ? pythonCreateCode : phpCreateCode);
+                  copyToClipboard(code, `code_${codeType}_${selectedLang}`);
                 }}
                 style={{
                   display: 'flex',
@@ -1108,14 +1508,14 @@ echo json_encode(['received' => true]);`;
                   cursor: 'pointer',
                   backgroundColor: isDark ? '#1e293b' : '#ffffff',
                   border: `1px solid ${borderColor}`,
-                  color: copiedId === `code_${selectedLang}` ? '#34d399' : textPrimary,
+                  color: copiedId === `code_${codeType}_${selectedLang}` ? '#34d399' : textPrimary,
                 }}
               >
-                {copiedId === `code_${selectedLang}` ? <Check size={14} /> : <Copy size={14} />}
+                {copiedId === `code_${codeType}_${selectedLang}` ? <Check size={14} /> : <Copy size={14} />}
                 <span>
-                  {copiedId === `code_${selectedLang}`
-                    ? (isRtl ? 'تم نسخ الكود!' : 'Code Copied!')
-                    : (isRtl ? 'نسخ كود التحقق بالكامل' : 'Copy Full Verification Code')}
+                  {copiedId === `code_${codeType}_${selectedLang}`
+                    ? (isRtl ? 'تم نسخ الشيفرة!' : 'Code Copied!')
+                    : (isRtl ? 'نسخ الشيفرة بالكامل' : 'Copy Full Snippet')}
                 </span>
               </button>
             </div>
@@ -1130,15 +1530,18 @@ echo json_encode(['received' => true]);`;
               overflowX: 'auto',
               maxHeight: '520px',
             }}>
-              {selectedLang === 'node' && nodeVerificationCode}
-              {selectedLang === 'python' && pythonVerificationCode}
-              {selectedLang === 'php' && phpVerificationCode}
+              {codeType === 'webhook' && selectedLang === 'node' && nodeVerificationCode}
+              {codeType === 'webhook' && selectedLang === 'python' && pythonVerificationCode}
+              {codeType === 'webhook' && selectedLang === 'php' && phpVerificationCode}
+              {codeType === 'create' && selectedLang === 'node' && nodeCreateCode}
+              {codeType === 'create' && selectedLang === 'python' && pythonCreateCode}
+              {codeType === 'create' && selectedLang === 'php' && phpCreateCode}
             </pre>
           </div>
         </div>
       )}
 
-      {/* ─── Tab 5: Events & Payloads ─── */}
+      {/* ─── Tab 6: Events & Payloads ─── */}
       {activeTab === 'events' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ ...cardStyle({ padding: '24px' }) }}>
@@ -1179,7 +1582,6 @@ echo json_encode(['received' => true]);`;
               ))}
             </div>
 
-            {/* Display selected event JSON */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: textSecondary }}>
@@ -1209,7 +1611,7 @@ echo json_encode(['received' => true]);`;
         </div>
       )}
 
-      {/* ─── Tab 6: Lifecycle & Error Codes ─── */}
+      {/* ─── Tab 7: Lifecycle & Error Codes ─── */}
       {activeTab === 'errors' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Status lifecycle */}

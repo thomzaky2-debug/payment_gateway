@@ -138,6 +138,12 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
       return;
     }
 
+    const numAmount = Number(testAmount);
+    if (!testAmount || isNaN(numAmount) || numAmount <= 0) {
+      if (showToast) showToast('error', isRtl ? 'يرجى إدخال مبلغ صحيح بالجنيه المصري أكبر من صفر' : 'Please enter a valid amount greater than 0 EGP');
+      return;
+    }
+
     setSimLoading(true);
     setSimResult(null);
 
