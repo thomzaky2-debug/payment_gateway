@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Save,
   CheckCircle2,
@@ -15,6 +15,18 @@ import {
   Store,
   CheckCheck,
   AlertTriangle,
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Code,
+  Key,
+  ShieldCheck,
+  Smartphone,
+  Info,
+  ChevronRight,
+  Filter,
 } from 'lucide-react';
 import { settingsApi, notificationsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -26,6 +38,17 @@ interface SettingsPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
   subPath?: string;
   onSubPathChange?: (subPath: string) => void;
+}
+
+interface NotificationItem {
+  id: string;
+  merchantId?: string;
+  title: string;
+  message: string;
+  severity: 'INFO' | 'WARNING' | 'URGENT';
+  readAt: string | null;
+  createdAt: string;
+  metadata?: any;
 }
 
 function parseTabFromSubPath(sub?: string): SettingsTab {
@@ -43,8 +66,11 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(() => parseTabFromSubPath(subPath));
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
+  const [, setTick] = useState(0);
 
   // General Gateway settings
   const [businessName, setBusinessName] = useState('');
@@ -53,6 +79,8 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
   const [webhookUrl, setWebhookUrl] = useState('');
   const [checkoutTtlMin, setCheckoutTtlMin] = useState(10);
   const [webhookSecret, setWebhookSecret] = useState('');
+  const [showSecret, setShowSecret] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Payment Precision & Review Policies
   const [autoAcceptOverpaid, setAutoAcceptOverpaid] = useState(true);
@@ -61,14 +89,24 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
   const [underpaidToleranceEgp, setUnderpaidToleranceEgp] = useState<number | string>(5.0);
 
   // Notifications state
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'urgent'>('all');
   const [notifyOnUnderpaid, setNotifyOnUnderpaid] = useState(true);
   const [notifyOnOverpaid, setNotifyOnOverpaid] = useState(true);
   const [notifyOnUnmatched, setNotifyOnUnmatched] = useState(true);
   const [notifyOnDetectorOffline, setNotifyOnDetectorOffline] = useState(true);
 
-  // Sync tab when subPath changes (e.g. back/forward button or external navigation)
+  // Webhook Code language tab
+  const [codeLang, setCodeLang] = useState<'nodejs' | 'python' | 'php'>('nodejs');
+
+  // Real-time ticking for relative timestamps
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Sync tab when subPath changes
   useEffect(() => {
     if (subPath !== undefined) {
       setActiveTab(parseTabFromSubPath(subPath));
@@ -84,35 +122,78 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
     onSubPathChange?.(target);
   };
 
-  const fetchSettings = () => {
-    setLoading(true);
-    settingsApi
-      .get()
-      .then((res) => {
-        if (res.ok && res.settings) {
-          const s = res.settings;
-          setBusinessName(s.businessName || '');
-          setInstapayHandle(s.instapayHandle || '');
-          setInstapayPaymentUrl(s.instapayPaymentUrl || '');
-          setWebhookUrl(s.webhookUrl || '');
-          setCheckoutTtlMin(s.checkoutTtlMin || 10);
-          setWebhookSecret(s.webhookSecret || '');
+  /* ──────────────── Theme Tokens ──────────────── */
+  const textPrimary = isDark ? '#f8fafc' : '#1e293b';
+  const textSecondary = isDark ? '#94a3b8' : '#64748b';
+  const textMuted = isDark ? '#64748b' : '#94a3b8';
+  const borderColor = isDark ? 'rgba(51, 65, 85, 0.5)' : '#e2e8f0';
 
-          setAutoAcceptOverpaid(s.autoAcceptOverpaid ?? true);
-          setOverpaidMaxExcessEgp(s.overpaidMaxExcessEgp ?? 100);
-          setUnderpaidToleranceEnabled(s.underpaidToleranceEnabled ?? false);
-          setUnderpaidToleranceEgp(s.underpaidToleranceEgp ?? 5.0);
-        }
-      })
-      .catch(() => {
-        if (showToast) {
-          showToast('error', isRtl ? 'فشل تحميل إعدادات التاجر' : 'Failed to load merchant settings');
-        }
-      })
-      .finally(() => setLoading(false));
+  const card = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#111827' : '#ffffff',
+    borderRadius: '20px',
+    border: `1px solid ${borderColor}`,
+    boxShadow: isDark
+      ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
+      : '0 4px 16px rgba(0,0,0,0.06)',
+    transition: 'all 0.3s ease',
+    ...extra,
+  });
+
+  const subcard = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#162033' : '#f8fafc',
+    borderRadius: '14px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+    ...extra,
+  });
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '11px 14px',
+    borderRadius: '10px',
+    border: `1px solid ${borderColor}`,
+    backgroundColor: isDark ? '#162033' : '#f8fafc',
+    color: textPrimary,
+    fontSize: '13.5px',
+    outline: 'none',
+    transition: 'border-color 0.2s',
   };
 
-  const fetchNotificationsList = async () => {
+  /* ──────────────── Data Fetching ──────────────── */
+  const fetchSettings = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const res = await settingsApi.get();
+      if (res.ok && res.settings) {
+        const s = res.settings;
+        setBusinessName(s.businessName || '');
+        setInstapayHandle(s.instapayHandle || '');
+        setInstapayPaymentUrl(s.instapayPaymentUrl || '');
+        setWebhookUrl(s.webhookUrl || '');
+        setCheckoutTtlMin(s.checkoutTtlMin || 10);
+        setWebhookSecret(s.webhookSecret || '');
+
+        setAutoAcceptOverpaid(s.autoAcceptOverpaid ?? true);
+        setOverpaidMaxExcessEgp(s.overpaidMaxExcessEgp ?? 100);
+        setUnderpaidToleranceEnabled(s.underpaidToleranceEnabled ?? false);
+        setUnderpaidToleranceEgp(s.underpaidToleranceEgp ?? 5.0);
+      }
+      setLastRefreshedAt(new Date());
+      if (isManualRefresh && showToast) {
+        showToast('success', isRtl ? 'تم تحديث الإعدادات والقواعد بنجاح' : 'Settings & rules refreshed successfully');
+      }
+    } catch {
+      if (showToast) {
+        showToast('error', isRtl ? 'فشل تحميل إعدادات التاجر' : 'Failed to load merchant settings');
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [showToast, isRtl]);
+
+  const fetchNotificationsList = useCallback(async () => {
     setLoadingNotifs(true);
     try {
       const res = await notificationsApi.list();
@@ -120,20 +201,28 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
         setNotifications(res.notifications || []);
       }
     } catch {
+      // silently ignore or notify if needed
     } finally {
       setLoadingNotifs(false);
+    }
+  }, []);
+
+  const handleRefresh = async () => {
+    await fetchSettings(true);
+    if (activeTab === 'notifications') {
+      await fetchNotificationsList();
     }
   };
 
   useEffect(() => {
     fetchSettings();
-  }, []);
+  }, [fetchSettings]);
 
   useEffect(() => {
     if (activeTab === 'notifications') {
       fetchNotificationsList();
     }
-  }, [activeTab]);
+  }, [activeTab, fetchNotificationsList]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -154,8 +243,9 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
 
       if (res.ok) {
         setSaved(true);
+        setLastRefreshedAt(new Date());
         if (showToast) {
-          showToast('success', isRtl ? 'تم حفظ الإعدادات بنجاح!' : 'Settings updated successfully!');
+          showToast('success', isRtl ? 'تم حفظ الإعدادات وتطبيق القواعد فوراً!' : 'Settings updated & policies applied immediately!');
         }
         setTimeout(() => setSaved(false), 2500);
       } else {
@@ -169,99 +259,293 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
     }
   };
 
+  const handleCopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    if (showToast) {
+      showToast('info', isRtl ? 'تم النسخ إلى الحافظة' : 'Copied to clipboard');
+    }
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
   const handleMarkAllRead = async () => {
     try {
       await notificationsApi.markAllRead();
-      if (showToast) showToast('success', isRtl ? 'تم تحديد الكل كمقروء' : 'All notifications marked as read');
+      if (showToast) showToast('success', isRtl ? 'تم تحديد كافة التنبيهات كمقروءة' : 'All notifications marked as read');
       fetchNotificationsList();
     } catch {}
   };
 
-  const cardBg = isDark ? '#111827' : 'white';
-  const cardBorder = isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0';
-  const labelColor = isDark ? '#f8fafc' : '#334155';
-  const subtextColor = isDark ? '#94a3b8' : '#64748b';
-  const inputBg = isDark ? '#1e293b' : 'white';
-  const inputBorder = isDark ? '1px solid #334155' : '1px solid #cbd5e1';
-  const inputColor = isDark ? '#f8fafc' : '#1e293b';
+  const handleMarkSingleRead = async (id: string) => {
+    try {
+      await notificationsApi.markRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, readAt: new Date().toISOString() } : n));
+      if (showToast) showToast('info', isRtl ? 'تم تحديد الإشعار كمقروء' : 'Notification marked as read');
+    } catch {}
+  };
 
-  const tabItems: { key: SettingsTab; labelEn: string; labelAr: string; icon: React.ReactNode }[] = [
+  const formatRelativeTime = (isoString: string) => {
+    try {
+      const diffSeconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+      if (diffSeconds < 10) return isRtl ? 'الآن' : 'Just now';
+      if (diffSeconds < 60) return isRtl ? `منذ ${diffSeconds} ث` : `${diffSeconds}s ago`;
+      if (diffSeconds < 3600) return isRtl ? `منذ ${Math.floor(diffSeconds / 60)} د` : `${Math.floor(diffSeconds / 60)}m ago`;
+      return isRtl ? `منذ ${Math.floor(diffSeconds / 3600)} س` : `${Math.floor(diffSeconds / 3600)}h ago`;
+    } catch {
+      return isoString;
+    }
+  };
+
+  const tabItems: { key: SettingsTab; labelEn: string; labelAr: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'general', labelEn: 'Store & Credentials', labelAr: 'بيانات المتجر والحساب', icon: <Store size={15} /> },
     { key: 'precision', labelEn: 'Precision & Review Rules', labelAr: 'قواعد السماحية والمراجعة', icon: <Sliders size={15} /> },
     { key: 'webhooks', labelEn: 'Webhooks & API', labelAr: 'الويب هوك وبوابة المطور', icon: <Link size={15} /> },
-    { key: 'notifications', labelEn: 'Notifications', labelAr: 'التنبيهات والإشعارات', icon: <Bell size={15} /> },
+    {
+      key: 'notifications',
+      labelEn: 'Notifications & Inbox',
+      labelAr: 'التنبيهات وصندوق الوارد',
+      icon: <Bell size={15} />,
+      count: notifications.filter((n) => !n.readAt).length,
+    },
   ];
 
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
+
+  const filteredNotifications = notifications.filter((n) => {
+    if (notifFilter === 'unread') return !n.readAt;
+    if (notifFilter === 'urgent') return n.severity === 'URGENT';
+    return true;
+  });
+
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
-      {/* Page Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '20px',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
-            {isRtl ? 'إعدادات المتجر وقواعد البوابة' : 'Settings & Precision Controls'}
-          </h2>
-          <p style={{ fontSize: '14px', color: subtextColor, margin: '4px 0 0 0' }}>
-            {isRtl
-              ? 'تخصيص روابط الدفع، وسماحية المبالغ الزائدة والناقصة، والويبهوك والتنبيهات'
-              : 'Configure payment links, overpaid & underpaid precision tolerances, webhooks and notifications'}
-          </p>
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+      {/* ─── Header ─── */}
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: '44px', height: '44px', borderRadius: '13px',
+            background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+          }}>
+            <Sliders size={22} color="white" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
+              {isRtl ? 'إعدادات المتجر وقواعد البوابة' : 'Settings & Precision Controls'}
+            </h2>
+            <p style={{ fontSize: '13px', color: textSecondary, margin: '2px 0 0 0' }}>
+              {isRtl
+                ? 'تخصيص بيانات المتجر، وسماحية المبالغ الزائدة والناقصة، وتكامل الويب هوك والتنبيهات'
+                : 'Configure payment links, overpaid & underpaid precision tolerances, webhooks and notifications'}
+            </p>
+          </div>
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
+        {/* Header Actions & Live Last Synced Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            padding: '10px 22px',
-            backgroundColor: '#10b981',
-            color: 'white',
-            fontSize: '14px',
-            fontWeight: 700,
-            borderRadius: '10px',
-            border: 'none',
-            cursor: saving ? 'not-allowed' : 'pointer',
-            boxShadow: '0 8px 15px -3px rgba(16,185,129,0.35)',
-            transition: 'all 0.15s',
-          }}
-        >
-          {saved ? <CheckCircle2 size={16} /> : <Save size={16} />}
-          {saving
-            ? isRtl
-              ? 'جاري الحفظ...'
-              : 'Saving...'
-            : saved
-            ? isRtl
-              ? 'تم الحفظ!'
-              : 'Saved!'
-            : isRtl
-            ? 'حفظ التعديلات'
-            : 'Save Changes'}
-        </button>
+            padding: '8px 14px',
+            borderRadius: '12px',
+            backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#eff6ff',
+            border: isDark ? '1px solid rgba(37, 99, 235, 0.25)' : '1px solid #bfdbfe',
+            fontSize: '12px',
+            color: isDark ? '#60a5fa' : '#1d4ed8',
+            fontWeight: 600,
+          }}>
+            <Clock size={14} color="#3b82f6" />
+            <span>
+              {isRtl ? 'آخر مزامنة: ' : 'Last Synced: '}
+              <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                {lastRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </strong>
+              <span style={{ opacity: 0.8, [isRtl ? 'marginRight' : 'marginLeft']: '5px' }}>
+                ({formatRelativeTime(lastRefreshedAt.toISOString())})
+              </span>
+            </span>
+          </div>
+
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 18px',
+              backgroundColor: isDark ? '#1e293b' : '#ffffff',
+              border: `1px solid ${borderColor}`,
+              borderRadius: '12px',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: refreshing ? 'wait' : 'pointer',
+              color: textPrimary,
+              transition: 'all 0.25s ease',
+              opacity: refreshing ? 0.7 : 1,
+              boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
+            }}
+          >
+            <RefreshCw size={15} style={refreshing ? { animation: 'spin 1s linear infinite' } : {}} />
+            <span>
+              {refreshing
+                ? (isRtl ? 'جاري التحديث...' : 'Refreshing...')
+                : (isRtl ? 'تحديث الإعدادات' : 'Refresh')}
+            </span>
+          </button>
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 22px',
+              backgroundColor: '#10b981',
+              color: 'white',
+              fontSize: '13.5px',
+              fontWeight: 700,
+              borderRadius: '12px',
+              border: 'none',
+              cursor: saving ? 'wait' : 'pointer',
+              boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
+              transition: 'all 0.2s ease',
+              opacity: saving ? 0.8 : 1,
+            }}
+          >
+            {saved ? <CheckCircle2 size={16} /> : <Save size={16} />}
+            <span>
+              {saving
+                ? (isRtl ? 'جاري الحفظ...' : 'Saving...')
+                : saved
+                ? (isRtl ? 'تم الحفظ!' : 'Saved!')
+                : (isRtl ? 'حفظ التعديلات' : 'Save Changes')}
+            </span>
+          </button>
+        </div>
       </div>
 
-      {/* Settings Sub-Navigation Tabs (ChatGPT-Style Hash Routing) */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          overflowX: 'auto',
-          paddingBottom: '8px',
-          marginBottom: '24px',
-          whiteSpace: 'nowrap',
-          borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
-        }}
-      >
+      {/* ─── Hero Overview Banner (Store Status & Health) ─── */}
+      <div style={{
+        ...card(),
+        background: isDark
+          ? 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(16,185,129,0.10))'
+          : 'linear-gradient(135deg, #1e40af, #2563eb)',
+        border: isDark ? '1px solid rgba(59,130,246,0.3)' : 'none',
+        padding: '26px 30px',
+        marginBottom: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '20px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Subtle background glow bubbles */}
+        <div style={{ position: 'absolute', top: '-25px', right: isRtl ? 'auto' : '-25px', left: isRtl ? '-25px' : 'auto', width: '130px', height: '130px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+        <div style={{ position: 'absolute', bottom: '-40px', right: isRtl ? 'auto' : '120px', left: isRtl ? '120px' : 'auto', width: '150px', height: '150px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '18px', position: 'relative', zIndex: 1 }}>
+          <div style={{
+            width: '60px', height: '60px', borderRadius: '16px',
+            background: isDark ? 'rgba(37,99,235,0.25)' : 'rgba(255,255,255,0.2)',
+            backdropFilter: 'blur(10px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: isDark ? '1px solid rgba(96,165,250,0.3)' : '1px solid rgba(255,255,255,0.25)',
+          }}>
+            <Store size={30} color={isDark ? '#60a5fa' : 'white'} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h3 style={{ fontSize: '19px', fontWeight: 800, margin: 0, color: isDark ? '#dbeafe' : 'white' }}>
+                {businessName || (isRtl ? 'المتجر الإلكتروني' : 'Merchant Gateway')}
+              </h3>
+              <span style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(16,185,129,0.25)',
+                color: '#34d399',
+                border: '1px solid rgba(16,185,129,0.4)',
+              }}>
+                {instapayHandle ? `@${instapayHandle}` : 'Active Gateway'}
+              </span>
+              {webhookUrl && (
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '20px',
+                  backgroundColor: 'rgba(56,189,248,0.25)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56,189,248,0.4)',
+                }}>
+                  Webhooks Live
+                </span>
+              )}
+            </div>
+            <p style={{ fontSize: '13px', color: isDark ? '#bfdbfe' : 'rgba(255,255,255,0.9)', margin: '5px 0 0 0', lineHeight: 1.5 }}>
+              {isRtl
+                ? 'محرك الدفع الآلي يعمل بكفاءة مع قواعد مطابقة التسامح والدقة وحماية المعاملات الفورية.'
+                : 'Smart InstaPay gateway engine active with automated precision tolerances and instant callbacks.'}
+            </p>
+          </div>
+        </div>
+
+        {/* KPI Mini Stat Cards */}
+        <div style={{ display: 'flex', gap: '12px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
+          {[
+            { label: isRtl ? 'صلاحية الجلسة' : 'Session TTL', value: `${checkoutTtlMin} Mins`, color: '#38bdf8' },
+            {
+              label: isRtl ? 'سماحية الزيادة' : 'Overpaid Rule',
+              value: autoAcceptOverpaid ? `≤ ${overpaidMaxExcessEgp || 0} EGP` : 'Disabled',
+              color: '#34d399',
+            },
+            {
+              label: isRtl ? 'سماحية العجز' : 'Underpaid Rule',
+              value: underpaidToleranceEnabled ? `±${underpaidToleranceEgp || 0} EGP` : 'Strict 0',
+              color: underpaidToleranceEnabled ? '#fbbf24' : '#94a3b8',
+            },
+            {
+              label: isRtl ? 'تنبيهات غير مقروءة' : 'Unread Alerts',
+              value: `${unreadCount} Alerts`,
+              color: unreadCount > 0 ? '#f87171' : '#34d399',
+            },
+          ].map((stat, i) => (
+            <div key={i} style={{
+              padding: '10px 16px',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.15)',
+              borderRadius: '12px',
+              backdropFilter: 'blur(10px)',
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.2)',
+              textAlign: 'center',
+              minWidth: '100px',
+            }}>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.7)', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                {stat.label}
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 800, color: stat.color }}>
+                {stat.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ─── Modern Sub-Navigation Tabs ─── */}
+      <div style={{
+        display: 'flex',
+        gap: '8px',
+        overflowX: 'auto',
+        paddingBottom: '8px',
+        marginBottom: '24px',
+        borderBottom: `1px solid ${borderColor}`,
+      }}>
         {tabItems.map((tab) => {
           const isActive = activeTab === tab.key;
           return (
@@ -272,273 +556,340 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '9px 16px',
-                borderRadius: '10px',
+                padding: '10px 18px',
+                borderRadius: '12px',
                 fontSize: '13px',
-                fontWeight: isActive ? 700 : 500,
+                fontWeight: isActive ? 700 : 600,
                 cursor: 'pointer',
                 backgroundColor: isActive
                   ? '#2563eb'
                   : isDark
-                  ? '#1e293b'
-                  : 'white',
-                color: isActive ? 'white' : isDark ? '#cbd5e1' : '#475569',
+                  ? '#162033'
+                  : '#ffffff',
+                color: isActive ? 'white' : textSecondary,
                 border: isActive
                   ? '1px solid #2563eb'
-                  : isDark
-                  ? '1px solid #334155'
-                  : '1px solid #e2e8f0',
-                transition: 'all 0.15s',
-                boxShadow: isActive ? '0 4px 10px rgba(37, 99, 235, 0.3)' : 'none',
+                  : `1px solid ${borderColor}`,
+                transition: 'all 0.2s',
+                boxShadow: isActive ? '0 4px 12px rgba(37, 99, 235, 0.35)' : 'none',
+                whiteSpace: 'nowrap',
               }}
             >
               {tab.icon}
               <span>{isRtl ? tab.labelAr : tab.labelEn}</span>
+              {tab.count !== undefined && tab.count > 0 && (
+                <span style={{
+                  padding: '1px 6px',
+                  borderRadius: '10px',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : '#ef4444',
+                  color: 'white',
+                  [isRtl ? 'marginRight' : 'marginLeft']: '4px',
+                }}>
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
 
+      {/* ─── Loading State ─── */}
       {loading ? (
-        <div
-          style={{
-            backgroundColor: cardBg,
-            borderRadius: '16px',
-            border: cardBorder,
-            padding: '48px',
-            textAlign: 'center',
-            color: subtextColor,
-          }}
-        >
-          <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 12px auto', color: '#10b981' }} />
-          <div>{isRtl ? 'جاري تحميل الإعدادات...' : 'Loading settings...'}</div>
+        <div style={{ ...card({ padding: '60px 24px', textAlign: 'center' }) }}>
+          <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 16px auto', color: '#2563eb' }} />
+          <h4 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+            {isRtl ? 'جاري تحميل إعدادات وقواعد المتجر...' : 'Loading Merchant Settings...'}
+          </h4>
+          <p style={{ fontSize: '13px', color: textSecondary, margin: '6px 0 0 0' }}>
+            {isRtl ? 'يتم الاتصال بقاعدة البيانات ومزامنة مفاتيح البوابة' : 'Connecting to gateway database and retrieving active configuration'}
+          </p>
         </div>
       ) : (
         <div>
-          {/* TAB 1: General Store Credentials */}
+          {/* ══════════════════════════════════════════════════════════════════════
+              TAB 1: STORE & CREDENTIALS
+             ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'general' && (
-            <div
-              style={{
-                backgroundColor: cardBg,
-                borderRadius: '16px',
-                border: cardBorder,
-                padding: '24px',
-                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-              }}
-            >
-              <h3 style={{ fontSize: '17px', fontWeight: 800, color: labelColor, margin: '0 0 16px 0' }}>
-                {isRtl ? 'معلومات المتجر وبيانات الحساب' : 'Store & Payment Credentials'}
-              </h3>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+              {/* Card 1: Store Profile & Identity */}
+              <div style={{ ...card({ padding: '24px' }) }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '11px',
+                    background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                  }}>
+                    <Store size={20} color="white" />
+                  </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: labelColor, marginBottom: '6px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                      {isRtl ? 'هوية المتجر وحساب الاستلام' : 'Store Identity & Receiving Account'}
+                    </h3>
+                    <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                      {isRtl ? 'الاسم الظاهر للعميل وحساب إنستاباي المعتمد' : 'Customer-facing store name & validated InstaPay IPA'}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
                       {isRtl ? 'الاسم التجاري للمتجر' : 'Business Display Name'}
                     </label>
                     <input
                       type="text"
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px',
-                        borderRadius: '10px',
-                        border: inputBorder,
-                        backgroundColor: inputBg,
-                        color: inputColor,
-                        fontSize: '14px',
-                      }}
+                      placeholder={isRtl ? 'مثال: متجر التقنية الحديثة' : 'e.g. Acme Superstore'}
+                      style={inputStyle}
                     />
+                    <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
+                      {isRtl ? 'يظهر هذا الاسم في صفحة الفاتورة وشاشات الدفع للعملاء.' : 'Appears on customer checkout receipts and hosted payment pages.'}
+                    </span>
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: labelColor, marginBottom: '6px' }}>
-                      {isRtl ? 'عنوان إنستاباي المستلم (مقفل)' : 'Receiving InstaPay Handle (Locked)'}
-                    </label>
-                    <input
-                      type="text"
-                      disabled
-                      value={instapayHandle}
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px',
-                        borderRadius: '10px',
-                        border: inputBorder,
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                        color: subtextColor,
-                        fontSize: '14px',
-                        fontFamily: 'monospace',
-                      }}
-                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '12.5px', fontWeight: 600, color: textPrimary, margin: 0 }}>
+                        {isRtl ? 'معرّف إنستاباي المستلم (مقفل)' : 'Receiving InstaPay Handle (Locked)'}
+                      </label>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: '6px',
+                        backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : '#dcfce7',
+                        color: '#10b981',
+                      }}>
+                        Verified IPA
+                      </span>
+                    </div>
+
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        disabled
+                        value={instapayHandle}
+                        style={{
+                          ...inputStyle,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9',
+                          color: textSecondary,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          paddingRight: isRtl ? '14px' : '42px',
+                          paddingLeft: isRtl ? '42px' : '14px',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(instapayHandle, 'handle')}
+                        style={{
+                          position: 'absolute',
+                          [isRtl ? 'left' : 'right']: '10px',
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: copiedKey === 'handle' ? '#10b981' : textSecondary,
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '4px',
+                        }}
+                        title={isRtl ? 'نسخ المعرف' : 'Copy handle'}
+                      >
+                        {copiedKey === 'handle' ? <Check size={16} /> : <Copy size={16} />}
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
+                      {isRtl
+                        ? 'عنوان IPA المرتبط بتطبيق الكاشف. لتعديله يرجى التواصل مع الدعم الفني.'
+                        : 'IPA bound to companion detector. Contact support to alter receiving credentials.'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Checkout Link & Lifetime Configuration */}
+              <div style={{ ...card({ padding: '24px' }) }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '11px',
+                    background: 'linear-gradient(135deg, #059669, #10b981)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(5,150,105,0.3)',
+                  }}>
+                    <Globe size={20} color="white" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                      {isRtl ? 'رابط الدفع ومدة الجلسة' : 'Payment Link & Session Lifetime'}
+                    </h3>
+                    <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                      {isRtl ? 'رابط الدفع الثابت ومهلة انتهاء صلاحية الفاتورة' : 'Static payment share link and session timeout TTL'}
+                    </p>
                   </div>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: labelColor, marginBottom: '6px' }}>
-                    {isRtl ? 'رابط الدفع المباشر الثابت لإنستاباي (Static InstaPay URL)' : 'Static InstaPay Payment / Share URL'}
-                  </label>
-                  <p style={{ fontSize: '12px', color: subtextColor, margin: '0 0 8px 0' }}>
-                    {isRtl
-                      ? 'انسخ رابط المشاركة الثابت من تطبيق إنستاباي الرسمي (مثال: https://ipn.eg/S/username/instapay/TOKEN)'
-                      : 'Copy your exact share payment URL from the official InstaPay app (e.g. https://ipn.eg/S/username/instapay/TOKEN).'}
-                  </p>
-                  <input
-                    type="url"
-                    value={instapayPaymentUrl}
-                    onChange={(e) => setInstapayPaymentUrl(e.target.value)}
-                    placeholder="https://ipn.eg/S/..."
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: inputBorder,
-                      backgroundColor: inputBg,
-                      color: inputColor,
-                      fontSize: '14px',
-                      fontFamily: 'monospace',
-                    }}
-                  />
-                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
+                      {isRtl ? 'رابط المشاركة الثابت لإنستاباي (Static InstaPay URL)' : 'Static InstaPay Payment / Share URL'}
+                    </label>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="url"
+                        value={instapayPaymentUrl}
+                        onChange={(e) => setInstapayPaymentUrl(e.target.value)}
+                        placeholder="https://ipn.eg/S/username/instapay/TOKEN"
+                        style={{
+                          ...inputStyle,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: '12.5px',
+                          paddingRight: isRtl ? '14px' : '42px',
+                          paddingLeft: isRtl ? '42px' : '14px',
+                        }}
+                      />
+                      {instapayPaymentUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(instapayPaymentUrl, 'url')}
+                          style={{
+                            position: 'absolute',
+                            [isRtl ? 'left' : 'right']: '10px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: copiedKey === 'url' ? '#10b981' : textSecondary,
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '4px',
+                          }}
+                          title={isRtl ? 'نسخ الرابط' : 'Copy link'}
+                        >
+                          {copiedKey === 'url' ? <Check size={16} /> : <Copy size={16} />}
+                        </button>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
+                      {isRtl
+                        ? 'رابط إنستاباي المباشر الذي يفتح تطبيق البنك فوراً لتحويل القيمة بدقة.'
+                        : 'Exact share link from InstaPay app that triggers the bank transfer UI for the buyer.'}
+                    </span>
+                  </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: labelColor, marginBottom: '6px' }}>
-                    {isRtl ? 'مدة صلاحية جلسة الدفع بالدقائق (TTL)' : 'Checkout Session Lifetime (Minutes)'}
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="60"
-                    value={checkoutTtlMin}
-                    onChange={(e) => setCheckoutTtlMin(Number(e.target.value))}
-                    style={{
-                      width: '100%',
-                      maxWidth: '300px',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: inputBorder,
-                      backgroundColor: inputBg,
-                      color: inputColor,
-                      fontSize: '14px',
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', color: subtextColor, marginTop: '4px', display: 'block' }}>
-                    {isRtl
-                      ? 'المدة التي تظل فيها جلسة العميل نشطة لانتظار التحويل (الافتراضي 10 دقائق).'
-                      : 'Duration a checkout session remains active awaiting customer payment (default: 10 mins).'}
-                  </span>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
+                      {isRtl ? 'صلاحية جلسة الدفع بالدقائق (Session TTL)' : 'Checkout Session Lifetime (Minutes)'}
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={checkoutTtlMin}
+                        onChange={(e) => setCheckoutTtlMin(Number(e.target.value))}
+                        style={{
+                          ...inputStyle,
+                          maxWidth: '120px',
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                        }}
+                      />
+                      {/* Quick preset buttons */}
+                      {[5, 10, 15, 30].map((mins) => (
+                        <button
+                          key={mins}
+                          type="button"
+                          onClick={() => setCheckoutTtlMin(mins)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            border: checkoutTtlMin === mins ? '1px solid #2563eb' : `1px solid ${borderColor}`,
+                            backgroundColor: checkoutTtlMin === mins ? (isDark ? 'rgba(37,99,235,0.2)' : '#eff6ff') : (isDark ? '#162033' : '#f8fafc'),
+                            color: checkoutTtlMin === mins ? '#3b82f6' : textSecondary,
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          {mins}m
+                        </button>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
+                      {isRtl
+                        ? 'المدة التي تظل فيها جلسة العميل نشطة لانتظار التحويل قبل انتهاء صلاحيتها (الموصى به: 10 دقائق).'
+                        : 'Active window awaiting buyer payment before the checkout session expires (recommended: 10 mins).'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB 2: Payment Precision & Review Rules */}
+          {/* ══════════════════════════════════════════════════════════════════════
+              TAB 2: PRECISION & REVIEW RULES
+             ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'precision' && (
-            <div
-              style={{
-                backgroundColor: cardBg,
-                borderRadius: '16px',
-                border: cardBorder,
-                padding: '24px',
-                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div
-                  style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '10px',
-                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#10b981',
-                  }}
-                >
-                  <Sliders size={20} />
-                </div>
-                <h3 style={{ fontSize: '17px', fontWeight: 800, color: labelColor, margin: 0 }}>
-                  {isRtl ? 'قواعد سماحية الدفع والمراجعة اليدوية' : 'Payment Precision & Review Rules'}
-                </h3>
-              </div>
-              <p style={{ fontSize: '13px', color: subtextColor, margin: '0 0 20px 0' }}>
-                {isRtl
-                  ? 'تحكم في كيفية تعامل النظام التلقائي مع المدفوعات الزائدة أو الناقصة بهامش دقة محدد دون تعطيل العميل.'
-                  : 'Control how the payment engine handles overpaid and underpaid transfers within your agreed precision tolerance.'}
-              </p>
-
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                  gap: '20px',
-                }}
-              >
-                {/* Overpaid Rule Card */}
-                <div
-                  style={{
-                    backgroundColor: isDark ? '#162033' : '#f8fafc',
-                    borderRadius: '14px',
-                    padding: '20px',
-                    border: isDark ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid #e2e8f0',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <TrendingUp size={18} color="#10b981" />
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: labelColor }}>
-                        {isRtl ? 'قبول المبالغ الزائدة (Overpaid Acceptance)' : 'Auto-Accept Overpaid Transfers'}
-                      </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+                {/* Rule Card 1: Overpaid Acceptance */}
+                <div style={{ ...card({ padding: '24px' }) }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '40px', height: '40px', borderRadius: '11px',
+                        background: 'linear-gradient(135deg, #059669, #10b981)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+                      }}>
+                        <TrendingUp size={20} color="white" />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                          {isRtl ? 'قبول المبالغ الزائدة تلقائياً' : 'Auto-Accept Overpaid Transfers'}
+                        </h3>
+                        <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                          {isRtl ? 'تأكيد المعاملة إذا دفع العميل مبلغاً أعلى' : 'Confirm orders when customer sends excess funds'}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Switch Toggle */}
-                    <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', cursor: 'pointer' }}>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '46px', height: '26px', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={autoAcceptOverpaid}
                         onChange={(e) => setAutoAcceptOverpaid(e.target.checked)}
                         style={{ opacity: 0, width: 0, height: 0 }}
                       />
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          backgroundColor: autoAcceptOverpaid ? '#10b981' : isDark ? '#334155' : '#cbd5e1',
-                          borderRadius: '24px',
-                          transition: '0.2s',
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: 'absolute',
-                            height: '18px',
-                            width: '18px',
-                            left: autoAcceptOverpaid ? (isRtl ? '4px' : '22px') : (isRtl ? '22px' : '4px'),
-                            bottom: '3px',
-                            backgroundColor: 'white',
-                            borderRadius: '50%',
-                            transition: '0.2s',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                          }}
-                        />
+                      <span style={{
+                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: autoAcceptOverpaid ? '#10b981' : isDark ? '#334155' : '#cbd5e1',
+                        borderRadius: '26px', transition: '0.2s',
+                      }}>
+                        <span style={{
+                          position: 'absolute', height: '20px', width: '20px',
+                          left: autoAcceptOverpaid ? (isRtl ? '4px' : '22px') : (isRtl ? '22px' : '4px'),
+                          bottom: '3px', backgroundColor: 'white', borderRadius: '50%',
+                          transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                        }} />
                       </span>
                     </label>
                   </div>
 
-                  <p style={{ fontSize: '12px', color: subtextColor, margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                  <p style={{ fontSize: '13px', color: textSecondary, margin: '0 0 16px 0', lineHeight: 1.5 }}>
                     {isRtl
-                      ? 'عند التفعيل، يتم قبول المعاملات التي يدفع فيها العميل مبلغاً أعلى من المطلوب تلقائياً وتأكيد الطلب مع تسجيل المبلغ الزائد كفائض لصالح المتجر.'
-                      : 'Automatically accept transactions when the customer transfers more than requested, marking the session CONFIRMED and crediting the excess.'}
+                      ? 'عند التفعيل، يتم قبول المعاملات التي يدفع فيها العميل مبلغاً أعلى من المطلوب تلقائياً وتأكيد الطلب مع تسجيل المبلغ الزائد كفائض لصالح المتجر دون إيقاف المعاملة.'
+                      : 'Automatically accepts transactions when the customer transfers more than requested, marking the session CONFIRMED and crediting the excess.'}
                   </p>
 
                   {autoAcceptOverpaid && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: labelColor, marginBottom: '6px' }}>
-                        {isRtl ? 'الحد الأقصى للمبلغ الزائد المسموح به (EGP)' : 'Max Auto-Accepted Excess (EGP)'}
+                    <div style={{ ...subcard({ padding: '16px', marginTop: '12px' }) }}>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
+                        {isRtl ? 'الحد الأقصى للمبلغ الزائد المسموح به (EGP)' : 'Max Auto-Accepted Excess Buffer (EGP)'}
                       </label>
                       <input
                         type="number"
@@ -547,89 +898,71 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                         value={overpaidMaxExcessEgp}
                         onChange={(e) => setOverpaidMaxExcessEgp(e.target.value)}
                         placeholder="100.00"
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          border: inputBorder,
-                          backgroundColor: inputBg,
-                          color: inputColor,
-                          fontSize: '13px',
-                          fontWeight: 600,
-                        }}
+                        style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}
                       />
-                      <span style={{ fontSize: '11px', color: subtextColor, marginTop: '4px', display: 'block' }}>
+                      <span style={{ fontSize: '11px', color: textSecondary, marginTop: '6px', display: 'block' }}>
                         {isRtl
-                          ? 'إذا تجاوزت الزيادة هذا الحد، ستُرسل إلى قائمة المراجعة اليدوية.'
-                          : 'Overpayments exceeding this buffer will be held for manual merchant review.'}
+                          ? `إذا تجاوزت الزيادة ${overpaidMaxExcessEgp || 0} EGP، فستُحال المعاملة إلى قائمة المراجعة اليدوية للموافقة عليها يدوياً.`
+                          : `Overpayments exceeding ${overpaidMaxExcessEgp || 0} EGP will be flagged in Manual Review for merchant verification.`}
                       </span>
                     </div>
                   )}
                 </div>
 
-                {/* Underpaid Tolerance Rule Card */}
-                <div
-                  style={{
-                    backgroundColor: isDark ? '#162033' : '#f8fafc',
-                    borderRadius: '14px',
-                    padding: '20px',
-                    border: isDark ? '1px solid rgba(234, 88, 12, 0.25)' : '1px solid #e2e8f0',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <AlertCircle size={18} color="#ea580c" />
-                      <span style={{ fontSize: '15px', fontWeight: 700, color: labelColor }}>
-                        {isRtl ? 'سماحية العجز في الدفع (Underpaid Tolerance)' : 'Underpaid Precision Tolerance'}
-                      </span>
+                {/* Rule Card 2: Underpaid Tolerance */}
+                <div style={{ ...card({ padding: '24px' }) }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '40px', height: '40px', borderRadius: '11px',
+                        background: 'linear-gradient(135deg, #ea580c, #f97316)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(234,88,12,0.3)',
+                      }}>
+                        <AlertCircle size={20} color="white" />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                          {isRtl ? 'سماحية العجز في الدفع (Underpaid Tolerance)' : 'Underpaid Precision Tolerance'}
+                        </h3>
+                        <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                          {isRtl ? 'تجاوز فروق التقريب والرسوم البنكية الطفيفة' : 'Absorb minor rounding & transfer fee differences'}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Switch Toggle */}
-                    <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', cursor: 'pointer' }}>
+                    <label style={{ position: 'relative', display: 'inline-block', width: '46px', height: '26px', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={underpaidToleranceEnabled}
                         onChange={(e) => setUnderpaidToleranceEnabled(e.target.checked)}
                         style={{ opacity: 0, width: 0, height: 0 }}
                       />
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          backgroundColor: underpaidToleranceEnabled ? '#ea580c' : isDark ? '#334155' : '#cbd5e1',
-                          borderRadius: '24px',
-                          transition: '0.2s',
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: 'absolute',
-                            height: '18px',
-                            width: '18px',
-                            left: underpaidToleranceEnabled ? (isRtl ? '4px' : '22px') : (isRtl ? '22px' : '4px'),
-                            bottom: '3px',
-                            backgroundColor: 'white',
-                            borderRadius: '50%',
-                            transition: '0.2s',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                          }}
-                        />
+                      <span style={{
+                        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: underpaidToleranceEnabled ? '#ea580c' : isDark ? '#334155' : '#cbd5e1',
+                        borderRadius: '26px', transition: '0.2s',
+                      }}>
+                        <span style={{
+                          position: 'absolute', height: '20px', width: '20px',
+                          left: underpaidToleranceEnabled ? (isRtl ? '4px' : '22px') : (isRtl ? '22px' : '4px'),
+                          bottom: '3px', backgroundColor: 'white', borderRadius: '50%',
+                          transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                        }} />
                       </span>
                     </label>
                   </div>
 
-                  <p style={{ fontSize: '12px', color: subtextColor, margin: '0 0 16px 0', lineHeight: 1.5 }}>
+                  <p style={{ fontSize: '13px', color: textSecondary, margin: '0 0 16px 0', lineHeight: 1.5 }}>
                     {isRtl
-                      ? 'في حال موافقة التاجر على هامش دقة معين (مثلاً خصم رسوم بنكية أو تقريب)، يتم قبول المعاملة وتأكيدها فوراً إذا كان العجز ضمن هذا الحد.'
-                      : 'If customer transfers an amount short by up to this agreed precision limit (e.g. transfer fee deductions), automatically accept and mark CONFIRMED.'}
+                      ? 'في حال موافقة التاجر على هامش دقة معين (مثلاً خصم رسوم بنكية طفيفة أو تقريب قروش)، يتم تأكيد المعاملة تلقائياً إذا كان النقص ضمن هذا الحد دون تعطيل العميل.'
+                      : 'If customer transfers an amount short by up to this agreed tolerance (e.g. transfer fees or decimal rounding), automatically accept and mark CONFIRMED.'}
                   </p>
 
                   {underpaidToleranceEnabled && (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: labelColor, marginBottom: '6px' }}>
+                    <div style={{ ...subcard({ padding: '16px', marginTop: '12px' }) }}>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
                         {isRtl ? 'حد دقة السماحية المقبول (EGP)' : 'Agreed Precision Tolerance Limit (EGP)'}
                       </label>
                       <input
@@ -639,269 +972,477 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                         value={underpaidToleranceEgp}
                         onChange={(e) => setUnderpaidToleranceEgp(e.target.value)}
                         placeholder="5.00"
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          border: inputBorder,
-                          backgroundColor: inputBg,
-                          color: inputColor,
-                          fontSize: '13px',
-                          fontWeight: 600,
-                        }}
+                        style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}
                       />
-                      <span style={{ fontSize: '11px', color: subtextColor, marginTop: '4px', display: 'block' }}>
+                      <span style={{ fontSize: '11px', color: textSecondary, marginTop: '6px', display: 'block' }}>
                         {isRtl
-                          ? `أي عجز أكبر من ${underpaidToleranceEgp || 0} EGP سيتم تحويله إلى قائمة المراجعة اليدوية.`
-                          : `Any shortage greater than ${underpaidToleranceEgp || 0} EGP will be flagged in Manual Review.`}
+                          ? `أي عجز أكبر من ${underpaidToleranceEgp || 0} EGP سيتم تحويله تلقائياً إلى قائمة المراجعة اليدوية.`
+                          : `Any shortage exceeding ${underpaidToleranceEgp || 0} EGP will be flagged in Manual Review queue.`}
                       </span>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* TAB 3: Webhooks & API Integration */}
-          {activeTab === 'webhooks' && (
-            <div
-              style={{
-                backgroundColor: cardBg,
-                borderRadius: '16px',
-                border: cardBorder,
-                padding: '24px',
-                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-              }}
-            >
-              <h3 style={{ fontSize: '17px', fontWeight: 800, color: labelColor, margin: '0 0 16px 0' }}>
-                {isRtl ? 'إعدادات الويب هوك وتكامل الخادم' : 'Webhooks & Server Integration'}
-              </h3>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: labelColor, marginBottom: '6px' }}>
-                    {isRtl ? 'رابط الويب هوك (Merchant Webhook URL)' : 'Merchant Webhook URL'}
-                  </label>
-                  <p style={{ fontSize: '12px', color: subtextColor, margin: '0 0 8px 0' }}>
-                    {isRtl
-                      ? 'الرابط الذي ستصل إليه إشعارات تأكيد الدفع المشفرة بتوقيع HMAC-SHA256 فور تطابق التحويل.'
-                      : 'The endpoint where HMAC-SHA256 signed payment events (payment.confirmed, payment.underpaid) are posted.'}
-                  </p>
-                  <input
-                    type="url"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="https://api.yourdomain.com/webhooks/instapay"
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: inputBorder,
-                      backgroundColor: inputBg,
-                      color: inputColor,
-                      fontSize: '14px',
-                      fontFamily: 'monospace',
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: labelColor, marginBottom: '6px' }}>
-                    {isRtl ? 'مفتاح توقيع الويب هوك (Webhook Secret)' : 'Webhook Signing Secret'}
-                  </label>
-                  <input
-                    type="text"
-                    disabled
-                    value={webhookSecret || (isRtl ? 'يتم توليده تلقائياً عند الاعتماد' : 'Auto-generated upon approval')}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: inputBorder,
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                      color: subtextColor,
-                      fontSize: '13px',
-                      fontFamily: 'monospace',
-                    }}
-                  />
-                  <span style={{ fontSize: '11px', color: subtextColor, marginTop: '4px', display: 'block' }}>
-                    {isRtl
-                      ? 'استخدم هذا المفتاح للتحقق من هيدر x-instapay-signature في خادمك.'
-                      : 'Use this secret to verify the x-instapay-signature header on incoming callbacks.'}
-                  </span>
+              {/* Policy Explanation Callout */}
+              <div style={{
+                ...subcard({ padding: '18px 22px' }),
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                borderLeft: isRtl ? 'none' : '4px solid #3b82f6',
+                borderRight: isRtl ? '4px solid #3b82f6' : 'none',
+              }}>
+                <Info size={22} color="#3b82f6" style={{ flexShrink: 0 }} />
+                <div style={{ fontSize: '12.5px', color: textSecondary, lineHeight: 1.6 }}>
+                  <strong style={{ color: textPrimary }}>
+                    {isRtl ? 'كيف تحمي قواعد السماحية مبيعات متجرك؟ ' : 'How precision policies safeguard your revenue: '}
+                  </strong>
+                  {isRtl
+                    ? 'تمنع هذه القواعد إلغاء المعاملات الناجحة بسبب فروق قروش طفيفة وتجنب تجربة الشراء المعطلة، بينما يتم عزل أي فروق غير طبيعية وإرسالها إلى شاشة المراجعة اليدوية لاتخاذ الإجراء المناسب.'
+                    : 'These rules prevent frictionless checkout interruptions due to trivial cents differences, while routing abnormal discrepancies safely to the Manual Review queue.'}
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB 4: Notifications & Alerts (ChatGPT #settings/Notifications Style) */}
+          {/* ══════════════════════════════════════════════════════════════════════
+              TAB 3: WEBHOOKS & API INTEGRATION
+             ══════════════════════════════════════════════════════════════════════ */}
+          {activeTab === 'webhooks' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+                {/* Webhook Configuration Card */}
+                <div style={{ ...card({ padding: '24px' }) }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '11px',
+                      background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 12px rgba(124,58,237,0.3)',
+                    }}>
+                      <Link size={20} color="white" />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                        {isRtl ? 'رابط الويب هوك ومفتاح التوقيع' : 'Webhook Endpoint & Signing Secret'}
+                      </h3>
+                      <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                        {isRtl ? 'استقبال إشعارات الدفع الفورية المشفرة' : 'Receive instant cryptographically signed callbacks'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
+                        {isRtl ? 'رابط خادمك لاستقبال الويب هوك (URL)' : 'Merchant Webhook URL'}
+                      </label>
+                      <input
+                        type="url"
+                        value={webhookUrl}
+                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        placeholder="https://api.yourdomain.com/webhooks/instapay"
+                        style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace", fontSize: '12.5px' }}
+                      />
+                      <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
+                        {isRtl
+                          ? 'الرابط الذي ستصل إليه طلبات POST المشفرة فور تطابق وتأكيد أي تحويل.'
+                          : 'The POST endpoint that receives real-time payment notifications (JSON payload).'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '12.5px', fontWeight: 600, color: textPrimary, margin: 0 }}>
+                          {isRtl ? 'مفتاح توقيع الويب هوك (Webhook Secret)' : 'Webhook Signing Secret'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowSecret(!showSecret)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: textSecondary,
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {showSecret ? <EyeOff size={13} /> : <Eye size={13} />}
+                          <span>{showSecret ? (isRtl ? 'إخفاء' : 'Hide') : (isRtl ? 'إظهار' : 'Show')}</span>
+                        </button>
+                      </div>
+
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type={showSecret ? 'text' : 'password'}
+                          disabled
+                          value={webhookSecret || 'whsec_••••••••••••••••••••••••'}
+                          style={{
+                            ...inputStyle,
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9',
+                            color: textSecondary,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            paddingRight: isRtl ? '14px' : '42px',
+                            paddingLeft: isRtl ? '42px' : '14px',
+                          }}
+                        />
+                        {webhookSecret && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(webhookSecret, 'secret')}
+                            style={{
+                              position: 'absolute',
+                              [isRtl ? 'left' : 'right']: '10px',
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: copiedKey === 'secret' ? '#10b981' : textSecondary,
+                              display: 'flex',
+                              alignItems: 'center',
+                              padding: '4px',
+                            }}
+                            title={isRtl ? 'نسخ المفتاح' : 'Copy secret'}
+                          >
+                            {copiedKey === 'secret' ? <Check size={16} /> : <Copy size={16} />}
+                          </button>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
+                        {isRtl
+                          ? 'استخدم هذا المفتاح للتحقق من ترويسة x-instapay-signature لحماية خادمك من الهجمات المزورة.'
+                          : 'Verify the x-instapay-signature HTTP header to prevent spoofing or replay attacks.'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subscribed Events Card */}
+                <div style={{ ...card({ padding: '24px' }) }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '11px',
+                      background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
+                    }}>
+                      <Bell size={20} color="white" />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                        {isRtl ? 'أحداث الويب هوك النشطة' : 'Subscribed Gateway Events'}
+                      </h3>
+                      <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                        {isRtl ? 'الأحداث المرسلة تلقائياً إلى خادمك' : 'Events automatically dispatched to your endpoint'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {[
+                      { event: 'payment.confirmed', labelAr: 'تأكيد الدفع ومطابقة التحويل', labelEn: 'Payment successfully confirmed & matched', color: '#10b981' },
+                      { event: 'payment.overpaid', labelAr: 'استلام مبلغ زائد عن المطلوب', labelEn: 'Overpayment detected & credited', color: '#3b82f6' },
+                      { event: 'payment.underpaid', labelAr: 'عجز في قيمة التحويل', labelEn: 'Underpaid transfer requiring action', color: '#ea580c' },
+                      { event: 'payment.expired', labelAr: 'انتهاء صلاحية جلسة الدفع', labelEn: 'Checkout session expired (TTL timeout)', color: '#64748b' },
+                      { event: 'detector.offline', labelAr: 'انقطاع اتصال جهاز الكاشف', labelEn: 'Android companion detector offline alert', color: '#ef4444' },
+                    ].map((item, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          ...subcard({ padding: '10px 14px' }),
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '10px',
+                        }}
+                      >
+                        <div>
+                          <code style={{ fontSize: '12.5px', fontWeight: 700, color: item.color, fontFamily: "'JetBrains Mono', monospace" }}>
+                            {item.event}
+                          </code>
+                          <p style={{ fontSize: '11px', color: textSecondary, margin: '2px 0 0 0' }}>
+                            {isRtl ? item.labelAr : item.labelEn}
+                          </p>
+                        </div>
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: '6px',
+                          backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : '#dcfce7',
+                          color: '#10b981',
+                        }}>
+                          Subscribed
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Code Example Verification Box */}
+              <div style={{ ...card({ padding: '24px' }) }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Code size={18} color="#2563eb" />
+                    <h4 style={{ fontSize: '15px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                      {isRtl ? 'مثال التحقق من التوقيع (HMAC-SHA256 Signature Verification)' : 'HMAC-SHA256 Signature Verification Example'}
+                    </h4>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {(['nodejs', 'python', 'php'] as const).map((l) => (
+                      <button
+                        key={l}
+                        type="button"
+                        onClick={() => setCodeLang(l)}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          backgroundColor: codeLang === l ? '#2563eb' : isDark ? '#1e293b' : '#f1f5f9',
+                          color: codeLang === l ? 'white' : textSecondary,
+                          border: 'none',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <pre style={{
+                  margin: 0,
+                  padding: '16px',
+                  borderRadius: '12px',
+                  backgroundColor: isDark ? '#0b1120' : '#1e293b',
+                  color: '#e2e8f0',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '12px',
+                  lineHeight: 1.6,
+                  overflowX: 'auto',
+                }}>
+                  {codeLang === 'nodejs' && `const crypto = require('crypto');
+
+function verifyWebhook(payload, signatureHeader, secret) {
+  const [timestampPart, sigPart] = signatureHeader.split(',');
+  const timestamp = timestampPart.split('=')[1];
+  const signature = sigPart.split('=')[1];
+
+  // Prevent replay attacks (allow up to 5 minutes tolerance)
+  if (Math.abs(Date.now() - parseInt(timestamp, 10)) > 300000) {
+    throw new Error('Webhook timestamp too old or invalid');
+  }
+
+  const expectedSig = crypto
+    .createHmac('sha256', secret)
+    .update(\`\${timestamp}.\${payload}\`)
+    .digest('hex');
+
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig));
+}`}
+                  {codeLang === 'python' && `import hmac, hashlib, time
+
+def verify_webhook(payload: bytes, signature_header: str, secret: str) -> bool:
+    parts = dict(x.split('=') for x in signature_header.split(','))
+    timestamp = parts['t']
+    signature = parts['v1']
+
+    if abs(time.time() * 1000 - int(timestamp)) > 300000:
+        raise ValueError('Webhook timestamp expired')
+
+    expected = hmac.new(
+        secret.encode('utf-8'),
+        f"{timestamp}.{payload.decode('utf-8')}".encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    return hmac.compare_digest(signature, expected)`}
+                  {codeLang === 'php' && `<?php
+function verify_webhook($payload, $signatureHeader, $secret) {
+    parse_str(str_replace(',', '&', $signatureHeader), $parts);
+    $timestamp = $parts['t'];
+    $signature = $parts['v1'];
+
+    if (abs((time() * 1000) - intval($timestamp)) > 300000) {
+        return false;
+    }
+
+    $expected = hash_hmac('sha256', "{$timestamp}.{$payload}", $secret);
+    return hash_equals($signature, $expected);
+}`}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════════
+              TAB 4: NOTIFICATIONS & INBOX
+             ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'notifications' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Notification Preferences Card */}
-              <div
-                style={{
-                  backgroundColor: cardBg,
-                  borderRadius: '16px',
-                  border: cardBorder,
-                  padding: '24px',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-                }}
-              >
-                <h3 style={{ fontSize: '17px', fontWeight: 800, color: labelColor, margin: '0 0 16px 0' }}>
-                  {isRtl ? 'تفضيلات الإشعارات والتنبيهات' : 'Notification Preferences'}
-                </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Notification Triggers Configuration Card */}
+              <div style={{ ...card({ padding: '24px' }) }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '11px',
+                    background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(217,119,6,0.3)',
+                  }}>
+                    <Bell size={20} color="white" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                      {isRtl ? 'قنوات وتفضيلات التنبيه الفوري' : 'Real-Time Alert Preferences'}
+                    </h3>
+                    <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                      {isRtl ? 'اختر الحالات التي ترغب في تلقي إشعارات فورية لها في لوحة التحكم' : 'Customize event triggers for merchant dashboard notifications'}
+                    </p>
+                  </div>
+                </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 16px',
-                      borderRadius: '12px',
-                      backgroundColor: isDark ? '#162033' : '#f8fafc',
-                      border: cardBorder,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: labelColor }}>
-                        {isRtl ? 'تنبيهات المدفوعات الناقصة' : 'Underpaid Payment Alerts'}
+                  {[
+                    {
+                      titleAr: 'تنبيهات المدفوعات الناقصة',
+                      titleEn: 'Underpaid Payment Alerts',
+                      subAr: 'إشعار فوري عند وجود عجز في قيمة التحويل',
+                      subEn: 'Alert immediately when a customer pays short',
+                      checked: notifyOnUnderpaid,
+                      setter: setNotifyOnUnderpaid,
+                    },
+                    {
+                      titleAr: 'تنبيهات المبالغ الزائدة',
+                      titleEn: 'Overpaid Payment Alerts',
+                      subAr: 'إشعار عند تحويل العميل لمبالغ أعلى من المطلوب',
+                      subEn: 'Alert when a customer overpays and buffer applies',
+                      checked: notifyOnOverpaid,
+                      setter: setNotifyOnOverpaid,
+                    },
+                    {
+                      titleAr: 'تنبيهات التحويلات اليتيمة',
+                      titleEn: 'Unmatched Direct Transfers',
+                      subAr: 'إشعار بأي تحويل بنكي مباشر بدون رقم جلسة',
+                      subEn: 'Alert for direct bank transfers lacking order sessions',
+                      checked: notifyOnUnmatched,
+                      setter: setNotifyOnUnmatched,
+                    },
+                    {
+                      titleAr: 'حالة جهاز الكاشف (Companion)',
+                      titleEn: 'Detector Health Warnings',
+                      subAr: 'تنبيه عاجل إذا انقطع اتصال تطبيق الكاشف بالإنترنت',
+                      subEn: 'Urgent warning if Android detector goes offline',
+                      checked: notifyOnDetectorOffline,
+                      setter: setNotifyOnDetectorOffline,
+                    },
+                  ].map((pref, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        ...subcard({ padding: '14px 16px' }),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: textPrimary }}>
+                          {isRtl ? pref.titleAr : pref.titleEn}
+                        </div>
+                        <div style={{ fontSize: '11px', color: textSecondary, marginTop: '2px' }}>
+                          {isRtl ? pref.subAr : pref.subEn}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '11px', color: subtextColor }}>
-                        {isRtl ? 'إشعار فوري عند وجود عجز في الدفع' : 'Instant alert when customer underpays'}
-                      </div>
+                      <input
+                        type="checkbox"
+                        checked={pref.checked}
+                        onChange={(e) => pref.setter(e.target.checked)}
+                        style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
+                      />
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyOnUnderpaid}
-                      onChange={(e) => setNotifyOnUnderpaid(e.target.checked)}
-                      style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 16px',
-                      borderRadius: '12px',
-                      backgroundColor: isDark ? '#162033' : '#f8fafc',
-                      border: cardBorder,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: labelColor }}>
-                        {isRtl ? 'تنبيهات المبالغ الزائدة' : 'Overpaid Payment Alerts'}
-                      </div>
-                      <div style={{ fontSize: '11px', color: subtextColor }}>
-                        {isRtl ? 'إشعار عند استلام مبالغ إضافية' : 'Instant alert when customer overpays'}
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyOnOverpaid}
-                      onChange={(e) => setNotifyOnOverpaid(e.target.checked)}
-                      style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 16px',
-                      borderRadius: '12px',
-                      backgroundColor: isDark ? '#162033' : '#f8fafc',
-                      border: cardBorder,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: labelColor }}>
-                        {isRtl ? 'تنبيهات التحويلات اليتيمة' : 'Unmatched Direct Transfers'}
-                      </div>
-                      <div style={{ fontSize: '11px', color: subtextColor }}>
-                        {isRtl ? 'إشعار بالتحويلات المباشرة بدون جلسة' : 'Alert when direct transfer has no session'}
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyOnUnmatched}
-                      onChange={(e) => setNotifyOnUnmatched(e.target.checked)}
-                      style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '14px 16px',
-                      borderRadius: '12px',
-                      backgroundColor: isDark ? '#162033' : '#f8fafc',
-                      border: cardBorder,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: labelColor }}>
-                        {isRtl ? 'حالة جهاز الكاشف' : 'Detector Health Warnings'}
-                      </div>
-                      <div style={{ fontSize: '11px', color: subtextColor }}>
-                        {isRtl ? 'تنبيه عند انقطاع هاتف الكاشف' : 'Alert if Android detector goes offline'}
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifyOnDetectorOffline}
-                      onChange={(e) => setNotifyOnDetectorOffline(e.target.checked)}
-                      style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
-                    />
-                  </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Live Notifications History / Inbox */}
-              <div
-                style={{
-                  backgroundColor: cardBg,
-                  borderRadius: '16px',
-                  border: cardBorder,
-                  padding: '24px',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Bell size={18} color="#2563eb" />
-                    <h3 style={{ fontSize: '17px', fontWeight: 800, color: labelColor, margin: 0 }}>
-                      {isRtl ? 'سجل الإشعارات الواردة' : 'Recent Notifications'}
-                    </h3>
+              {/* Real-time Notifications Inbox */}
+              <div style={{ ...card({ padding: '24px' }) }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Bell size={18} color="white" />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                        {isRtl ? 'صندوق التنبيهات وسجل الإشعارات' : 'Merchant Notification Inbox'}
+                      </h3>
+                      <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                        {isRtl ? `${notifications.length} إشعار مسجل في النظام` : `${notifications.length} events logged`}
+                      </p>
+                    </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {/* Filter & Action Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '4px', backgroundColor: isDark ? '#162033' : '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
+                      {(['all', 'unread', 'urgent'] as const).map((filter) => (
+                        <button
+                          key={filter}
+                          onClick={() => setNotifFilter(filter)}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: notifFilter === filter ? 700 : 500,
+                            cursor: 'pointer',
+                            border: 'none',
+                            backgroundColor: notifFilter === filter ? '#2563eb' : 'transparent',
+                            color: notifFilter === filter ? 'white' : textSecondary,
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {filter === 'all'
+                            ? (isRtl ? 'الكل' : 'All')
+                            : filter === 'unread'
+                            ? (isRtl ? 'غير المقروء' : 'Unread')
+                            : (isRtl ? 'العاجلة' : 'Urgent')}
+                        </button>
+                      ))}
+                    </div>
+
                     <button
                       onClick={fetchNotificationsList}
+                      disabled={loadingNotifs}
                       style={{
                         padding: '6px 12px',
-                        backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
-                        color: isDark ? '#cbd5e1' : '#475569',
-                        border: inputBorder,
+                        backgroundColor: isDark ? '#162033' : '#ffffff',
+                        border: `1px solid ${borderColor}`,
+                        color: textPrimary,
                         borderRadius: '8px',
                         fontSize: '12px',
                         fontWeight: 600,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px',
+                        gap: '6px',
                       }}
                     >
-                      <RefreshCw size={12} className={loadingNotifs ? 'animate-spin' : ''} />
+                      <RefreshCw size={12} style={loadingNotifs ? { animation: 'spin 1s linear infinite' } : {}} />
                       <span>{isRtl ? 'تحديث' : 'Refresh'}</span>
                     </button>
 
-                    {notifications.length > 0 && (
+                    {unreadCount > 0 && (
                       <button
                         onClick={handleMarkAllRead}
                         style={{
@@ -911,11 +1452,12 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                           border: 'none',
                           borderRadius: '8px',
                           fontSize: '12px',
-                          fontWeight: 600,
+                          fontWeight: 700,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
                         }}
                       >
                         <CheckCheck size={14} />
@@ -926,45 +1468,51 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                 </div>
 
                 {loadingNotifs ? (
-                  <div style={{ padding: '24px', textAlign: 'center', color: subtextColor }}>
-                    <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 8px auto', color: '#2563eb' }} />
-                    {isRtl ? 'جاري تحميل الإشعارات...' : 'Loading notifications...'}
-                  </div>
-                ) : notifications.length === 0 ? (
-                  <div style={{ padding: '32px', textAlign: 'center', color: subtextColor }}>
-                    <CheckCircle2 size={36} color="#10b981" style={{ margin: '0 auto 8px auto' }} />
+                  <div style={{ padding: '36px', textAlign: 'center', color: textSecondary }}>
+                    <RefreshCw size={22} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 10px auto', color: '#2563eb' }} />
                     <p style={{ margin: 0, fontSize: '13px' }}>
-                      {isRtl ? 'لا توجد إشعارات جديدة حالياً.' : 'No notifications in your inbox.'}
+                      {isRtl ? 'جاري مزامنة الإشعارات...' : 'Loading notifications...'}
+                    </p>
+                  </div>
+                ) : filteredNotifications.length === 0 ? (
+                  <div style={{ padding: '40px', textAlign: 'center', color: textMuted }}>
+                    <CheckCircle2 size={38} color="#10b981" style={{ margin: '0 auto 10px auto' }} />
+                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: textPrimary }}>
+                      {isRtl ? 'صندوق الوارد نظيف تماماً!' : 'Inbox is all clear!'}
+                    </p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '12.5px', color: textSecondary }}>
+                      {isRtl ? 'لا توجد تنبيهات تطابق الفلتر المحدد حالياً.' : 'No alerts match the selected filter.'}
                     </p>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {notifications.map((n) => (
+                    {filteredNotifications.map((n) => (
                       <div
                         key={n.id}
                         style={{
-                          padding: '14px 16px',
+                          padding: '14px 18px',
                           borderRadius: '12px',
                           backgroundColor: n.readAt
                             ? (isDark ? '#162033' : '#f8fafc')
                             : (isDark ? 'rgba(37, 99, 235, 0.12)' : '#eff6ff'),
                           border: n.readAt
-                            ? cardBorder
+                            ? `1px solid ${borderColor}`
                             : (isDark ? '1px solid rgba(37, 99, 235, 0.35)' : '1px solid #bfdbfe'),
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'flex-start',
-                          gap: '12px',
+                          gap: '14px',
+                          transition: 'all 0.2s',
                         }}
                       >
                         <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                             <span
                               style={{
                                 fontSize: '10px',
                                 fontWeight: 800,
-                                padding: '2px 6px',
-                                borderRadius: '4px',
+                                padding: '2px 7px',
+                                borderRadius: '6px',
                                 backgroundColor: n.severity === 'URGENT'
                                   ? (isDark ? 'rgba(239, 68, 68, 0.25)' : '#fee2e2')
                                   : (isDark ? 'rgba(56, 189, 248, 0.2)' : '#e0f2fe'),
@@ -973,20 +1521,43 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                             >
                               {n.severity}
                             </span>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: labelColor }}>
+                            <span style={{ fontSize: '13.5px', fontWeight: 700, color: textPrimary }}>
                               {n.title}
                             </span>
+                            {!n.readAt && (
+                              <span style={{
+                                width: '7px', height: '7px', borderRadius: '50%',
+                                backgroundColor: '#2563eb', display: 'inline-block',
+                              }} />
+                            )}
                           </div>
-                          <p style={{ fontSize: '12px', color: subtextColor, margin: 0, lineHeight: 1.4 }}>
+                          <p style={{ fontSize: '12.5px', color: textSecondary, margin: 0, lineHeight: 1.5 }}>
                             {n.message}
                           </p>
                         </div>
-                        <span style={{ fontSize: '11px', color: subtextColor, whiteSpace: 'nowrap' }}>
-                          {new Date(n.createdAt).toLocaleTimeString(isRtl ? 'ar-EG' : 'en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
+                          <span style={{ fontSize: '11px', color: textMuted, whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace" }}>
+                            {formatRelativeTime(n.createdAt)}
+                          </span>
+                          {!n.readAt && (
+                            <button
+                              type="button"
+                              onClick={() => handleMarkSingleRead(n.id)}
+                              style={{
+                                fontSize: '11px',
+                                color: '#2563eb',
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                padding: '2px 4px',
+                              }}
+                            >
+                              {isRtl ? 'تحديد كمقروء' : 'Mark read'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
