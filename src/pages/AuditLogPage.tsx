@@ -4,7 +4,7 @@ import {
   Settings, RefreshCw, Search, X, Check, Copy, ExternalLink,
   ShieldCheck, AlertCircle, CheckCircle2, Clock, Globe, Hash,
   ChevronRight, Eye, ArrowUpDown, Layers, Activity, Calendar,
-  AlertTriangle, CheckCircle, Smartphone
+  AlertTriangle, CheckCircle, Smartphone, Timer
 } from 'lucide-react';
 import { settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -149,11 +149,20 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
   const [logs, setLogs] = useState<UnifiedAuditItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
   const [filter, setFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState<'all' | '24h' | '7d' | '30d'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [inspectItem, setInspectItem] = useState<UnifiedAuditItem | null>(null);
   const [copiedInspect, setCopiedInspect] = useState(false);
+  const [, setTick] = useState(0);
+
+  // Auto tick every 10s so relative timestamps update in real-time
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   /* ──────────────── Theme tokens ──────────────── */
   const textPrimary = isDark ? '#f8fafc' : '#1e293b';
@@ -169,13 +178,6 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
       ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
       : '0 4px 16px rgba(0,0,0,0.06)',
     transition: 'all 0.3s ease',
-    ...extra,
-  });
-
-  const subcard = (extra?: React.CSSProperties): React.CSSProperties => ({
-    backgroundColor: isDark ? '#162033' : '#f8fafc',
-    borderRadius: '14px',
-    border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
     ...extra,
   });
 
@@ -265,12 +267,14 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
       // Sort descending by timestamp
       combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setLogs(combined);
+      setLastRefreshedAt(new Date());
 
       if (isRefresh && showToast) {
-        showToast('success', isRtl ? 'تم تحديث سجل التدقيق بنجاح' : 'Audit log refreshed successfully');
+        showToast('success', isRtl ? 'تم تحديث سجل التدقيق والأنشطة' : 'Audit log refreshed successfully');
       }
     } catch {
       setLogs(fallbackAuditLogs);
+      setLastRefreshedAt(new Date());
       if (showToast) {
         showToast('info', isRtl ? 'تم تحميل السجل التجريبي الاحتياطي' : 'Loaded offline audit history');
       }
@@ -293,6 +297,15 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
       // Status filter
       if (statusFilter !== 'all' && log.status !== statusFilter) return false;
 
+      // Timestamp Date Range filter
+      if (timeFilter !== 'all') {
+        const logTime = new Date(log.timestamp).getTime();
+        const now = Date.now();
+        if (timeFilter === '24h' && now - logTime > 24 * 60 * 60 * 1000) return false;
+        if (timeFilter === '7d' && now - logTime > 7 * 24 * 60 * 60 * 1000) return false;
+        if (timeFilter === '30d' && now - logTime > 30 * 24 * 60 * 60 * 1000) return false;
+      }
+
       // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -309,11 +322,11 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
 
       return true;
     });
-  }, [logs, filter, statusFilter, searchQuery]);
+  }, [logs, filter, statusFilter, timeFilter, searchQuery]);
 
   /* ──────────────── Export to CSV ──────────────── */
   const handleExport = () => {
-    const headers = ['ID', 'Action', 'Category', 'Status', 'User', 'IP', 'Timestamp', 'Details', 'Session ID', 'Event ID'];
+    const headers = ['ID', 'Action', 'Category', 'Status', 'User', 'IP', 'Timestamp', 'Unix Timestamp', 'Details', 'Session ID', 'Event ID'];
     const rows = filteredLogs.map((log) => [
       `"${log.id}"`,
       `"${log.action}"`,
@@ -322,6 +335,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
       `"${log.user}"`,
       `"${log.ip}"`,
       `"${log.timestamp}"`,
+      `"${Math.floor(new Date(log.timestamp).getTime() / 1000)}"`,
       `"${log.details.replace(/"/g, '""')}"`,
       `"${log.sessionId || ''}"`,
       `"${log.eventId || ''}"`,
@@ -355,16 +369,16 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
   const formatRelativeTime = (isoString: string) => {
     try {
       const diffSeconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
-      if (diffSeconds < 60) return isRtl ? `منذ ${diffSeconds} ثوانٍ` : `${diffSeconds}s ago`;
-      if (diffSeconds < 3600) return isRtl ? `منذ ${Math.floor(diffSeconds / 60)} دقيقة` : `${Math.floor(diffSeconds / 60)}m ago`;
-      if (diffSeconds < 86400) return isRtl ? `منذ ${Math.floor(diffSeconds / 3600)} ساعة` : `${Math.floor(diffSeconds / 3600)}h ago`;
+      if (diffSeconds < 10) return isRtl ? 'الآن' : 'Just now';
+      if (diffSeconds < 60) return isRtl ? `منذ ${diffSeconds} ث` : `${diffSeconds}s ago`;
+      if (diffSeconds < 3600) return isRtl ? `منذ ${Math.floor(diffSeconds / 60)} د` : `${Math.floor(diffSeconds / 60)}m ago`;
+      if (diffSeconds < 86400) return isRtl ? `منذ ${Math.floor(diffSeconds / 3600)} س` : `${Math.floor(diffSeconds / 3600)}h ago`;
       return isRtl ? `منذ ${Math.floor(diffSeconds / 86400)} يوم` : `${Math.floor(diffSeconds / 86400)}d ago`;
     } catch {
       return isoString;
     }
   };
 
-  // Color tokens per category
   const getCategoryStyles = (category: string) => {
     switch (category) {
       case 'transaction':
@@ -431,7 +445,33 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        {/* Header Actions & Live Timestamp Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Live Synchronized Timestamp Badge */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 14px',
+            borderRadius: '12px',
+            backgroundColor: isDark ? 'rgba(56,189,248,0.1)' : '#f0f9ff',
+            border: isDark ? '1px solid rgba(56,189,248,0.25)' : '1px solid #bae6fd',
+            fontSize: '12px',
+            color: isDark ? '#7dd3fc' : '#0369a1',
+            fontWeight: 600,
+          }}>
+            <Clock size={14} color="#38bdf8" />
+            <span>
+              {isRtl ? 'آخر مزامنة: ' : 'Last Synced: '}
+              <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                {lastRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </strong>
+              <span style={{ opacity: 0.8, [isRtl ? 'marginRight' : 'marginLeft']: '5px' }}>
+                ({formatRelativeTime(lastRefreshedAt.toISOString())})
+              </span>
+            </span>
+          </div>
+
           <button
             onClick={() => fetchLogs(true)}
             disabled={refreshing}
@@ -439,7 +479,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '10px 20px',
+              padding: '10px 18px',
               backgroundColor: isDark ? '#1e293b' : '#ffffff',
               border: `1px solid ${borderColor}`,
               borderRadius: '12px',
@@ -464,7 +504,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '10px 20px',
+              padding: '10px 18px',
               backgroundColor: '#2563eb',
               color: 'white',
               fontSize: '13px',
@@ -538,13 +578,18 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
           </div>
         </div>
 
-        {/* Quick Stats Grid */}
+        {/* Quick Stats Grid with Timestamp KPI */}
         <div style={{ display: 'flex', gap: '14px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
           {[
             { label: isRtl ? 'إجمالي الأحداث' : 'Total Events', value: logs.length, color: '#38bdf8' },
             { label: isRtl ? 'تسليمات الويب هوك' : 'Webhooks', value: logs.filter(l => l.category === 'webhook').length, color: '#c084fc' },
             { label: isRtl ? 'معاملات الدفع' : 'Transactions', value: logs.filter(l => l.category === 'transaction').length, color: '#34d399' },
-            { label: isRtl ? 'عمليات الأمان' : 'Security', value: logs.filter(l => l.category === 'security' || l.category === 'auth').length, color: '#fbbf24' },
+            {
+              label: isRtl ? 'آخر حدث تم رصده' : 'Latest Event',
+              value: logs.length > 0 ? formatRelativeTime(logs[0].timestamp) : '—',
+              subvalue: logs.length > 0 ? new Date(logs[0].timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
+              color: '#fbbf24',
+            },
           ].map((s, i) => (
             <div key={i} style={{
               padding: '12px 18px',
@@ -561,12 +606,17 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
               <div style={{ fontSize: '18px', fontWeight: 800, color: s.color }}>
                 {s.value}
               </div>
+              {s.subvalue && (
+                <div style={{ fontSize: '10px', color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.8)', marginTop: '2px', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {s.subvalue}
+                </div>
+              )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* ─── Search & Filters Bar ─── */}
+      {/* ─── Search & Filters Bar with Timestamp Range Filter ─── */}
       <div style={{
         ...card({ padding: '16px 20px', marginBottom: '20px' }),
         display: 'flex',
@@ -626,8 +676,35 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
           })}
         </div>
 
-        {/* Status Dropdown & Search Input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px', justifyContent: 'flex-end' }}>
+        {/* Timestamp Filter, Status Filter & Search Input */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1, minWidth: '320px', justifyContent: 'flex-end' }}>
+          {/* Timestamp Date Range Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Calendar size={14} style={{ color: textSecondary }} />
+            <select
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value as any)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                backgroundColor: isDark ? '#162033' : '#f8fafc',
+                border: `1px solid ${borderColor}`,
+                color: textPrimary,
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+              title={isRtl ? 'تصفية حسب التاريخ والوقت' : 'Filter by Timestamp Range'}
+            >
+              <option value="all">{isRtl ? 'كل الأوقات' : 'All Time'}</option>
+              <option value="24h">{isRtl ? 'آخر 24 ساعة' : 'Last 24 Hours'}</option>
+              <option value="7d">{isRtl ? 'آخر 7 أيام' : 'Last 7 Days'}</option>
+              <option value="30d">{isRtl ? 'آخر 30 يوماً' : 'Last 30 Days'}</option>
+            </select>
+          </div>
+
+          {/* Status Dropdown */}
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -649,11 +726,12 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
             <option value="warning">{isRtl ? 'تنبيه (Warning)' : 'Warnings'}</option>
           </select>
 
-          <div style={{ position: 'relative', width: '240px' }}>
+          {/* Search Input */}
+          <div style={{ position: 'relative', width: '220px' }}>
             <Search size={14} style={{ position: 'absolute', [isRtl ? 'right' : 'left']: '10px', top: '50%', transform: 'translateY(-50%)', color: textMuted }} />
             <input
               type="text"
-              placeholder={isRtl ? 'بحث في السجلات...' : 'Search logs, IPs, actions...'}
+              placeholder={isRtl ? 'بحث في السجلات...' : 'Search logs, IPs...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -700,7 +778,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
               {isRtl ? 'لم يتم العثور على سجلات مطابقة' : 'No matching audit records found'}
             </h4>
             <p style={{ fontSize: '13px', color: textSecondary, margin: 0 }}>
-              {isRtl ? 'جرب تغيير معايير البحث أو الفلترة' : 'Try clearing filters or changing your search terms'}
+              {isRtl ? 'جرب تغيير معايير البحث أو تصفية الوقت' : 'Try clearing filters or adjusting your timestamp range'}
             </p>
           </div>
         ) : (
@@ -709,6 +787,10 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
             const catStyles = getCategoryStyles(log.category);
             const statusStyles = getStatusStyles(log.status);
             const StatusIcon = statusStyles.icon;
+
+            const dateObj = new Date(log.timestamp);
+            const formattedTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const formattedDate = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 
             return (
               <div
@@ -824,11 +906,6 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                         <Globe size={13} color={textMuted} />
                         <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{log.ip}</span>
                       </span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Clock size={13} color={textMuted} />
-                        <span>{formatRelativeTime(log.timestamp)}</span>
-                        <span style={{ color: textMuted }}>({new Date(log.timestamp).toLocaleTimeString()})</span>
-                      </span>
                       {log.sessionId && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#38bdf8', fontFamily: "'JetBrains Mono', monospace" }}>
                           <Hash size={13} />
@@ -839,36 +916,72 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                   </div>
                 </div>
 
-                {/* Right: Inspect Button */}
-                <button
-                  onClick={() => setInspectItem(log)}
-                  style={{
+                {/* Right: Timestamp Block & Inspect Action */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
+                  {/* Distinct Timestamp Block */}
+                  <div style={{
+                    textAlign: isRtl ? 'left' : 'right',
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '10px',
-                    backgroundColor: isDark ? '#162033' : '#f8fafc',
-                    border: `1px solid ${borderColor}`,
-                    color: textPrimary,
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    flexShrink: 0,
-                  }}
-                  title={isRtl ? 'عرض التفاصيل الكاملة' : 'Inspect event details'}
-                >
-                  <Eye size={14} color="#38bdf8" />
-                  <span>{isRtl ? 'معاينة' : 'Inspect'}</span>
-                </button>
+                    flexDirection: 'column',
+                    alignItems: isRtl ? 'flex-start' : 'flex-end',
+                    gap: '2px',
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      color: textPrimary,
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}>
+                      <Clock size={13} color="#38bdf8" />
+                      <span>{formattedTime}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: textMuted, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>{formattedDate}</span>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        padding: '1px 6px',
+                        borderRadius: '6px',
+                        backgroundColor: isDark ? 'rgba(56,189,248,0.12)' : '#e0f2fe',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                      }}>
+                        {formatRelativeTime(log.timestamp)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setInspectItem(log)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '10px',
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      border: `1px solid ${borderColor}`,
+                      color: textPrimary,
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    title={isRtl ? 'عرض التفاصيل الكاملة' : 'Inspect event details'}
+                  >
+                    <Eye size={14} color="#38bdf8" />
+                    <span>{isRtl ? 'معاينة' : 'Inspect'}</span>
+                  </button>
+                </div>
               </div>
             );
           })
         )}
       </div>
 
-      {/* ─── Inspect Event Modal / Drawer ─── */}
+      {/* ─── Inspect Event Modal ─── */}
       {inspectItem && (
         <div style={{
           position: 'fixed',
@@ -919,11 +1032,19 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
               </button>
             </div>
 
-            {/* Quick Metadata Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '18px' }}>
+            {/* Quick Metadata & Multi-Format Timestamps Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '18px' }}>
               <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: isDark ? '#162033' : '#f8fafc', border: `1px solid ${borderColor}` }}>
-                <span style={{ fontSize: '11px', color: textMuted, display: 'block' }}>{isRtl ? 'الوقت والتاريخ' : 'Timestamp'}</span>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: textPrimary }}>{inspectItem.timestamp}</span>
+                <span style={{ fontSize: '11px', color: textMuted, display: 'block' }}>{isRtl ? 'التوقيت المحلي' : 'Local Timestamp'}</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: textPrimary, fontFamily: "'JetBrains Mono', monospace" }}>
+                  {new Date(inspectItem.timestamp).toLocaleString()}
+                </span>
+              </div>
+              <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: isDark ? '#162033' : '#f8fafc', border: `1px solid ${borderColor}` }}>
+                <span style={{ fontSize: '11px', color: textMuted, display: 'block' }}>{isRtl ? 'توقيت Unix (ثواني)' : 'Unix Timestamp (Epoch)'}</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}>
+                  {Math.floor(new Date(inspectItem.timestamp).getTime() / 1000)}s
+                </span>
               </div>
               <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: isDark ? '#162033' : '#f8fafc', border: `1px solid ${borderColor}` }}>
                 <span style={{ fontSize: '11px', color: textMuted, display: 'block' }}>{isRtl ? 'المستخدم / الفاعل' : 'Actor / User'}</span>
@@ -937,6 +1058,12 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                 <span style={{ fontSize: '11px', color: textMuted, display: 'block' }}>{isRtl ? 'الحالة' : 'Status'}</span>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: getStatusStyles(inspectItem.status).text, textTransform: 'capitalize' }}>
                   {inspectItem.status} {inspectItem.httpCode ? `(HTTP ${inspectItem.httpCode})` : ''}
+                </span>
+              </div>
+              <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: isDark ? '#162033' : '#f8fafc', border: `1px solid ${borderColor}` }}>
+                <span style={{ fontSize: '11px', color: textMuted, display: 'block' }}>{isRtl ? 'توقيت نسبي' : 'Relative Age'}</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8' }}>
+                  {formatRelativeTime(inspectItem.timestamp)}
                 </span>
               </div>
             </div>
