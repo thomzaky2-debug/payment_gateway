@@ -9,6 +9,7 @@ import { emitCheckoutUpdate } from '../services/notificationService.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
 import { createRateLimiter } from '../lib/rateLimiter.js'
 import { requireAdmin } from '../middleware/requireAdmin.js'
+import { sendMerchantApprovalEmail } from '../lib/emailDelivery.js'
 
 export const adminRouter = Router()
 
@@ -151,26 +152,54 @@ adminRouter.get('/clients', requireAdmin, async (_req: Request, res: Response) =
 adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
+    const existing = await db.client.findUnique({ where: { id } })
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Merchant not found' })
+    }
+
     const keys = generateMerchantKeys()
+    const apiKey = existing.apiKey || keys.apiKey
+    const detectToken = existing.detectToken || keys.detectToken
+    const webhookSecret = existing.webhookSecret || keys.webhookSecret
+    const apiKeyHash = existing.apiKeyHash || keys.apiKeyHash
+    const detectTokenHash = existing.detectTokenHash || keys.detectTokenHash
+    const webhookSecretHash = existing.webhookSecretHash || keys.webhookSecretHash
 
     const client = await db.client.update({
       where: { id },
       data: {
         approvalStatus: 'APPROVED',
         isActive: true,
-        apiKey: keys.apiKey,
-        detectToken: keys.detectToken,
-        webhookSecret: keys.webhookSecret,
-        apiKeyHash: keys.apiKeyHash,
-        detectTokenHash: keys.detectTokenHash,
-        webhookSecretHash: keys.webhookSecretHash,
+        apiKey,
+        detectToken,
+        webhookSecret,
+        apiKeyHash,
+        detectTokenHash,
+        webhookSecretHash,
       },
     })
+
+    // Create an in-app welcome notification in the merchant's inbox
+    await db.merchantNotification.create({
+      data: {
+        clientId: client.id,
+        title: '🎉 Account Approved & Integration Ready!',
+        message: `Welcome to InstaPay Payment Gateway! Your account for "${client.businessName}" has been approved. Your live API Key, Companion Detector Token, and Webhook Secret are activated. Head to the Developer Portal to retrieve your keys and start accepting payments.`,
+        severity: 'INFO',
+      },
+    }).catch((err) => console.warn('[admin/approve] notification error:', err))
+
+    // Send email notification to merchant
+    sendMerchantApprovalEmail({
+      to: client.email,
+      businessName: client.businessName,
+      apiKeyPrefix: apiKey.slice(0, 14) + '...',
+    }).catch((err) => console.warn('[admin/approve] email error:', err))
 
     await db.auditLog.create({
       data: {
         action: 'APPROVE_MERCHANT',
-        details: `Approved merchant ${client.businessName} (${client.email})`,
+        details: `Approved merchant ${client.businessName} (${client.email}) and generated integration tokens (API key: ${apiKey.slice(0, 12)}..., detect token, webhook secret)`,
       },
     })
 

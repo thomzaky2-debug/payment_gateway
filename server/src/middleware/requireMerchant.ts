@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { db } from '../db.js'
-import { verifySessionToken } from '../services/authService.js'
+import { verifySessionToken, ensureMerchantIntegrationTokens } from '../services/authService.js'
 
 /**
  * Shared middleware — Authenticate merchant session from cookie or Authorization header.
@@ -26,6 +26,17 @@ export async function requireMerchant(req: Request, res: Response, next: NextFun
   if (!client) {
     return res.status(401).json({ ok: false, error: 'Merchant not found' })
   }
+
+  // Check approval and active status
+  if (client.approvalStatus === 'PENDING') {
+    return res.status(403).json({ ok: false, error: 'Your merchant account is pending admin approval.' })
+  }
+  if (client.approvalStatus === 'REJECTED' || !client.isActive) {
+    return res.status(403).json({ ok: false, error: 'Your merchant account is inactive or rejected.' })
+  }
+
+  // Ensure all integration tokens exist for approved merchant
+  await ensureMerchantIntegrationTokens(client)
 
   if (client.subscriptionPlan === 'FREE_TRIAL' || client.isFreeTrial) {
     const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })

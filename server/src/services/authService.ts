@@ -250,3 +250,92 @@ export function generateMerchantKeys(): {
     webhookSecretHash: hashToken(webhookSecret),
   }
 }
+
+/**
+ * Ensures that an approved merchant has all necessary integration credentials:
+ * 1. apiKey & apiKeyHash (e.g. egp_live_...)
+ * 2. detectToken & detectTokenHash (e.g. det_...)
+ * 3. webhookSecret & webhookSecretHash (e.g. whsec_...)
+ *
+ * If any of these tokens or their indexed hashes are missing, generates and persists them to the database.
+ */
+export async function ensureMerchantIntegrationTokens(client: any): Promise<any> {
+  if (!client || client.approvalStatus !== 'APPROVED') {
+    return client
+  }
+
+  const needsApiKey = !client.apiKey || !client.apiKeyHash
+  const needsDetectToken = !client.detectToken || !client.detectTokenHash
+  const needsWebhookSecret = !client.webhookSecret || !client.webhookSecretHash
+
+  if (!needsApiKey && !needsDetectToken && !needsWebhookSecret) {
+    return client
+  }
+
+  const generated = generateMerchantKeys()
+  const updateData: Record<string, string> = {}
+
+  if (needsApiKey) {
+    updateData.apiKey = client.apiKey || generated.apiKey
+    updateData.apiKeyHash = client.apiKey ? hashToken(client.apiKey) : generated.apiKeyHash
+  }
+  if (needsDetectToken) {
+    updateData.detectToken = client.detectToken || generated.detectToken
+    updateData.detectTokenHash = client.detectToken ? hashToken(client.detectToken) : generated.detectTokenHash
+  }
+  if (needsWebhookSecret) {
+    updateData.webhookSecret = client.webhookSecret || generated.webhookSecret
+    updateData.webhookSecretHash = client.webhookSecret ? hashToken(client.webhookSecret) : generated.webhookSecretHash
+  }
+
+  const updatedClient = await db.client.update({
+    where: { id: client.id },
+    data: updateData,
+  })
+
+  Object.assign(client, updatedClient)
+  return client
+}
+
+/**
+ * Automatically backfills and synchronizes integration tokens for all approved merchants.
+ * Ensures that any approved merchant in the database has a valid API Key, Companion Token,
+ * and Webhook Secret (with SHA-256 peppered hashes).
+ */
+export async function syncApprovedMerchantsTokens(): Promise<number> {
+  try {
+    const approvedMerchants = await db.client.findMany({
+      where: {
+        approvalStatus: 'APPROVED',
+        OR: [
+          { apiKey: null },
+          { detectToken: null },
+          { webhookSecret: null },
+          { apiKeyHash: null },
+          { detectTokenHash: null },
+          { webhookSecretHash: null },
+        ],
+      },
+    })
+
+    if (approvedMerchants.length === 0) {
+      return 0
+    }
+
+    console.info(`[authService] Found ${approvedMerchants.length} approved merchant(s) missing integration tokens. Generating...`)
+
+    let updatedCount = 0
+    for (const merchant of approvedMerchants) {
+      await ensureMerchantIntegrationTokens(merchant)
+      updatedCount++
+    }
+
+    console.info(`[authService] Successfully generated integration tokens for ${updatedCount} approved merchant(s).`)
+    return updatedCount
+  } catch (err) {
+    console.warn('[authService] Failed to sync approved merchant tokens:', err)
+    return 0
+  }
+}
+
+

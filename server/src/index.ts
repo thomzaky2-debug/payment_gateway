@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser'
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
 import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanupWorker.js'
+import { syncApprovedMerchantsTokens } from './services/authService.js'
 
 import { authRouter } from './routes/authRoutes.js'
 import { webhookRouter } from './routes/webhookRoutes.js'
@@ -78,6 +79,9 @@ initSocketIO(server)
 // ─── Initialize Background Webhook Retry Worker ────────────────────
 startWebhookRetryWorker(30000) // Poll every 30 seconds
 startOtpCleanupWorker(60 * 60 * 1000) // Cleanup expired OTPs every hour
+
+// ─── Auto-Sync Integration Tokens for Approved Merchants ───────────
+syncApprovedMerchantsTokens().catch((err) => console.warn('[Startup] Token sync warning:', err))
 
 // ─── API Routes ────────────────────────────────────────────────────
 

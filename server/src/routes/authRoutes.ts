@@ -7,6 +7,7 @@ import {
   createSessionToken,
   verifySessionToken,
   generateMerchantKeys,
+  ensureMerchantIntegrationTokens,
 } from '../services/authService.js'
 import {
   sendOtpEmail,
@@ -306,6 +307,11 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       })
     }
 
+    // Ensure all integration tokens exist for approved merchant
+    if (client.approvalStatus === 'APPROVED') {
+      await ensureMerchantIntegrationTokens(client)
+    }
+
     // Sign session token
     const token = createSessionToken(client.id)
 
@@ -330,6 +336,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
         isActive: client.isActive,
         apiKey: client.apiKey,
         detectToken: client.detectToken,
+        webhookSecret: client.webhookSecret,
         subscriptionPlan: client.subscriptionPlan,
         txLimit: client.txLimit,
         txCount: client.txCount,
@@ -383,6 +390,11 @@ authRouter.get('/session', async (req: Request, res: Response) => {
 
     if (!client) {
       return res.status(401).json({ ok: false, authenticated: false })
+    }
+
+    // Ensure all integration tokens exist for approved merchant
+    if (client.approvalStatus === 'APPROVED') {
+      await ensureMerchantIntegrationTokens(client)
     }
 
     // Auto-sync active Free Trial merchant with latest trial plan limits

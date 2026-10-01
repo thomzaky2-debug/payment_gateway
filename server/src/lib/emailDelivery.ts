@@ -230,3 +230,97 @@ function renderOtpHtml(otp: string, purpose?: string): string {
 </body>
 </html>`
 }
+
+export interface SendApprovalEmailInput {
+  to: string
+  businessName: string
+  apiKeyPrefix?: string
+}
+
+export async function sendMerchantApprovalEmail(input: SendApprovalEmailInput): Promise<void> {
+  const cleanEmail = normalizeEmail(input.to)
+  const subject = `🎉 Your InstaPay Gateway Account has been Approved!`
+  const text = [
+    `Congratulations! Your merchant account for "${input.businessName}" has been approved.`,
+    ``,
+    `Your live integration tokens (API Key, Webhook Signing Secret, and Companion Detector Token) are active and ready.`,
+    `You can now access your merchant dashboard and Developer Portal to integrate and start accepting payments.`,
+    ``,
+    `Login to your dashboard: ${process.env.APP_URL || 'https://gateway.local'}`,
+  ].join('\n')
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Account Approved</title></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f19; color: #f1f5f9; padding: 40px 20px; margin: 0;">
+  <div style="max-width: 540px; margin: 0 auto; background-color: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 36px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div style="display: inline-block; padding: 10px 18px; background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; font-weight: 800; font-size: 18px; color: #ffffff;">
+        InstaPay Gateway
+      </div>
+      <h2 style="font-size: 22px; font-weight: 800; margin: 20px 0 6px; color: #34d399;">🎉 Account Approved!</h2>
+      <p style="font-size: 14px; color: #94a3b8; margin: 0;">Congratulations, <strong>${input.businessName}</strong>!</p>
+    </div>
+
+    <div style="background-color: #162033; border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 14px; padding: 20px; margin-bottom: 24px;">
+      <p style="font-size: 13.5px; color: #e2e8f0; line-height: 1.6; margin: 0 0 12px;">
+        Your merchant gateway application has been reviewed and <strong>approved</strong> by our team. All your integration tokens have been automatically generated:
+      </p>
+      <ul style="font-size: 13px; color: #94a3b8; padding-left: 20px; margin: 0; line-height: 1.8;">
+        <li><strong style="color: #f8fafc;">Live API Key:</strong> Ready for checkout session creation</li>
+        <li><strong style="color: #f8fafc;">Companion Token:</strong> Ready for the Android Detector APK</li>
+        <li><strong style="color: #f8fafc;">Webhook Secret:</strong> Ready for HMAC-SHA256 signature verification</li>
+      </ul>
+      ${input.apiKeyPrefix ? `<div style="margin-top: 12px; font-size: 12px; color: #38bdf8; font-family: monospace;">Key Prefix: ${input.apiKeyPrefix}</div>` : ''}
+    </div>
+
+    <p style="font-size: 13px; color: #94a3b8; line-height: 1.6; margin: 0 0 20px;">
+      Log in to your merchant dashboard to view your complete API credentials in the <strong>Developer Portal</strong>.
+    </p>
+
+    <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 20px; font-size: 12px; color: #64748b; text-align: center;">
+      Thank you for choosing InstaPay Payment Gateway. If you have any integration questions, check our Developer Documentation.
+    </div>
+  </div>
+</body>
+</html>`
+
+  // 1. Try Resend
+  const apiKey = process.env.RESEND_API_KEY
+  if (apiKey) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: getFromAddress(), to: cleanEmail, subject, html, text }),
+      })
+      if (response.ok) {
+        console.info(`[email] Approval notification sent to ${cleanEmail} via Resend.`)
+        return
+      }
+    } catch {}
+  }
+
+  // 2. Try SMTP
+  const host = process.env.SMTP_HOST
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (host && user && pass) {
+    try {
+      const port = Number(process.env.SMTP_PORT || 465)
+      const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } })
+      await transporter.sendMail({ from: getFromAddress(), to: cleanEmail, subject, html, text })
+      console.info(`[email] Approval notification sent to ${cleanEmail} via SMTP.`)
+      return
+    } catch {}
+  }
+
+  // 3. Fallback dev log
+  console.info(`\n======================================================`)
+  console.info(`🎉 [MERCHANT APPROVAL EMAIL DISPATCH]`)
+  console.info(`To: ${cleanEmail}`)
+  console.info(`Business: ${input.businessName}`)
+  console.info(`Status: APPROVED (Integration Tokens Generated)`)
+  console.info(`======================================================\n`)
+}
+
