@@ -44,7 +44,7 @@ export function getSocketIO(): SocketIOServer | null {
 
 export interface CheckoutUpdatePayload {
   sessionId: string
-  status: 'CONFIRMED' | 'EXPIRED' | 'UNDERPAID'
+  status: 'CONFIRMED' | 'EXPIRED' | 'UNDERPAID' | 'OVERPAID' | string
   amountEgp?: number
   detectedAmountEgp?: number | null
   senderHandle?: string

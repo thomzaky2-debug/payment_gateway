@@ -2,29 +2,17 @@ import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import {
   createOwnerSessionToken,
-  verifyOwnerSessionToken,
   generateMerchantKeys,
   timingSafeCompare,
 } from '../services/authService.js'
 import { emitCheckoutUpdate } from '../services/notificationService.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
 import { createRateLimiter } from '../lib/rateLimiter.js'
+import { requireAdmin } from '../middleware/requireAdmin.js'
 
 export const adminRouter = Router()
 
 const adminAuthLimiter = createRateLimiter(15 * 60 * 1000, 30, 'Too many admin login attempts.')
-
-// Middleware to authenticate Superadmin
-function requireAdmin(req: Request, res: Response, next: () => void) {
-  const token =
-    req.headers.authorization?.replace(/^Bearer\s+/i, '') ||
-    req.cookies?.['instapay_owner_session']
-
-  if (!verifyOwnerSessionToken(token)) {
-    return res.status(401).json({ ok: false, error: 'Unauthorized admin access' })
-  }
-  next()
-}
 
 // ─── Admin Login ────────────────────────────────────────────────────
 
@@ -340,28 +328,169 @@ adminRouter.get('/plans', requireAdmin, async (_req: Request, res: Response) => 
 
 adminRouter.patch('/plans', requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { name, priceEgp, maxTransactions } = req.body
+    const { name, priceEgp, maxTransactions, periodDays, description, isActive } = req.body
     if (!name) {
       return res.status(400).json({ ok: false, error: 'Plan name is required.' })
     }
 
     const data: Record<string, any> = {}
     if (priceEgp !== undefined) data.priceEgp = Number(priceEgp)
-    if (maxTransactions !== undefined) data.maxTransactions = Number(maxTransactions)
+    if (maxTransactions !== undefined) data.maxTransactions = Math.max(1, Number(maxTransactions))
+    if (periodDays !== undefined) data.periodDays = Math.max(1, Number(periodDays))
+    if (description !== undefined) data.description = String(description)
+    if (isActive !== undefined) data.isActive = Boolean(isActive)
 
     const updated = await db.plan.update({
       where: { name: String(name).toUpperCase() },
       data,
     })
 
+    if (updated.name === 'FREE_TRIAL') {
+      if (data.maxTransactions !== undefined) {
+        await db.client.updateMany({
+          where: {
+            OR: [{ subscriptionPlan: 'FREE_TRIAL' }, { isFreeTrial: true }],
+          },
+          data: { txLimit: data.maxTransactions },
+        })
+      }
+      if (data.periodDays !== undefined) {
+        const trialClients = await db.client.findMany({
+          where: {
+            OR: [{ subscriptionPlan: 'FREE_TRIAL' }, { isFreeTrial: true }],
+          },
+        })
+        for (const tc of trialClients) {
+          const baseDate = tc.createdAt ? new Date(tc.createdAt).getTime() : Date.now()
+          const newEndsAt = new Date(Math.max(Date.now() + 24 * 60 * 60 * 1000, baseDate + data.periodDays * 24 * 60 * 60 * 1000))
+          await db.client.update({
+            where: { id: tc.id },
+            data: { subscriptionEndsAt: newEndsAt },
+          })
+        }
+      }
+    }
+
+    const updatedPlan = updated as any
     await db.auditLog.create({
       data: {
         action: 'UPDATE_PLAN',
-        details: `Updated plan ${updated.name}: ${updated.priceEgp} EGP, max ${updated.maxTransactions} txs`,
+        details: `Updated plan ${updatedPlan.name}: ${updatedPlan.priceEgp} EGP, max ${updatedPlan.maxTransactions} txs, period ${updatedPlan.periodDays ?? 30} days, active: ${updatedPlan.isActive ?? true}`,
       },
     })
 
     return res.json({ ok: true, plan: updated })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+// ─── Trial Plan Administration (Period & Transaction Times) ──────────
+
+adminRouter.get('/trial', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const trialPlan = await db.plan.findUnique({
+      where: { name: 'FREE_TRIAL' },
+    })
+    return res.json({ ok: true, trialPlan })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.patch('/trial', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { periodDays, maxTransactions, isActive, description } = req.body
+    const data: Record<string, any> = {}
+    if (periodDays !== undefined) data.periodDays = Math.max(1, Number(periodDays))
+    if (maxTransactions !== undefined) data.maxTransactions = Math.max(1, Number(maxTransactions))
+    if (isActive !== undefined) data.isActive = Boolean(isActive)
+    if (description !== undefined) data.description = String(description)
+
+    // Read current trial plan to calculate the delta
+    const currentTrial = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
+    const previousPeriodDays = currentTrial?.periodDays || 14
+
+    const updated = await (db.plan as any).upsert({
+      where: { name: 'FREE_TRIAL' },
+      update: data,
+      create: {
+        name: 'FREE_TRIAL',
+        priceEgp: 0,
+        maxTransactions: data.maxTransactions ?? 50,
+        periodDays: data.periodDays ?? 14,
+        description: data.description ?? '14-Day introductory free trial with live InstaPay detection and 50 transactions',
+        isActive: data.isActive ?? true,
+      },
+    })
+
+    // ─── Live Synchronize All Merchants on FREE_TRIAL ─────────────────
+    if (data.maxTransactions !== undefined) {
+      await db.client.updateMany({
+        where: {
+          OR: [{ subscriptionPlan: 'FREE_TRIAL' }, { isFreeTrial: true }],
+        },
+        data: { txLimit: data.maxTransactions },
+      })
+    }
+
+    if (data.periodDays !== undefined) {
+      const newPeriodDays = data.periodDays
+      const diffDays = newPeriodDays - previousPeriodDays
+      const nowMs = Date.now()
+
+      const trialClients = await db.client.findMany({
+        where: {
+          OR: [{ subscriptionPlan: 'FREE_TRIAL' }, { isFreeTrial: true }],
+        },
+      })
+
+      for (const tc of trialClients) {
+        let newEndsAt: Date
+
+        if (tc.subscriptionEndsAt) {
+          const currentEndsMs = new Date(tc.subscriptionEndsAt).getTime()
+          const currentRemainingDays = Math.ceil((currentEndsMs - nowMs) / (24 * 60 * 60 * 1000))
+
+          if (currentRemainingDays > 0) {
+            // Active trial: accurately shift remaining days by the change in trial duration
+            const targetDays = Math.max(1, Math.min(newPeriodDays, currentRemainingDays + diffDays))
+            newEndsAt = new Date(nowMs + targetDays * 24 * 60 * 60 * 1000)
+          } else {
+            // Expired trial: if admin extended trial duration, give them the extra days
+            if (diffDays > 0) {
+              newEndsAt = new Date(nowMs + diffDays * 24 * 60 * 60 * 1000)
+            } else {
+              newEndsAt = new Date(currentEndsMs)
+            }
+          }
+        } else {
+          // No end date recorded: grant full configured trial period
+          newEndsAt = new Date(nowMs + newPeriodDays * 24 * 60 * 60 * 1000)
+        }
+
+        await db.client.update({
+          where: { id: tc.id },
+          data: { subscriptionEndsAt: newEndsAt },
+        })
+      }
+    }
+
+    const updatedTrial = updated as any
+    await db.auditLog.create({
+      data: {
+        action: 'UPDATE_TRIAL_PLAN',
+        details: `Configured Trial Plan: period ${updatedTrial.periodDays ?? 14} days, max ${updatedTrial.maxTransactions ?? 50} txs, active: ${updatedTrial.isActive ?? true}`,
+      },
+    })
+
+    return res.json({
+      ok: true,
+      message: `Trial plan configured: ${updatedTrial.periodDays ?? 14} days period, ${updatedTrial.maxTransactions ?? 50} transactions limit`,
+      trialPlan: updated,
+    })
   } catch (err: unknown) {
     const error = err as Error
     return res.status(500).json({ ok: false, error: error.message })
@@ -373,22 +502,23 @@ adminRouter.patch('/plans', requireAdmin, async (req: Request, res: Response) =>
 adminRouter.post('/clients/:id/plan', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
-    const { planName, customTxLimit, extendDays = 30 } = req.body
+    const { planName, customTxLimit, extendDays } = req.body
 
     const plan = await db.plan.findUnique({ where: { name: String(planName).toUpperCase() } })
     if (!plan && planName) {
       return res.status(404).json({ ok: false, error: 'Specified plan does not exist.' })
     }
 
+    const effectiveExtendDays = extendDays !== undefined ? Number(extendDays) : (plan?.periodDays ?? 30)
     const txLimit = customTxLimit !== undefined ? Number(customTxLimit) : plan?.maxTransactions ?? 1000
-    const subscriptionEndsAt = new Date(Date.now() + Number(extendDays) * 24 * 60 * 60 * 1000)
+    const subscriptionEndsAt = new Date(Date.now() + effectiveExtendDays * 24 * 60 * 60 * 1000)
 
     const updated = await db.client.update({
       where: { id },
       data: {
         subscriptionPlan: plan?.name || String(planName).toUpperCase(),
         txLimit,
-        isFreeTrial: false,
+        isFreeTrial: (plan?.name || String(planName).toUpperCase()) === 'FREE_TRIAL',
         subscriptionEndsAt,
       },
     })

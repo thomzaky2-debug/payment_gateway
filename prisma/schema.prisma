@@ -71,6 +71,12 @@ model Client {
   // Settings
   checkoutTtlMin Int @default(10)
 
+  // Payment Precision & Review Policies
+  autoAcceptOverpaid        Boolean @default(true)
+  overpaidMaxExcessEgp      Float?  @default(100.0)
+  underpaidToleranceEnabled Boolean @default(false)
+  underpaidToleranceEgp     Float   @default(5.0)
+
   // Subscription & Free Trial
   subscriptionPlan   String    @default("FREE_TRIAL")
   subscriptionEndsAt DateTime?
@@ -214,8 +220,12 @@ model DetectorDevice {
 
 // ─── Subscription & Pricing Plans ───────────────────────────────────
 model Plan {
-  id              String @id @default(cuid())
-  name            String @unique // FREE_TRIAL, BASIC, PRO, ENTERPRISE
+  id              String  @id @default(cuid())
+  name            String  @unique // FREE_TRIAL, BASIC, PRO, ENTERPRISE
   priceEgp        Float
   maxTransactions Int
+  periodDays      Int     @default(30) // Admin controlled duration (e.g. 14 days for trial)
+  description     String?
+  isActive        Boolean @default(true)
 }
+

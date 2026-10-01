@@ -77,3 +77,226 @@ button, a, input, select, textarea {
     min-width: 0;
   }
 }
+
+/* =====================================================================
+   🌙 OPTIMAL DARK THEME SYSTEM FOR INSTAPAY MERCHANT DASHBOARD
+   ===================================================================== */
+
+:root {
+  --bg-page: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-subcard: #f8fafc;
+  --bg-input: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-card: #e2e8f0;
+  --border-subtle: #cbd5e1;
+}
+
+html.dark,
+[data-theme="dark"] {
+  --bg-page: #090d16;
+  --bg-card: #111827;
+  --bg-subcard: #162033;
+  --bg-input: #0f172a;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border-card: rgba(51, 65, 85, 0.5);
+  --border-subtle: #334155;
+  color-scheme: dark;
+}
+
+/* 1. Root & App Layout */
+html.dark,
+html.dark body,
+html.dark #root {
+  background-color: #090d16 !important;
+  color: #f8fafc !important;
+}
+
+html.dark .app-main-layout {
+  background-color: #090d16 !important;
+}
+
+/* 2. Topbar & Navigation */
+html.dark header {
+  background-color: #0f172a !important;
+  border-bottom-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+/* 3. Cards, Containers & Panels */
+html.dark div[style*="background-color: white"],
+html.dark div[style*="background-color: #ffffff"],
+html.dark div[style*="background-color: rgb(255, 255, 255)"],
+html.dark section[style*="background-color: white"],
+html.dark section[style*="background-color: #ffffff"],
+html.dark [style*="backgroundColor: 'white'"],
+html.dark [style*="backgroundColor: \"white\""] {
+  background-color: #111827 !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 4. Sub-cards, Gray Blocks, Checklist Items */
+html.dark div[style*="background-color: #f8fafc"],
+html.dark div[style*="background-color: rgb(248, 250, 252)"],
+html.dark div[style*="background-color: #f1f5f9"],
+html.dark div[style*="background-color: rgb(241, 245, 249)"],
+html.dark span[style*="background-color: #f8fafc"],
+html.dark span[style*="background-color: #f1f5f9"],
+html.dark button[style*="background-color: #f8fafc"],
+html.dark button[style*="background-color: #f1f5f9"] {
+  background-color: #162033 !important;
+  border-color: rgba(51, 65, 85, 0.4) !important;
+  color: #f8fafc !important;
+}
+
+/* 5. Typography */
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4,
+html.dark h5,
+html.dark h6 {
+  color: #f8fafc !important;
+}
+
+html.dark [style*="color: #1e293b"],
+html.dark [style*="color: rgb(30, 41, 59)"],
+html.dark [style*="color: #0f172a"],
+html.dark [style*="color: rgb(15, 23, 42)"] {
+  color: #f8fafc !important;
+}
+
+html.dark [style*="color: #64748b"],
+html.dark [style*="color: rgb(100, 116, 139)"],
+html.dark [style*="color: #475569"],
+html.dark [style*="color: rgb(71, 85, 105)"],
+html.dark [style*="color: #334155"],
+html.dark [style*="color: rgb(51, 65, 85)"] {
+  color: #94a3b8 !important;
+}
+
+/* 6. Form Inputs, Textareas, Selects */
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html.dark textarea,
+html.dark select {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+html.dark input:focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25) !important;
+}
+
+/* 7. Tables */
+html.dark table {
+  background-color: #111827 !important;
+  color: #f8fafc !important;
+}
+
+html.dark thead,
+html.dark thead tr,
+html.dark th {
+  background-color: #0f172a !important;
+  color: #94a3b8 !important;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.6) !important;
+}
+
+html.dark td {
+  border-bottom: 1px solid rgba(51, 65, 85, 0.3) !important;
+  color: #f8fafc !important;
+}
+
+html.dark tbody tr:hover {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+/* 8. Light Borders Override */
+html.dark [style*="border: 1px solid #e2e8f0"],
+html.dark [style*="border: 1px solid #cbd5e1"],
+html.dark [style*="border-bottom: 1px solid #e2e8f0"],
+html.dark [style*="border-bottom: 1px solid #f1f5f9"],
+html.dark [style*="border-top: 1px solid #e2e8f0"],
+html.dark [style*="border-top: 1px solid #f1f5f9"],
+html.dark [style*="borderBottom: '1px solid #e2e8f0'"],
+html.dark [style*="borderBottom: '1px solid #f1f5f9'"] {
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* 9. Status Badges & Pills */
+html.dark [style*="background-color: #d1fae5"],
+html.dark [style*="background-color: rgb(209, 250, 229)"] {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+}
+
+html.dark [style*="background-color: #fef3c7"],
+html.dark [style*="background-color: rgb(254, 243, 199)"] {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+}
+
+html.dark [style*="background-color: #fed7aa"],
+html.dark [style*="background-color: rgb(254, 215, 170)"] {
+  background-color: rgba(249, 115, 22, 0.18) !important;
+  color: #fb923c !important;
+  border: 1px solid rgba(249, 115, 22, 0.35) !important;
+}
+
+/* 10. Secondary/Utility Buttons */
+html.dark button[style*="background-color: white"],
+html.dark button[style*="background-color: #ffffff"],
+html.dark button[style*="background-color: rgb(255, 255, 255)"] {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+html.dark button[style*="background-color: white"]:hover,
+html.dark button[style*="background-color: #ffffff"]:hover {
+  background-color: #334155 !important;
+}
+
+/* 11. Code and Monospaced Blocks */
+html.dark pre,
+html.dark code:not(pre code) {
+  background-color: #070b14 !important;
+  border-color: #334155 !important;
+  color: #38bdf8 !important;
+}
+
+/* 12. Modal Confirmation Dialogs */
+html.dark .confirm-modal-box {
+  background-color: #111827 !important;
+  border: 1px solid rgba(51, 65, 85, 0.6) !important;
+  color: #f8fafc !important;
+}
+
+/* 13. Sleek Dark Scrollbars */
+html.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+html.dark ::-webkit-scrollbar-track {
+  background: #090d16;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+

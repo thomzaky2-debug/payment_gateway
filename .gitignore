@@ -22,3 +22,6 @@ local.properties
 # Local Deployment runtime data
 local-deploy/data/
 local-deploy/*.log
+
+# Scratch scripts
+scratch/

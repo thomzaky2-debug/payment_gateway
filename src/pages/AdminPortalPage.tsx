@@ -25,6 +25,9 @@ import {
   Bell,
   Edit2,
   Save,
+  Gift,
+  Sparkles,
+  Sliders,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
 
@@ -62,6 +65,71 @@ interface PlatformStats {
   totalDetectors: number;
 }
 
+export type AdminTab = 'merchants' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications';
+
+export interface AdminRoute {
+  tab: AdminTab;
+  subPath?: string;
+}
+
+export function parseAdminRouteFromHash(hashString?: string): AdminRoute {
+  const raw = (hashString !== undefined ? hashString : (typeof window !== 'undefined' ? window.location.hash : '')) || '';
+  const clean = raw.replace(/^#\/?/, '').trim();
+  if (!clean) {
+    return { tab: 'merchants' };
+  }
+
+  const parts = clean.split('/').filter(Boolean);
+  const rawFirst = parts[0]?.toLowerCase();
+  const rawSecond = parts[1]?.toLowerCase();
+  const subPath = parts.slice(1).join('/');
+
+  // Support ChatGPT-style #settings/... as well
+  if (rawFirst === 'settings') {
+    if (rawSecond?.includes('notif')) return { tab: 'notifications', subPath };
+    if (rawSecond?.includes('plan') || rawSecond?.includes('bill') || rawSecond?.includes('trial') || rawSecond?.includes('tier')) {
+      return { tab: 'plans', subPath };
+    }
+    if (rawSecond?.includes('trans') || rawSecond?.includes('tx')) return { tab: 'transactions', subPath };
+    if (rawSecond?.includes('audit') || rawSecond?.includes('log')) return { tab: 'audit', subPath };
+    if (rawSecond?.includes('hook')) return { tab: 'webhooks', subPath };
+    if (rawSecond?.includes('merch') || rawSecond?.includes('client')) return { tab: 'merchants', subPath: parts.slice(2).join('/') || undefined };
+    return { tab: 'plans', subPath };
+  }
+
+  const validTabs: Record<string, AdminTab> = {
+    merchants: 'merchants',
+    merchant: 'merchants',
+    clients: 'merchants',
+    client: 'merchants',
+    transactions: 'transactions',
+    transaction: 'transactions',
+    tx: 'transactions',
+    audit: 'audit',
+    logs: 'audit',
+    webhooks: 'webhooks',
+    webhook: 'webhooks',
+    plans: 'plans',
+    plan: 'plans',
+    billing: 'plans',
+    pricing: 'plans',
+    trial: 'plans',
+    notifications: 'notifications',
+    notification: 'notifications',
+    broadcast: 'notifications',
+  };
+
+  const tab = validTabs[rawFirst] || 'merchants';
+  return { tab, subPath: subPath || undefined };
+}
+
+export function buildAdminHash(tab: AdminTab, subPath?: string): string {
+  if (subPath && subPath.trim()) {
+    return `#${tab}/${subPath.trim()}`;
+  }
+  return `#${tab}/`;
+}
+
 export function AdminPortalPage() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean | null>(null);
   const [adminPassword, setAdminPassword] = useState('');
@@ -69,8 +137,11 @@ export function AdminPortalPage() {
   const [authLoading, setAuthLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Initial route parsed from URL hash (e.g. #plans/, #notifications/, #merchants/pending)
+  const initialRoute = parseAdminRouteFromHash();
+
   // Portal State
-  const [activeTab, setActiveTab] = useState<'merchants' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications'>('merchants');
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => initialRoute.tab);
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [merchants, setMerchants] = useState<MerchantClient[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -78,6 +149,13 @@ export function AdminPortalPage() {
   const [webhookLogs, setWebhookLogs] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
+
+  // Admin Trial Control State
+  const [trialPeriodDays, setTrialPeriodDays] = useState<number | string>(14);
+  const [trialMaxTransactions, setTrialMaxTransactions] = useState<number | string>(50);
+  const [trialIsActive, setTrialIsActive] = useState<boolean>(true);
+  const [trialDescription, setTrialDescription] = useState<string>('14-Day introductory free trial with live InstaPay detection and 50 transactions');
+  const [trialSaving, setTrialSaving] = useState(false);
 
   // Notification Broadcast State
   const [notifTarget, setNotifTarget] = useState<'ALL' | string>('ALL');
@@ -89,9 +167,66 @@ export function AdminPortalPage() {
   const [loading, setLoading] = useState(false);
 
   // Filters & Search
-  const [merchantFilter, setMerchantFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const initialMerchantFilter: 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' = (() => {
+    if (initialRoute.tab === 'merchants' && initialRoute.subPath) {
+      const sub = initialRoute.subPath.toLowerCase();
+      if (sub === 'pending') return 'PENDING';
+      if (sub === 'approved') return 'APPROVED';
+      if (sub === 'rejected') return 'REJECTED';
+    }
+    return 'ALL';
+  })();
+  const [merchantFilter, setMerchantFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>(initialMerchantFilter);
   const [merchantSearch, setMerchantSearch] = useState('');
   const [selectedMerchant, setSelectedMerchant] = useState<MerchantClient | null>(null);
+
+  // Navigation and Hash Handlers
+  const navigateToTab = (tab: AdminTab, subPath?: string) => {
+    setActiveTab(tab);
+    if (tab === 'merchants') {
+      if (subPath) {
+        const lower = subPath.toLowerCase();
+        if (['all', 'pending', 'approved', 'rejected'].includes(lower)) {
+          setMerchantFilter(lower === 'all' ? 'ALL' : (lower.toUpperCase() as any));
+          setSelectedMerchant(null);
+        }
+      } else {
+        setSelectedMerchant(null);
+      }
+    } else {
+      setSelectedMerchant(null);
+    }
+    const targetHash = buildAdminHash(tab, subPath);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+  };
+
+  const handleFilterChange = (filter: 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED') => {
+    setMerchantFilter(filter);
+    setSelectedMerchant(null);
+    const sub = filter === 'ALL' ? '' : filter.toLowerCase();
+    const targetHash = buildAdminHash('merchants', sub);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+  };
+
+  const handleSelectMerchant = (m: MerchantClient | null) => {
+    setSelectedMerchant(m);
+    if (m) {
+      const targetHash = buildAdminHash('merchants', m.id);
+      if (window.location.hash !== targetHash) {
+        window.location.hash = targetHash;
+      }
+    } else {
+      const sub = merchantFilter === 'ALL' ? '' : merchantFilter.toLowerCase();
+      const targetHash = buildAdminHash('merchants', sub);
+      if (window.location.hash !== targetHash) {
+        window.location.hash = targetHash;
+      }
+    }
+  };
 
   // Manual Force Confirm dialog
   const [forceSessionId, setForceSessionId] = useState('');
@@ -124,6 +259,64 @@ export function AdminPortalPage() {
       .catch(() => setIsAdminAuthenticated(false));
   }, []);
 
+  // Ensure default hash format is present on mount or auth
+  useEffect(() => {
+    if (isAdminAuthenticated) {
+      if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
+        const sub = activeTab === 'merchants' && merchantFilter !== 'ALL' ? merchantFilter.toLowerCase() : undefined;
+        const targetHash = buildAdminHash(activeTab, sub);
+        window.history.replaceState(null, '', targetHash);
+      }
+    }
+  }, [isAdminAuthenticated]);
+
+  // Listen to browser Back/Forward or manual URL hash modifications
+  useEffect(() => {
+    const handleHashChange = () => {
+      const route = parseAdminRouteFromHash();
+      setActiveTab((prev) => (prev !== route.tab ? route.tab : prev));
+      if (route.tab === 'merchants') {
+        if (route.subPath) {
+          const lower = route.subPath.toLowerCase();
+          if (['all', 'pending', 'approved', 'rejected'].includes(lower)) {
+            setMerchantFilter(lower === 'all' ? 'ALL' : (lower.toUpperCase() as any));
+            setSelectedMerchant(null);
+          } else {
+            const merchantId = route.subPath.replace(/^details\//, '');
+            const found = merchants.find((m) => m.id === merchantId);
+            if (found) {
+              setSelectedMerchant(found);
+            }
+          }
+        } else {
+          setSelectedMerchant(null);
+        }
+      } else {
+        setSelectedMerchant(null);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [merchants]);
+
+  // Deep-link auto-selection of merchant drawer when merchants finish loading
+  useEffect(() => {
+    if (merchants.length > 0) {
+      const route = parseAdminRouteFromHash();
+      if (route.tab === 'merchants' && route.subPath) {
+        const lower = route.subPath.toLowerCase();
+        if (!['all', 'pending', 'approved', 'rejected'].includes(lower)) {
+          const merchantId = route.subPath.replace(/^details\//, '');
+          const found = merchants.find((m) => m.id === merchantId);
+          if (found) {
+            setSelectedMerchant(found);
+          }
+        }
+      }
+    }
+  }, [merchants]);
+
   // Fetch admin portal data
   const fetchData = async () => {
     if (!isAdminAuthenticated) return;
@@ -154,7 +347,15 @@ export function AdminPortalPage() {
         setWebhookLogs(webhooksRes.value.logs);
       }
       if (plansRes.status === 'fulfilled' && plansRes.value?.ok) {
-        setPlans(plansRes.value.plans || []);
+        const fetchedPlans = plansRes.value.plans || [];
+        setPlans(fetchedPlans);
+        const trial = fetchedPlans.find((p: any) => p.name === 'FREE_TRIAL');
+        if (trial) {
+          setTrialPeriodDays(trial.periodDays ?? 14);
+          setTrialMaxTransactions(trial.maxTransactions ?? 50);
+          setTrialIsActive(trial.isActive ?? true);
+          setTrialDescription(trial.description ?? '14-Day introductory free trial with live InstaPay detection and 50 transactions');
+        }
       }
     } catch {
       showToast('Error syncing admin records', 'error');
@@ -197,6 +398,7 @@ export function AdminPortalPage() {
   const handleAdminLogout = async () => {
     await adminApi.logout();
     setIsAdminAuthenticated(false);
+    window.location.hash = '';
     showToast('Admin session logged out');
   };
 
@@ -259,6 +461,9 @@ export function AdminPortalPage() {
         name: editingPlan.name,
         priceEgp: Number(editingPlan.priceEgp),
         maxTransactions: Number(editingPlan.maxTransactions),
+        periodDays: Number(editingPlan.periodDays) || 30,
+        description: editingPlan.description,
+        isActive: editingPlan.isActive !== false,
       });
       if (res.ok) {
         showToast(`Plan ${editingPlan.name} updated successfully!`);
@@ -269,6 +474,43 @@ export function AdminPortalPage() {
       }
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Failed to update plan', 'error');
+    }
+  };
+
+  const handleTrialDaysChange = (val: number | string) => {
+    setTrialPeriodDays(val);
+    const d = Number(val) || 14;
+    const tx = Number(trialMaxTransactions) || 50;
+    setTrialDescription(`${d}-Day introductory free trial with live InstaPay detection and ${tx} transactions`);
+  };
+
+  const handleTrialMaxTxChange = (val: number | string) => {
+    setTrialMaxTransactions(val);
+    const d = Number(trialPeriodDays) || 14;
+    const tx = Number(val) || 50;
+    setTrialDescription(`${d}-Day introductory free trial with live InstaPay detection and ${tx} transactions`);
+  };
+
+  const handleSaveTrialPlan = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setTrialSaving(true);
+    try {
+      const res = await adminApi.updateTrialPlan({
+        periodDays: Number(trialPeriodDays) || 14,
+        maxTransactions: Number(trialMaxTransactions) || 50,
+        isActive: trialIsActive,
+        description: trialDescription,
+      });
+      if (res?.ok) {
+        showToast(`Trial Plan configured: ${trialPeriodDays} days period, ${trialMaxTransactions} transactions limit!`);
+        fetchData();
+      } else {
+        showToast(res?.error || 'Failed to update trial plan', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to update trial plan', 'error');
+    } finally {
+      setTrialSaving(false);
     }
   };
 
@@ -667,7 +909,7 @@ export function AdminPortalPage() {
           </div>
         )}
 
-        {/* Overview Stats Cards */}
+        {/* Overview Stats Cards (Clickable Navigation Shortcuts) */}
         <div
           style={{
             display: 'grid',
@@ -677,11 +919,14 @@ export function AdminPortalPage() {
           }}
         >
           <div
+            onClick={() => navigateToTab('merchants', 'all')}
             style={{
               backgroundColor: '#0f172a',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '16px',
               padding: '18px 20px',
+              cursor: 'pointer',
+              transition: 'border-color 0.15s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -697,11 +942,14 @@ export function AdminPortalPage() {
           </div>
 
           <div
+            onClick={() => navigateToTab('merchants', 'pending')}
             style={{
               backgroundColor: '#0f172a',
               border: stats?.pendingClients ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '16px',
               padding: '18px 20px',
+              cursor: 'pointer',
+              transition: 'border-color 0.15s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -717,11 +965,14 @@ export function AdminPortalPage() {
           </div>
 
           <div
+            onClick={() => navigateToTab('transactions')}
             style={{
               backgroundColor: '#0f172a',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '16px',
               padding: '18px 20px',
+              cursor: 'pointer',
+              transition: 'border-color 0.15s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -737,11 +988,14 @@ export function AdminPortalPage() {
           </div>
 
           <div
+            onClick={() => navigateToTab('merchants')}
             style={{
               backgroundColor: '#0f172a',
               border: '1px solid rgba(255, 255, 255, 0.08)',
               borderRadius: '16px',
               padding: '18px 20px',
+              cursor: 'pointer',
+              transition: 'border-color 0.15s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -768,7 +1022,7 @@ export function AdminPortalPage() {
           }}
         >
           <button
-            onClick={() => setActiveTab('merchants')}
+            onClick={() => navigateToTab('merchants')}
             style={{
               padding: '8px 18px',
               borderRadius: '10px',
@@ -801,7 +1055,7 @@ export function AdminPortalPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('transactions')}
+            onClick={() => navigateToTab('transactions')}
             style={{
               padding: '8px 18px',
               borderRadius: '10px',
@@ -820,7 +1074,7 @@ export function AdminPortalPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('audit')}
+            onClick={() => navigateToTab('audit')}
             style={{
               padding: '8px 18px',
               borderRadius: '10px',
@@ -839,7 +1093,7 @@ export function AdminPortalPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('webhooks')}
+            onClick={() => navigateToTab('webhooks')}
             style={{
               padding: '8px 18px',
               borderRadius: '10px',
@@ -858,7 +1112,7 @@ export function AdminPortalPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('plans')}
+            onClick={() => navigateToTab('plans')}
             style={{
               padding: '8px 18px',
               borderRadius: '10px',
@@ -877,7 +1131,7 @@ export function AdminPortalPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('notifications')}
+            onClick={() => navigateToTab('notifications')}
             style={{
               padding: '8px 18px',
               borderRadius: '10px',
@@ -914,7 +1168,7 @@ export function AdminPortalPage() {
                 {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((filter) => (
                   <button
                     key={filter}
-                    onClick={() => setMerchantFilter(filter)}
+                    onClick={() => handleFilterChange(filter)}
                     style={{
                       padding: '6px 12px',
                       fontSize: '12px',
@@ -1071,7 +1325,7 @@ export function AdminPortalPage() {
                           <td style={{ padding: '14px 20px', textAlign: 'right' }}>
                             <div style={{ display: 'inline-flex', gap: '8px' }}>
                               <button
-                                onClick={() => setSelectedMerchant(m)}
+                                onClick={() => handleSelectMerchant(m)}
                                 style={{
                                   padding: '6px 10px',
                                   backgroundColor: '#1e293b',
@@ -1461,77 +1715,373 @@ export function AdminPortalPage() {
         {/* ─── TAB 5: PLANS & BILLING MANAGEMENT ───────────────────── */}
         {activeTab === 'plans' && (
           <div>
-            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: '0 0 4px 0' }}>
-                  Subscription Tiers & Transaction Limits
+                <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '0 0 4px 0' }}>
+                  Subscription Tiers & Trial Plan Management
                 </h3>
                 <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
-                  Configure monthly merchant tiers, pricing, and automated quota caps.
+                  Configure trial periods, transaction limits, and subscription tiers offered across the platform.
                 </p>
               </div>
             </div>
 
-            {/* Plans Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-              {plans.map((p) => (
-                <div
-                  key={p.name}
-                  style={{
-                    backgroundColor: '#0f172a',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '16px',
-                    padding: '24px',
-                    position: 'relative',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                    <div>
-                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#c084fc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        TIER {p.name}
-                      </span>
-                      <h4 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '4px 0 0 0' }}>
-                        {p.name}
-                      </h4>
-                    </div>
-                    <button
-                      onClick={() => setEditingPlan({ ...p })}
+            {/* ─── Dedicated Admin Trial Plan Controls ────────────────── */}
+            <div
+              style={{
+                backgroundColor: '#0f172a',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                borderRadius: '20px',
+                padding: '24px',
+                marginBottom: '32px',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.09) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.5)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <span
                       style={{
-                        padding: '6px 12px',
-                        backgroundColor: 'rgba(124, 58, 237, 0.15)',
-                        border: '1px solid rgba(124, 58, 237, 0.3)',
-                        borderRadius: '8px',
-                        color: '#c084fc',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        color: '#34d399',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        padding: '3px 9px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
                       }}
                     >
-                      <Edit2 size={13} /> Edit
-                    </button>
+                      Admin Trial Control
+                    </span>
+                    <span style={{ fontSize: '12px', color: trialIsActive ? '#10b981' : '#ef4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: trialIsActive ? '#10b981' : '#ef4444' }} />
+                      {trialIsActive ? 'Active & Live for Merchants' : 'Disabled'}
+                    </span>
                   </div>
+                  <h4 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '4px 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Gift size={20} color="#10b981" /> Free Trial Configuration (Period & Transaction Times)
+                  </h4>
+                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, maxWidth: '640px' }}>
+                    Admins control the trial validity duration (in days) and maximum transaction checkouts permitted for testing merchants before requiring a paid subscription.
+                  </p>
+                </div>
 
-                  <div style={{ marginBottom: '16px' }}>
-                    <span style={{ fontSize: '32px', fontWeight: 900, color: '#38bdf8' }}>{p.priceEgp}</span>
-                    <span style={{ fontSize: '14px', color: '#94a3b8', marginLeft: '4px' }}>EGP / month</span>
+                <button
+                  type="button"
+                  onClick={handleSaveTrialPlan}
+                  disabled={trialSaving}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 22px',
+                    backgroundColor: '#10b981',
+                    border: 'none',
+                    borderRadius: '10px',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {trialSaving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
+                  Save Trial Configuration
+                </button>
+              </div>
+
+              {/* Trial Form Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px' }}>
+                {/* Period in Days */}
+                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
+                    Trial Duration Period (Days)
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={trialPeriodDays}
+                      onChange={(e) => handleTrialDaysChange(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '8px',
+                        color: '#ffffff',
+                        fontSize: '15px',
+                        fontWeight: 700,
+                      }}
+                    />
+                    <span style={{ display: 'flex', alignItems: 'center', fontSize: '13px', color: '#94a3b8' }}>days</span>
                   </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                      <span style={{ color: '#94a3b8' }}>Transaction Quota:</span>
-                      <span style={{ fontWeight: 600, color: '#ffffff' }}>{p.maxTransactions.toLocaleString()} tx/mo</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                      <span style={{ color: '#94a3b8' }}>Active Subscribers:</span>
-                      <span style={{ fontWeight: 600, color: '#34d399' }}>
-                        {merchants.filter((m) => m.subscriptionPlan === p.name).length} merchants
-                      </span>
-                    </div>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    {[7, 14, 21, 30, 60].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => handleTrialDaysChange(d)}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          backgroundColor: Number(trialPeriodDays) === d ? '#10b981' : '#334155',
+                          color: 'white',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {d}d
+                      </button>
+                    ))}
                   </div>
                 </div>
-              ))}
+
+                {/* Max Transactions Limit */}
+                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
+                    Transaction Times (Max Limit)
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10000"
+                      value={trialMaxTransactions}
+                      onChange={(e) => handleTrialMaxTxChange(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        backgroundColor: '#1e293b',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '8px',
+                        color: '#ffffff',
+                        fontSize: '15px',
+                        fontWeight: 700,
+                      }}
+                    />
+                    <span style={{ display: 'flex', alignItems: 'center', fontSize: '13px', color: '#94a3b8' }}>txs</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    {[20, 50, 100, 200].map((tx) => (
+                      <button
+                        key={tx}
+                        type="button"
+                        onClick={() => handleTrialMaxTxChange(tx)}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          backgroundColor: Number(trialMaxTransactions) === tx ? '#10b981' : '#334155',
+                          color: 'white',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {tx} tx
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status Toggle & Active Merchants */}
+                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
+                      Trial Visibility to Merchants
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#ffffff' }}>
+                      <input
+                        type="checkbox"
+                        checked={trialIsActive}
+                        onChange={(e) => setTrialIsActive(e.target.checked)}
+                        style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }}
+                      />
+                      Offer Free Trial in Merchant Billing
+                    </label>
+                  </div>
+                  <div style={{ marginTop: '12px', fontSize: '12px', color: '#94a3b8' }}>
+                    Merchants currently on Trial:{' '}
+                    <strong style={{ color: '#34d399' }}>
+                      {merchants.filter((m) => m.subscriptionPlan === 'FREE_TRIAL').length}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Trial Description */}
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                  Merchant-Facing Trial Description
+                </label>
+                <input
+                  type="text"
+                  value={trialDescription}
+                  onChange={(e) => setTrialDescription(e.target.value)}
+                  placeholder="e.g. 14-Day introductory free trial with live InstaPay detection and 50 transactions"
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    padding: '10px 14px',
+                    backgroundColor: '#1e293b',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '13px',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Plans Section Header */}
+            <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', margin: '0 0 16px 0' }}>
+              All Platform Plans & Tiers
+            </h4>
+
+            {/* Plans Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+              {plans
+                .slice()
+                .sort((a, b) => {
+                  const order = ['FREE_TRIAL', 'BASIC', 'PLUS', 'PRO', 'ENTERPRISE'];
+                  const idxA = order.indexOf(a.name);
+                  const idxB = order.indexOf(b.name);
+                  return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+                })
+                .map((p) => {
+                  const isTrial = p.name === 'FREE_TRIAL';
+                  const isEnterprise = p.name === 'ENTERPRISE';
+                  const isPlus = p.name === 'PLUS';
+                  return (
+                    <div
+                      key={p.name}
+                      style={{
+                        backgroundColor: '#0f172a',
+                        border: isTrial
+                          ? '1px solid rgba(16, 185, 129, 0.4)'
+                          : isEnterprise
+                          ? '1px solid rgba(245, 158, 11, 0.4)'
+                          : isPlus
+                          ? '1px solid rgba(99, 102, 241, 0.4)'
+                          : '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                        <div>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              color: isTrial
+                                ? '#34d399'
+                                : isEnterprise
+                                ? '#fbbf24'
+                                : isPlus
+                                ? '#818cf8'
+                                : '#c084fc',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                            }}
+                          >
+                            TIER {p.name}
+                          </span>
+                          <h4 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '4px 0 0 0' }}>
+                            {p.name}
+                          </h4>
+                          {isEnterprise && (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                marginTop: '4px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                                color: '#f59e0b',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                              }}
+                            >
+                              Customer Service Managed
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setEditingPlan({ ...p })}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: isTrial
+                              ? 'rgba(16, 185, 129, 0.15)'
+                              : isEnterprise
+                              ? 'rgba(245, 158, 11, 0.15)'
+                              : 'rgba(124, 58, 237, 0.15)',
+                            border: isTrial
+                              ? '1px solid rgba(16, 185, 129, 0.3)'
+                              : isEnterprise
+                              ? '1px solid rgba(245, 158, 11, 0.3)'
+                              : '1px solid rgba(124, 58, 237, 0.3)',
+                            borderRadius: '8px',
+                            color: isTrial ? '#34d399' : isEnterprise ? '#fbbf24' : '#c084fc',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <Edit2 size={13} /> Edit
+                        </button>
+                      </div>
+
+                      <div style={{ marginBottom: '16px' }}>
+                        <span
+                          style={{
+                            fontSize: isEnterprise ? '24px' : '32px',
+                            fontWeight: 900,
+                            color: isTrial ? '#10b981' : isEnterprise ? '#f59e0b' : '#38bdf8',
+                          }}
+                        >
+                          {isEnterprise ? 'Contact Sales' : p.priceEgp}
+                        </span>
+                        <span style={{ fontSize: '14px', color: '#94a3b8', marginLeft: '4px' }}>
+                          {isTrial
+                            ? 'EGP (Free Trial)'
+                            : isEnterprise
+                            ? '(Customer Service / Custom)'
+                            : `EGP / ${p.periodDays || 30} days`}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                          <span style={{ color: '#94a3b8' }}>Transaction Limit:</span>
+                          <span style={{ fontWeight: 600, color: '#ffffff' }}>{p.maxTransactions?.toLocaleString()} txs</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                          <span style={{ color: '#94a3b8' }}>Period Duration:</span>
+                          <span style={{ fontWeight: 600, color: '#38bdf8' }}>{p.periodDays || (isTrial ? 14 : 30)} days</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                          <span style={{ color: '#94a3b8' }}>Active Subscribers:</span>
+                          <span style={{ fontWeight: 600, color: '#34d399' }}>
+                            {merchants.filter((m) => m.subscriptionPlan === p.name).length} merchants
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
 
             {/* Edit Plan Modal */}
@@ -1555,7 +2105,7 @@ export function AdminPortalPage() {
                   onSubmit={handleSavePlan}
                   style={{
                     width: '100%',
-                    maxWidth: '460px',
+                    maxWidth: '480px',
                     backgroundColor: '#111827',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '20px',
@@ -1569,7 +2119,7 @@ export function AdminPortalPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
                     <div>
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
-                        Monthly Price (EGP)
+                        Price (EGP)
                       </label>
                       <input
                         type="number"
@@ -1588,13 +2138,51 @@ export function AdminPortalPage() {
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
-                        Monthly Transaction Limit
+                        Transaction Limit / Quota
                       </label>
                       <input
                         type="number"
                         min="1"
                         value={editingPlan.maxTransactions}
                         onChange={(e) => setEditingPlan({ ...editingPlan, maxTransactions: Number(e.target.value) })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          backgroundColor: '#1e293b',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          color: '#ffffff',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                        Validity Period (Days)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={editingPlan.periodDays ?? 30}
+                        onChange={(e) => setEditingPlan({ ...editingPlan, periodDays: Number(e.target.value) })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          backgroundColor: '#1e293b',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '8px',
+                          color: '#ffffff',
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
+                        Description
+                      </label>
+                      <input
+                        type="text"
+                        value={editingPlan.description ?? ''}
+                        onChange={(e) => setEditingPlan({ ...editingPlan, description: e.target.value })}
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -1674,19 +2262,27 @@ export function AdminPortalPage() {
                                 fontWeight: 700,
                                 backgroundColor:
                                   m.subscriptionPlan === 'ENTERPRISE'
-                                    ? 'rgba(168, 85, 247, 0.2)'
+                                    ? 'rgba(245, 158, 11, 0.2)'
                                     : m.subscriptionPlan === 'PRO'
+                                    ? 'rgba(168, 85, 247, 0.2)'
+                                    : m.subscriptionPlan === 'PLUS'
+                                    ? 'rgba(99, 102, 241, 0.2)'
+                                    : m.subscriptionPlan === 'BASIC'
                                     ? 'rgba(59, 130, 246, 0.2)'
-                                    : 'rgba(100, 116, 139, 0.2)',
+                                    : 'rgba(16, 185, 129, 0.2)',
                                 color:
                                   m.subscriptionPlan === 'ENTERPRISE'
-                                    ? '#c084fc'
+                                    ? '#fbbf24'
                                     : m.subscriptionPlan === 'PRO'
+                                    ? '#c084fc'
+                                    : m.subscriptionPlan === 'PLUS'
+                                    ? '#818cf8'
+                                    : m.subscriptionPlan === 'BASIC'
                                     ? '#60a5fa'
-                                    : '#cbd5e1',
+                                    : '#34d399',
                               }}
                             >
-                              {m.subscriptionPlan || 'FREE'}
+                              {m.subscriptionPlan || 'FREE_TRIAL'}
                             </span>
                           </td>
                           <td style={{ padding: '12px 14px' }}>
@@ -1709,7 +2305,7 @@ export function AdminPortalPage() {
                           </td>
                           <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                             <select
-                              value={m.subscriptionPlan || 'FREE'}
+                              value={m.subscriptionPlan || 'FREE_TRIAL'}
                               onChange={async (e) => {
                                 const newPlan = e.target.value;
                                 try {
@@ -1734,10 +2330,29 @@ export function AdminPortalPage() {
                                 cursor: 'pointer',
                               }}
                             >
-                              <option value="FREE">FREE</option>
-                              <option value="BASIC">BASIC</option>
-                              <option value="PRO">PRO</option>
-                              <option value="ENTERPRISE">ENTERPRISE</option>
+                              {plans.length > 0 ? (
+                                plans
+                                  .slice()
+                                  .sort((a, b) => {
+                                    const order = ['FREE_TRIAL', 'BASIC', 'PLUS', 'PRO', 'ENTERPRISE'];
+                                    const idxA = order.indexOf(a.name);
+                                    const idxB = order.indexOf(b.name);
+                                    return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+                                  })
+                                  .map((p) => (
+                                    <option key={p.name} value={p.name}>
+                                      {p.name}
+                                    </option>
+                                  ))
+                              ) : (
+                                <>
+                                  <option value="FREE_TRIAL">FREE_TRIAL</option>
+                                  <option value="BASIC">BASIC</option>
+                                  <option value="PLUS">PLUS</option>
+                                  <option value="PRO">PRO</option>
+                                  <option value="ENTERPRISE">ENTERPRISE</option>
+                                </>
+                              )}
                             </select>
                           </td>
                         </tr>
@@ -1958,7 +2573,7 @@ export function AdminPortalPage() {
                   {selectedMerchant.businessName} - Integration Keys
                 </h3>
                 <button
-                  onClick={() => setSelectedMerchant(null)}
+                  onClick={() => handleSelectMerchant(null)}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -2092,7 +2707,7 @@ export function AdminPortalPage() {
 
               <div style={{ textAlign: 'right', marginTop: '20px' }}>
                 <button
-                  onClick={() => setSelectedMerchant(null)}
+                  onClick={() => handleSelectMerchant(null)}
                   style={{
                     padding: '8px 16px',
                     backgroundColor: '#334155',

@@ -1,9 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Clock, AlertCircle, XCircle, Search, RefreshCw, ExternalLink } from 'lucide-react';
+import {
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  XCircle,
+  Search,
+  RefreshCw,
+  Eye,
+  X,
+  Copy,
+  Check,
+  Printer,
+  FileText,
+  Download,
+} from 'lucide-react';
 import { transactionsApi } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 
 interface TransactionsPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
+  subPath?: string;
+  onSubPathChange?: (subPath?: string) => void;
 }
 
 interface TransactionItem {
@@ -12,27 +30,113 @@ interface TransactionItem {
   amountEgp: number;
   currency: string;
   senderHandle: string;
-  recipientHandle: string;
+  recipientHandle?: string;
   status: string;
   detectedRef?: string | null;
   detectedAt?: string | null;
   createdAt: string;
   note?: string | null;
+  purpose?: string | null;
+  subscriptionPlanName?: string | null;
 }
 
-const statusColors: Record<string, { bg: string; text: string }> = {
-  CONFIRMED: { bg: '#d1fae5', text: '#047857' },
-  PAID: { bg: '#d1fae5', text: '#047857' },
-  PENDING: { bg: '#fef3c7', text: '#b45309' },
-  UNDERPAID: { bg: '#fed7aa', text: '#c2410c' },
-  EXPIRED: { bg: '#f1f5f9', text: '#475569' },
-};
+function parseFilterFromSubPath(sub?: string): string {
+  if (!sub) return 'ALL';
+  const clean = sub.toUpperCase();
+  if (clean.includes('UNDER')) return 'UNDERPAID';
+  if (clean.includes('CONFIRM') || clean === 'PAID') return 'CONFIRMED';
+  if (clean.includes('PEND')) return 'PENDING';
+  if (clean.includes('EXPIR')) return 'EXPIRED';
+  return 'ALL';
+}
 
-export function TransactionsPage({ showToast }: TransactionsPageProps) {
+function subPathFromFilter(filterKey: string): string {
+  if (filterKey === 'ALL') return '';
+  return filterKey.toLowerCase();
+}
+
+function formatTxDate(dateString: string | Date | undefined, isRtl: boolean): string {
+  if (!dateString) return '—';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString(isRtl ? 'ar-EG' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return String(dateString);
+  }
+}
+
+function formatTableDate(dateString: string | Date | undefined, isRtl: boolean): string {
+  if (!dateString) return '—';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString(isRtl ? 'ar-EG' : 'en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return String(dateString);
+  }
+}
+
+function getPurchaseTypeInfo(tx: any, isRtl: boolean): { label: string; category: string; icon: string } {
+  if (tx.purpose === 'SUBSCRIPTION') {
+    const plan = tx.subscriptionPlanName ? tx.subscriptionPlanName.toUpperCase() : 'PRO';
+    return {
+      label: tx.note || (isRtl ? `اشتراك باقة ${plan}` : `${plan} Plan Subscription`),
+      category: isRtl ? 'ترقية باقة' : 'Plan Upgrade',
+      icon: '💎',
+    };
+  }
+
+  if (tx.note && typeof tx.note === 'string' && tx.note.trim()) {
+    return {
+      label: tx.note.trim(),
+      category: isRtl ? 'شراء طلب' : 'Product Order',
+      icon: '🛍️',
+    };
+  }
+
+  return {
+    label: isRtl ? 'طلب متجر إلكتروني' : 'Store Product Checkout',
+    category: isRtl ? 'عملية شراء' : 'Standard Checkout',
+    icon: '🛒',
+  };
+}
+
+export function TransactionsPage({ showToast, subPath, onSubPathChange }: TransactionsPageProps) {
+  const { t, isRtl } = useLanguage();
+  const { isDark } = useTheme();
+
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('ALL');
+  const [filter, setFilter] = useState(() => parseFilterFromSubPath(subPath));
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null);
+  const [copiedSessionId, setCopiedSessionId] = useState(false);
+
+  useEffect(() => {
+    if (subPath !== undefined) {
+      setFilter(parseFilterFromSubPath(subPath));
+    }
+  }, [subPath]);
+
+  const handleFilterClick = (filterKey: string) => {
+    setFilter(filterKey);
+    onSubPathChange?.(subPathFromFilter(filterKey));
+  };
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -46,7 +150,7 @@ export function TransactionsPage({ showToast }: TransactionsPageProps) {
       }
     } catch (err: any) {
       if (showToast) {
-        showToast('error', 'Failed to fetch transactions from server');
+        showToast('error', isRtl ? 'تعذر تحميل المعاملات من الخادم' : 'Failed to fetch transactions from server');
       }
     } finally {
       setLoading(false);
@@ -66,13 +170,67 @@ export function TransactionsPage({ showToast }: TransactionsPageProps) {
     window.open(transactionsApi.getExportUrl(), '_blank');
   };
 
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case 'CONFIRMED':
+      case 'PAID':
+        return {
+          bg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5',
+          text: '#10b981',
+          border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #a7f3d0',
+        };
+      case 'PENDING':
+        return {
+          bg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7',
+          text: '#f59e0b',
+          border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
+        };
+      case 'UNDERPAID':
+        return {
+          bg: isDark ? 'rgba(234, 88, 12, 0.15)' : '#fed7aa',
+          text: '#ea580c',
+          border: isDark ? '1px solid rgba(234, 88, 12, 0.3)' : '1px solid #fdba74',
+        };
+      case 'EXPIRED':
+      default:
+        return {
+          bg: isDark ? 'rgba(148, 163, 184, 0.12)' : '#f1f5f9',
+          text: isDark ? '#94a3b8' : '#475569',
+          border: isDark ? '1px solid rgba(148, 163, 184, 0.25)' : '1px solid #cbd5e1',
+        };
+    }
+  };
+
+  const filterOptions = [
+    { key: 'ALL', label: isRtl ? 'الكل' : 'All' },
+    { key: 'CONFIRMED', label: isRtl ? 'مؤكدة' : 'Confirmed' },
+    { key: 'PENDING', label: isRtl ? 'قيد الانتظار' : 'Pending' },
+    { key: 'UNDERPAID', label: isRtl ? 'مبلغ ناقص' : 'Underpaid' },
+    { key: 'EXPIRED', label: isRtl ? 'منتهية' : 'Expired' },
+  ];
+
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+      {/* Page Header */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px',
+          flexWrap: 'wrap',
+          gap: '16px',
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>All Transactions</h2>
-          <p style={{ fontSize: '14px', color: '#64748b', margin: '4px 0 0 0' }}>Manage and monitor all payment checkouts</p>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
+            {isRtl ? 'سجل كافة المعاملات' : 'All Transactions'}
+          </h2>
+          <p style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
+            {isRtl ? 'متابعة وإدارة كافة عمليات الدفع وجلسات العملاء' : 'Manage and monitor all payment checkouts'}
+          </p>
         </div>
+
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             onClick={fetchTransactions}
@@ -81,18 +239,20 @@ export function TransactionsPage({ showToast }: TransactionsPageProps) {
               alignItems: 'center',
               gap: '6px',
               padding: '10px 16px',
-              backgroundColor: 'white',
-              border: '1px solid #cbd5e1',
-              color: '#334155',
+              backgroundColor: isDark ? '#1e293b' : 'white',
+              border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+              color: isDark ? '#f8fafc' : '#334155',
               fontSize: '13px',
-              fontWeight: 500,
+              fontWeight: 600,
               borderRadius: '10px',
               cursor: 'pointer',
+              transition: 'all 0.15s',
             }}
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Refresh
+            {isRtl ? 'تحديث' : 'Refresh'}
           </button>
+
           <button
             onClick={handleExport}
             style={{
@@ -103,162 +263,743 @@ export function TransactionsPage({ showToast }: TransactionsPageProps) {
               backgroundColor: '#10b981',
               color: 'white',
               fontSize: '14px',
-              fontWeight: 600,
+              fontWeight: 700,
               borderRadius: '10px',
               border: 'none',
               cursor: 'pointer',
               boxShadow: '0 8px 15px -3px rgba(16,185,129,0.3)',
             }}
           >
-            📥 Export CSV
+            <Download size={15} />
+            {isRtl ? 'تصدير CSV' : 'Export CSV'}
           </button>
         </div>
       </div>
 
       {/* Filters and Search Bar */}
-      <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '16px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      <div
+        style={{
+          backgroundColor: isDark ? '#111827' : 'white',
+          borderRadius: '16px',
+          border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+          padding: '16px',
+          marginBottom: '24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+        }}
+      >
+        {/* Status Filters */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {['ALL', 'CONFIRMED', 'PENDING', 'UNDERPAID', 'EXPIRED'].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              style={{
-                padding: '6px 14px',
-                fontSize: '12px',
-                fontWeight: 600,
-                borderRadius: '8px',
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: filter === f ? '#0f172a' : '#f1f5f9',
-                color: filter === f ? '#38bdf8' : '#475569',
-                transition: 'all 0.15s',
-              }}
-            >
-              {f}
-            </button>
-          ))}
+          {filterOptions.map((f) => {
+            const isActive = filter === f.key;
+            return (
+              <button
+                key={f.key}
+                onClick={() => handleFilterClick(f.key)}
+                style={{
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  border: isActive
+                    ? (isDark ? '1px solid #38bdf8' : '1px solid #2563eb')
+                    : (isDark ? '1px solid #334155' : '1px solid transparent'),
+                  cursor: 'pointer',
+                  backgroundColor: isActive
+                    ? (isDark ? 'rgba(56, 189, 248, 0.15)' : '#0f172a')
+                    : (isDark ? '#1e293b' : '#f1f5f9'),
+                  color: isActive
+                    ? (isDark ? '#38bdf8' : 'white')
+                    : (isDark ? '#94a3b8' : '#475569'),
+                  transition: 'all 0.15s',
+                }}
+              >
+                {f.label}
+              </button>
+            );
+          })}
         </div>
 
+        {/* Search Input */}
         <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px' }}>
           <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+            <Search
+              size={14}
+              style={{
+                position: 'absolute',
+                left: isRtl ? 'auto' : '10px',
+                right: isRtl ? '10px' : 'auto',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: isDark ? '#64748b' : '#94a3b8',
+              }}
+            />
             <input
               type="text"
-              placeholder="Search session or handle..."
+              placeholder={isRtl ? 'ابحث بالجلسة أو الحساب...' : 'Search session or handle...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                padding: '6px 12px 6px 30px',
+                padding: isRtl ? '7px 32px 7px 12px' : '7px 12px 7px 32px',
                 fontSize: '13px',
                 borderRadius: '8px',
-                border: '1px solid #cbd5e1',
+                border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+                backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                color: isDark ? '#f8fafc' : '#0f172a',
                 outline: 'none',
-                width: '220px',
+                width: '230px',
               }}
             />
           </div>
           <button
             type="submit"
             style={{
-              padding: '6px 14px',
-              backgroundColor: '#0f172a',
+              padding: '7px 16px',
+              backgroundColor: isDark ? '#2563eb' : '#0f172a',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontSize: '12px',
-              fontWeight: 500,
+              fontWeight: 600,
               cursor: 'pointer',
             }}
           >
-            Search
+            {isRtl ? 'بحث' : 'Search'}
           </button>
         </form>
       </div>
 
       {/* Table */}
-      <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+      <div
+        style={{
+          backgroundColor: isDark ? '#111827' : 'white',
+          borderRadius: '16px',
+          border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: 'calc(100vh - 220px)',
+          minHeight: '400px',
+        }}
+      >
         {loading ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
+          <div style={{ padding: '48px', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
             <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px auto', color: '#10b981' }} />
-            Loading transactions from gateway...
+            {isRtl ? 'جاري تحميل المعاملات من البوابة...' : 'Loading transactions from gateway...'}
           </div>
         ) : transactions.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
-            No transactions found matching your criteria.
+          <div style={{ padding: '48px', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
+            {isRtl ? 'لا توجد معاملات مطابقة لمعايير البحث.' : 'No transactions found matching your criteria.'}
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' }}>
-                <th style={{ textAlign: 'left', padding: '14px 20px', fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Session</th>
-                <th style={{ textAlign: 'left', padding: '14px 20px', fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Amount</th>
-                <th style={{ textAlign: 'left', padding: '14px 20px', fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Sender</th>
-                <th style={{ textAlign: 'left', padding: '14px 20px', fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Status</th>
-                <th style={{ textAlign: 'left', padding: '14px 20px', fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Reference</th>
-                <th style={{ textAlign: 'left', padding: '14px 20px', fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Date</th>
-                <th style={{ textAlign: 'right', padding: '14px 20px', fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>Checkout</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((tx) => {
-                const badge = statusColors[tx.status] || { bg: '#f1f5f9', text: '#475569' };
-                return (
-                  <tr key={tx.id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                    <td style={{ padding: '14px 20px', fontFamily: 'monospace', fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>
-                      {tx.sessionId}
-                    </td>
-                    <td style={{ padding: '14px 20px', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
-                      {tx.amountEgp.toFixed(2)} EGP
-                    </td>
-                    <td style={{ padding: '14px 20px', fontSize: '13px', color: '#475569' }}>
-                      {tx.senderHandle}
-                    </td>
-                    <td style={{ padding: '14px 20px' }}>
-                      <span
+          <div style={{ overflowY: 'auto', overflowX: 'auto', flex: 1 }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: isRtl ? 'right' : 'left' }}>
+              <thead
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 20,
+                }}
+              >
+                <tr
+                  style={{
+                    backgroundColor: isDark ? '#162033' : '#f8fafc',
+                  }}
+                >
+                  <th
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      boxShadow: isDark
+                        ? 'inset 0 -1px 0 #1e293b, 0 1px 3px rgba(0,0,0,0.3)'
+                        : 'inset 0 -1px 0 #e2e8f0, 0 1px 3px rgba(0,0,0,0.04)',
+                      padding: '12px 6px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      textTransform: 'uppercase',
+                      width: '34px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    #
+                  </th>
+                  <th
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      boxShadow: isDark
+                        ? 'inset 0 -1px 0 #1e293b, 0 1px 3px rgba(0,0,0,0.3)'
+                        : 'inset 0 -1px 0 #e2e8f0, 0 1px 3px rgba(0,0,0,0.04)',
+                      padding: '12px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {isRtl ? 'الجلسة والمشتريات' : 'Session & Order'}
+                  </th>
+                  <th
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      boxShadow: isDark
+                        ? 'inset 0 -1px 0 #1e293b, 0 1px 3px rgba(0,0,0,0.3)'
+                        : 'inset 0 -1px 0 #e2e8f0, 0 1px 2px rgba(0,0,0,0.04)',
+                      padding: '12px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {isRtl ? 'المبلغ' : 'Amount'}
+                  </th>
+                  <th
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      boxShadow: isDark
+                        ? 'inset 0 -1px 0 #1e293b, 0 1px 3px rgba(0,0,0,0.3)'
+                        : 'inset 0 -1px 0 #e2e8f0, 0 1px 2px rgba(0,0,0,0.04)',
+                      padding: '12px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {isRtl ? 'المرسل' : 'Sender'}
+                  </th>
+                  <th
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      boxShadow: isDark
+                        ? 'inset 0 -1px 0 #1e293b, 0 1px 3px rgba(0,0,0,0.3)'
+                        : 'inset 0 -1px 0 #e2e8f0, 0 1px 2px rgba(0,0,0,0.04)',
+                      padding: '12px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {isRtl ? 'الحالة' : 'Status'}
+                  </th>
+                  <th
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      boxShadow: isDark
+                        ? 'inset 0 -1px 0 #1e293b, 0 1px 3px rgba(0,0,0,0.3)'
+                        : 'inset 0 -1px 0 #e2e8f0, 0 1px 2px rgba(0,0,0,0.04)',
+                      padding: '12px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {isRtl ? 'الرقم المرجعي' : 'Reference'}
+                  </th>
+                  <th
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      boxShadow: isDark
+                        ? 'inset 0 -1px 0 #1e293b, 0 1px 3px rgba(0,0,0,0.3)'
+                        : 'inset 0 -1px 0 #e2e8f0, 0 1px 2px rgba(0,0,0,0.04)',
+                      padding: '12px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {isRtl ? 'التاريخ' : 'Date'}
+                  </th>
+                  <th
+                    style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 20,
+                      backgroundColor: isDark ? '#162033' : '#f8fafc',
+                      boxShadow: isDark
+                        ? 'inset 0 -1px 0 #1e293b, 0 1px 3px rgba(0,0,0,0.3)'
+                        : 'inset 0 -1px 0 #e2e8f0, 0 1px 2px rgba(0,0,0,0.04)',
+                      padding: '12px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: isDark ? '#94a3b8' : '#64748b',
+                      textTransform: 'uppercase',
+                      textAlign: isRtl ? 'left' : 'right',
+                    }}
+                  >
+                    {isRtl ? 'الإيصال' : 'Receipt'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions
+                  .slice()
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .map((tx, index) => {
+                    const badge = getStatusBadgeStyle(tx.status);
+                    const purchaseInfo = getPurchaseTypeInfo(tx, isRtl);
+
+                    return (
+                      <tr
+                        key={tx.id}
+                        onClick={() => setSelectedTx(tx)}
                         style={{
-                          backgroundColor: badge.bg,
-                          color: badge.text,
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          letterSpacing: '0.02em',
+                          borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.3)' : '1px solid #f8fafc',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = isDark ? '#1a2436' : '#f8fafc';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
                         }}
                       >
-                        {tx.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 20px', fontFamily: 'monospace', fontSize: '12px', color: '#64748b' }}>
-                      {tx.detectedRef || '—'}
-                    </td>
-                    <td style={{ padding: '14px 20px', fontSize: '12px', color: '#64748b' }}>
-                      {new Date(tx.createdAt).toLocaleString()}
-                    </td>
-                    <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                      <a
-                        href={`/pay/${tx.sessionId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          color: '#2563eb',
-                          fontSize: '12px',
-                          textDecoration: 'none',
-                          fontWeight: 500,
-                        }}
-                      >
-                        View <ExternalLink size={12} />
-                      </a>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        {/* Counter # */}
+                        <td
+                          style={{
+                            padding: '10px 6px',
+                            textAlign: 'center',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            fontFamily: 'monospace',
+                            color: isDark ? '#64748b' : '#94a3b8',
+                            width: '34px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          #{index + 1}
+                        </td>
+
+                        {/* Session ID & Purchase Type */}
+                        <td style={{ padding: '10px 10px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span
+                              style={{
+                                fontFamily: 'monospace',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                color: isDark ? '#38bdf8' : '#0f172a',
+                                maxWidth: '140px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                display: 'inline-block',
+                              }}
+                              title={tx.sessionId}
+                            >
+                              {tx.sessionId}
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '1.5px 6px',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                width: 'fit-content',
+                                backgroundColor: tx.purpose === 'SUBSCRIPTION'
+                                  ? (isDark ? 'rgba(168, 85, 247, 0.15)' : '#f3e8ff')
+                                  : (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff'),
+                                color: tx.purpose === 'SUBSCRIPTION'
+                                  ? (isDark ? '#c084fc' : '#7e22ce')
+                                  : (isDark ? '#60a5fa' : '#1d4ed8'),
+                              }}
+                            >
+                              <span>{purchaseInfo.icon}</span>
+                              <span>{purchaseInfo.category}</span>
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Amount */}
+                        <td style={{ padding: '10px 10px', fontSize: '13px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', whiteSpace: 'nowrap' }}>
+                          {tx.amountEgp.toFixed(2)} EGP
+                        </td>
+
+                        {/* Sender */}
+                        <td
+                          style={{
+                            padding: '10px 10px',
+                            fontSize: '12px',
+                            color: isDark ? '#cbd5e1' : '#475569',
+                            fontFamily: 'monospace',
+                            maxWidth: '135px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={tx.senderHandle || ''}
+                        >
+                          {tx.senderHandle || '—'}
+                        </td>
+
+                        {/* Status */}
+                        <td style={{ padding: '10px 10px', whiteSpace: 'nowrap' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              backgroundColor: badge.bg,
+                              color: badge.text,
+                              border: badge.border,
+                              padding: '3px 7px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              letterSpacing: '0.02em',
+                            }}
+                          >
+                            {tx.status}
+                          </span>
+                        </td>
+
+                        {/* Ref */}
+                        <td
+                          style={{
+                            padding: '10px 10px',
+                            fontFamily: 'monospace',
+                            fontSize: '11px',
+                            color: isDark ? '#10b981' : '#059669',
+                            fontWeight: 600,
+                            maxWidth: '115px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={tx.detectedRef || ''}
+                        >
+                          {tx.detectedRef || '—'}
+                        </td>
+
+                        {/* Date */}
+                        <td
+                          style={{ padding: '10px 10px', fontSize: '12px', color: isDark ? '#94a3b8' : '#64748b', whiteSpace: 'nowrap' }}
+                          title={formatTxDate(tx.createdAt, isRtl)}
+                        >
+                          {formatTableDate(tx.createdAt, isRtl)}
+                        </td>
+
+                        {/* Action Button: Receipt */}
+                        <td style={{ padding: '10px 10px', textAlign: isRtl ? 'left' : 'right', whiteSpace: 'nowrap' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTx(tx);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '5px 10px',
+                              borderRadius: '8px',
+                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#f0f9ff',
+                              border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                              color: isDark ? '#38bdf8' : '#0284c7',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                            }}
+                            title={isRtl ? 'عرض إيصال وتفاصيل المعاملة' : 'View Transaction Receipt & Details'}
+                          >
+                            <Eye size={12} />
+                            <span>{isRtl ? 'الإيصال' : 'Receipt'}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+
+      {/* ─── Transaction Receipt & Details Modal ─── */}
+      {selectedTx && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(6px)',
+          }}
+          onClick={() => setSelectedTx(null)}
+        >
+          <div
+            style={{
+              backgroundColor: isDark ? '#0f172a' : '#ffffff',
+              borderRadius: '20px',
+              border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              width: '100%',
+              maxWidth: '520px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '24px',
+              color: isDark ? '#f8fafc' : '#0f172a',
+              position: 'relative',
+              textAlign: isRtl ? 'right' : 'left',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    backgroundColor: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID'
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : 'rgba(245, 158, 11, 0.15)',
+                    color: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID' ? '#10b981' : '#f59e0b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>
+                    {isRtl ? 'إيصال وتفاصيل المعاملة' : 'Transaction Receipt & Details'}
+                  </h3>
+                  <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0' }}>
+                    {isRtl ? 'بيانات العملية المسجلة في بوابة الدفع' : 'Gateway recorded transaction details'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedTx(null)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+                  backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+                  color: isDark ? '#94a3b8' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Hero Amount & Status Box */}
+            <div
+              style={{
+                backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+                border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+                borderRadius: '16px',
+                padding: '16px',
+                textAlign: 'center',
+                marginBottom: '20px',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  marginBottom: '8px',
+                  backgroundColor: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID'
+                    ? 'rgba(16, 185, 129, 0.15)'
+                    : 'rgba(245, 158, 11, 0.15)',
+                  color: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID' ? '#10b981' : '#f59e0b',
+                }}
+              >
+                {(selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID') && <CheckCircle2 size={12} />}
+                {selectedTx.status}
+              </span>
+
+              <div
+                style={{
+                  fontSize: '28px',
+                  fontWeight: 900,
+                  color: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID' ? '#10b981' : (isDark ? '#f8fafc' : '#0f172a'),
+                  fontFamily: 'monospace',
+                }}
+              >
+                {selectedTx.amountEgp.toFixed(2)} <span style={{ fontSize: '16px', fontWeight: 700 }}>EGP</span>
+              </div>
+
+              <p style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
+                {getPurchaseTypeInfo(selectedTx, isRtl).label}
+              </p>
+            </div>
+
+            {/* Detailed Key-Value Rows */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                fontSize: '13px',
+                marginBottom: '20px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
+                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'معرف الجلسة:' : 'Session ID:'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <code style={{ fontFamily: 'monospace', fontSize: '12px', color: isDark ? '#38bdf8' : '#0284c7' }}>
+                    {selectedTx.sessionId}
+                  </code>
+                  <button
+                    onClick={() => {
+                      if (navigator?.clipboard?.writeText) {
+                        navigator.clipboard.writeText(selectedTx.sessionId);
+                      }
+                      setCopiedSessionId(true);
+                      setTimeout(() => setCopiedSessionId(false), 2000);
+                    }}
+                    title="Copy Session ID"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: isDark ? '#94a3b8' : '#64748b', display: 'inline-flex', alignItems: 'center' }}
+                  >
+                    {copiedSessionId ? <Check size={13} style={{ color: '#10b981' }} /> : <Copy size={13} />}
+                  </button>
+                </div>
+              </div>
+
+              {selectedTx.detectedRef && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
+                  <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'رقم الإشعار المرجعي:' : 'InstaPay Ref ID:'}</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#10b981' }}>
+                    {selectedTx.detectedRef}
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
+                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'حساب العميل الراسل:' : 'Sender InstaPay Handle:'}</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                  {selectedTx.senderHandle || '—'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
+                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'حساب المتجر المستلم:' : 'Merchant Recipient IPA:'}</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                  {selectedTx.recipientHandle || 'platform@instapay'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
+                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'تصنيف المعاملة:' : 'Purchase Category:'}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {getPurchaseTypeInfo(selectedTx, isRtl).category}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
+                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'توقيت الإنشاء:' : 'Created Time:'}</span>
+                <span>{formatTxDate(selectedTx.createdAt, isRtl)}</span>
+              </div>
+
+              {selectedTx.detectedAt && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
+                  <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'توقيت التأكيد:' : 'Verified Time:'}</span>
+                  <span style={{ color: '#10b981', fontWeight: 600 }}>{formatTxDate(selectedTx.detectedAt, isRtl)}</span>
+                </div>
+              )}
+
+              {selectedTx.note && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
+                  <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'ملاحظة الطلب:' : 'Order Note:'}</span>
+                  <span>{selectedTx.note}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => window.print()}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '10px',
+                  borderRadius: '10px',
+                  backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+                  border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+                  color: isDark ? '#f8fafc' : '#334155',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                <Printer size={15} />
+                <span>{isRtl ? 'طباعة الإيصال' : 'Print Receipt'}</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedTx(null)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '10px',
+                  backgroundColor: '#2563eb',
+                  border: 'none',
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                }}
+              >
+                {isRtl ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

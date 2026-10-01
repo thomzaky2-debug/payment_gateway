@@ -13,15 +13,21 @@ import {
   hashOtp,
   generateOtp,
   normalizeEmail,
+  verifyOtpCode,
 } from '../lib/emailDelivery.js'
+import { createRateLimiter } from '../lib/rateLimiter.js'
+import { validateMerchantSignupEmail } from '../lib/emailValidation.js'
 
 export const authRouter = Router()
 
 const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
 
+// Dedicated rate limiter for OTP dispatch — 5 per email per 15 minutes
+const otpDispatchLimiter = createRateLimiter(15 * 60 * 1000, 5, 'Too many verification code requests. Try again in 15 minutes.')
+
 // ─── Email OTP Dispatch ──────────────────────────────────────────────
 
-authRouter.post('/email-otp', async (req: Request, res: Response) => {
+authRouter.post('/email-otp', otpDispatchLimiter, async (req: Request, res: Response) => {
   try {
     const { email, purpose = 'MERCHANT_SIGNUP' } = req.body
     if (!email || typeof email !== 'string') {
@@ -32,6 +38,10 @@ authRouter.post('/email-otp', async (req: Request, res: Response) => {
 
     // Check if email already registered for signup
     if (purpose === 'MERCHANT_SIGNUP') {
+      const emailError = validateMerchantSignupEmail(cleanEmail)
+      if (emailError) {
+        return res.status(400).json({ ok: false, error: emailError })
+      }
       const existing = await db.client.findUnique({ where: { email: cleanEmail } })
       if (existing) {
         return res.status(400).json({ ok: false, error: 'This email is already registered.' })
@@ -69,7 +79,7 @@ authRouter.post('/email-otp', async (req: Request, res: Response) => {
       verificationId: verification.id,
       message: `Verification code sent to ${cleanEmail}.`,
       expiresInSeconds: OTP_TTL_MS / 1000,
-      devOtp: process.env.NODE_ENV !== 'production' ? otp : undefined,
+      ...(process.env.NODE_ENV !== 'production' ? { devOtp: otp } : {}),
     })
   } catch (err: unknown) {
     const error = err as Error
@@ -105,48 +115,23 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
     const cleanEmail = normalizeEmail(email)
 
+    const emailError = validateMerchantSignupEmail(cleanEmail)
+    if (emailError) {
+      return res.status(400).json({ ok: false, error: emailError })
+    }
+
     // Check existing email
     const existing = await db.client.findUnique({ where: { email: cleanEmail } })
     if (existing) {
       return res.status(409).json({ ok: false, error: 'An account with this email already exists' })
     }
 
-    // Verify OTP if provided
+    // Verify OTP using centralized helper
     if (verificationId && otp) {
-      const verification = await db.emailVerification.findUnique({
-        where: { id: String(verificationId).trim() },
-      })
-      const expectedOtpHash = hashOtp(cleanEmail, String(otp).trim())
-      const isValid =
-        verification &&
-        verification.email === cleanEmail &&
-        verification.purpose === 'MERCHANT_SIGNUP' &&
-        !verification.consumedAt &&
-        verification.expiresAt.getTime() > Date.now() &&
-        verification.attempts < 5 &&
-        verification.otpHash === expectedOtpHash
-
-      if (!verification || verification.email !== cleanEmail) {
-        return res.status(400).json({ ok: false, error: 'Please request a new email verification code.' })
+      const otpResult = await verifyOtpCode(db, cleanEmail, verificationId, otp, 'MERCHANT_SIGNUP')
+      if (!otpResult.valid) {
+        return res.status(400).json({ ok: false, error: otpResult.error })
       }
-
-      if (!isValid) {
-        await db.emailVerification
-          .update({
-            where: { id: verification.id },
-            data: { attempts: { increment: 1 } },
-          })
-          .catch(() => {})
-        return res.status(400).json({ ok: false, error: 'Invalid or expired email verification code.' })
-      }
-
-      // Mark OTP as consumed
-      await db.emailVerification
-        .update({
-          where: { id: verification.id },
-          data: { consumedAt: new Date() },
-        })
-        .catch(() => {})
     } else if (otp && !verificationId) {
       // Direct OTP check against latest active verification record for this email
       const latestVerification = await db.emailVerification.findFirst({
@@ -202,6 +187,11 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     }
 
     // Account starts as PENDING until approved by admin
+    const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
+    const trialTxLimit = trialPlan?.maxTransactions ?? 50
+    const trialPeriodDays = trialPlan?.periodDays ?? 14
+    const subscriptionEndsAt = new Date(Date.now() + trialPeriodDays * 24 * 60 * 60 * 1000)
+
     const client = await db.client.create({
       data: {
         slug,
@@ -217,8 +207,10 @@ authRouter.post('/register', async (req: Request, res: Response) => {
         approvalStatus: 'PENDING',
         isActive: false,
         subscriptionPlan: 'FREE_TRIAL',
-        txLimit: 20,
+        isFreeTrial: true,
+        txLimit: trialTxLimit,
         txCount: 0,
+        subscriptionEndsAt,
       },
     })
 
@@ -258,13 +250,12 @@ authRouter.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ ok: false, error: 'Invalid email or password' })
     }
 
-    // Fast-pass bypass for test suites or if explicitly requested in non-production
+    // Test bypass — only allow via request body (not via header to avoid accidental exposure)
     const isTestBypass =
-      skipOtp === true ||
-      req.headers['x-skip-otp'] === 'true' ||
+      (skipOtp === true && process.env.NODE_ENV !== 'production') ||
       (process.env.NODE_ENV !== 'production' && otp === 'BYPASS_DEV')
 
-    // STEP 1: If OTP not provided yet, issue OTP to merchant's email and prompt for verification code
+    // STEP 1: If OTP not provided yet, issue OTP to merchant's email
     if (!isTestBypass && (!verificationId || !otp)) {
       const loginOtp = generateOtp()
       const verification = await db.emailVerification.create({
@@ -288,46 +279,16 @@ authRouter.post('/login', async (req: Request, res: Response) => {
         verificationId: verification.id,
         message: 'Login verification code sent to your email.',
         expiresInSeconds: OTP_TTL_MS / 1000,
-        devOtp: process.env.NODE_ENV !== 'production' ? loginOtp : undefined,
+        ...(process.env.NODE_ENV !== 'production' ? { devOtp: loginOtp } : {}),
       })
     }
 
-    // STEP 2: Verify the submitted OTP code
+    // STEP 2: Verify the submitted OTP code using centralized helper
     if (!isTestBypass) {
-      const verification = await db.emailVerification.findUnique({
-        where: { id: String(verificationId).trim() },
-      })
-      const expectedOtpHash = hashOtp(cleanEmail, String(otp).trim())
-      const isValid =
-        verification &&
-        verification.email === cleanEmail &&
-        verification.purpose === 'MERCHANT_LOGIN' &&
-        !verification.consumedAt &&
-        verification.expiresAt.getTime() > Date.now() &&
-        verification.attempts < 5 &&
-        verification.otpHash === expectedOtpHash
-
-      if (!verification || verification.email !== cleanEmail) {
-        return res.status(400).json({ ok: false, error: 'Please request a new login verification code.' })
+      const otpResult = await verifyOtpCode(db, cleanEmail, verificationId, otp, 'MERCHANT_LOGIN')
+      if (!otpResult.valid) {
+        return res.status(400).json({ ok: false, error: otpResult.error })
       }
-
-      if (!isValid) {
-        await db.emailVerification
-          .update({
-            where: { id: verification.id },
-            data: { attempts: { increment: 1 } },
-          })
-          .catch(() => {})
-        return res.status(400).json({ ok: false, error: 'Invalid or expired login verification code.' })
-      }
-
-      // Mark OTP as consumed
-      await db.emailVerification
-        .update({
-          where: { id: verification.id },
-          data: { consumedAt: new Date() },
-        })
-        .catch(() => {})
     }
 
     // Check account status
@@ -424,6 +385,35 @@ authRouter.get('/session', async (req: Request, res: Response) => {
       return res.status(401).json({ ok: false, authenticated: false })
     }
 
+    // Auto-sync active Free Trial merchant with latest trial plan limits
+    if (client.isFreeTrial || client.subscriptionPlan === 'FREE_TRIAL') {
+      const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
+      if (trialPlan) {
+        let needsUpdate = false
+        const updateData: Record<string, any> = {}
+
+        if (trialPlan.maxTransactions && client.txLimit !== trialPlan.maxTransactions) {
+          client.txLimit = trialPlan.maxTransactions
+          updateData.txLimit = trialPlan.maxTransactions
+          needsUpdate = true
+        }
+
+        if (trialPlan.periodDays && !client.subscriptionEndsAt) {
+          const expectedEndsAt = new Date(Date.now() + trialPlan.periodDays * 24 * 60 * 60 * 1000)
+          client.subscriptionEndsAt = expectedEndsAt as any
+          updateData.subscriptionEndsAt = expectedEndsAt
+          needsUpdate = true
+        }
+
+        if (needsUpdate) {
+          await db.client.update({
+            where: { id: client.id },
+            data: updateData,
+          }).catch(() => {})
+        }
+      }
+    }
+
     return res.json({ ok: true, authenticated: true, client })
   } catch (err) {
     return res.status(500).json({ ok: false, authenticated: false })
@@ -460,7 +450,7 @@ authRouter.post('/apk-login', async (req: Request, res: Response) => {
       })
     }
 
-    const isBypass = skipOtp === true || (process.env.NODE_ENV !== 'production' && !verificationId && !otp)
+    const isBypass = skipOtp === true && process.env.NODE_ENV !== 'production'
 
     // OTP required if not bypassed
     if (!isBypass && (!verificationId || !otp)) {
@@ -479,29 +469,14 @@ authRouter.post('/apk-login', async (req: Request, res: Response) => {
         otpRequired: true,
         verificationId: verification.id,
         expiresInSeconds: OTP_TTL_MS / 1000,
-        devOtp: process.env.NODE_ENV !== 'production' ? code : undefined,
       })
     }
 
     if (!isBypass) {
-      const verification = await db.emailVerification.findUnique({ where: { id: String(verificationId).trim() } })
-      const expectedOtpHash = hashOtp(cleanEmail, String(otp).trim())
-      const valid =
-        verification &&
-        verification.email === cleanEmail &&
-        verification.purpose === 'MERCHANT_LOGIN' &&
-        !verification.consumedAt &&
-        verification.expiresAt.getTime() > Date.now() &&
-        verification.attempts < 5 &&
-        verification.otpHash === expectedOtpHash
-
-      if (!verification || !valid) {
-        if (verification) {
-          await db.emailVerification.update({ where: { id: verification.id }, data: { attempts: { increment: 1 } } }).catch(() => {})
-        }
-        return res.status(400).json({ ok: false, error: 'Invalid or expired verification code.' })
+      const otpResult = await verifyOtpCode(db, cleanEmail, verificationId, otp, 'MERCHANT_LOGIN')
+      if (!otpResult.valid) {
+        return res.status(400).json({ ok: false, error: otpResult.error })
       }
-      await db.emailVerification.update({ where: { id: verification.id }, data: { consumedAt: new Date() } }).catch(() => {})
     }
 
     // Auto-generate keys if missing
@@ -543,7 +518,7 @@ authRouter.post('/apk-login', async (req: Request, res: Response) => {
 
 // ─── Password Reset via OTP ─────────────────────────────────────────
 
-authRouter.post('/password-reset/request', async (req: Request, res: Response) => {
+authRouter.post('/password-reset/request', otpDispatchLimiter, async (req: Request, res: Response) => {
   try {
     const { email } = req.body
     if (!email) return res.status(400).json({ ok: false, error: 'Email is required' })
@@ -572,7 +547,7 @@ authRouter.post('/password-reset/request', async (req: Request, res: Response) =
       verificationId: verification.id,
       message: 'Reset verification code sent.',
       expiresInSeconds: OTP_TTL_MS / 1000,
-      devOtp: process.env.NODE_ENV !== 'production' ? otp : undefined,
+      ...(process.env.NODE_ENV !== 'production' ? { devOtp: otp } : {}),
     })
   } catch (err) {
     return res.status(500).json({ ok: false, error: 'Failed to request password reset' })
@@ -587,25 +562,10 @@ authRouter.post('/password-reset/confirm', async (req: Request, res: Response) =
     }
 
     const cleanEmail = normalizeEmail(email)
-    const verification = await db.emailVerification.findUnique({ where: { id: String(verificationId).trim() } })
-    const expectedOtpHash = hashOtp(cleanEmail, String(otp).trim())
-    const valid =
-      verification &&
-      verification.email === cleanEmail &&
-      verification.purpose === 'PASSWORD_RESET' &&
-      !verification.consumedAt &&
-      verification.expiresAt.getTime() > Date.now() &&
-      verification.attempts < 5 &&
-      verification.otpHash === expectedOtpHash
-
-    if (!verification || !valid) {
-      if (verification) {
-        await db.emailVerification.update({ where: { id: verification.id }, data: { attempts: { increment: 1 } } }).catch(() => {})
-      }
-      return res.status(400).json({ ok: false, error: 'Invalid or expired reset code.' })
+    const otpResult = await verifyOtpCode(db, cleanEmail, verificationId, otp, 'PASSWORD_RESET')
+    if (!otpResult.valid) {
+      return res.status(400).json({ ok: false, error: otpResult.error })
     }
-
-    await db.emailVerification.update({ where: { id: verification.id }, data: { consumedAt: new Date() } })
 
     const passwordHash = hashPassword(password)
     await db.client.update({

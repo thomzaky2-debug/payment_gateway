@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { authApi } from './services/api';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
-import { MobileNav } from './components/MobileNav';
 import { Toast } from './components/Toast';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { useTheme } from './context/ThemeContext';
 import { LoginPage } from './pages/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { TransactionsPage } from './pages/TransactionsPage';
@@ -34,13 +34,58 @@ export interface ConfirmAction {
   onConfirm: () => void;
 }
 
+export function parseRouteFromHash(hashString?: string): { page: Page; subPath?: string } {
+  const raw = (hashString !== undefined ? hashString : (typeof window !== 'undefined' ? window.location.hash : '')) || '';
+  const clean = raw.replace(/^#\/?/, '').trim();
+  if (!clean) {
+    return { page: 'overview' };
+  }
+
+  const parts = clean.split('/').filter(Boolean);
+  const rawPage = parts[0]?.toLowerCase();
+  const subPath = parts.slice(1).join('/');
+
+  const validPages: Record<string, Page> = {
+    overview: 'overview',
+    transactions: 'transactions',
+    tx: 'transactions',
+    review: 'review',
+    queue: 'review',
+    billing: 'billing',
+    detector: 'detector',
+    developers: 'developers',
+    developer: 'developers',
+    settings: 'settings',
+    audit: 'audit',
+    security: 'security',
+  };
+
+  const page = validPages[rawPage] || 'overview';
+  return { page, subPath: subPath || undefined };
+}
+
+export function buildHash(page: Page, subPath?: string): string {
+  if (subPath && subPath.trim()) {
+    return `#${page}/${subPath.trim()}`;
+  }
+  return `#${page}/`;
+}
+
 function App() {
+  const initialRoute = parseRouteFromHash();
+  const [currentPage, setCurrentPage] = useState<Page>(() => initialRoute.page);
+  const [currentSubPath, setCurrentSubPath] = useState<string | undefined>(() => initialRoute.subPath);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentPage, setCurrentPage] = useState<Page>('overview');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem('instapay_merchant_token'));
+    } catch {
+      return false;
+    }
+  });
+
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmAction | null>(null);
-
   const [currentClient, setCurrentClient] = useState<any>(null);
 
   useEffect(() => {
@@ -50,10 +95,54 @@ function App() {
         if (res?.authenticated && res?.client) {
           setIsAuthenticated(true);
           setCurrentClient(res.client);
+        } else {
+          setIsAuthenticated(false);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setIsAuthenticated(false);
+      })
+      .finally(() => {
+        setIsCheckingAuth(false);
+      });
   }, []);
+
+  // Ensure valid URL hash on mount if none is set
+  useEffect(() => {
+    if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
+      const targetHash = buildHash(currentPage, currentSubPath);
+      window.history.replaceState(null, '', targetHash);
+    }
+  }, []);
+
+  // Listen to browser Back/Forward or manual URL hash modifications
+  useEffect(() => {
+    const handleHashChange = () => {
+      const route = parseRouteFromHash();
+      setCurrentPage((prev) => (prev !== route.page ? route.page : prev));
+      setCurrentSubPath((prev) => (prev !== route.subPath ? route.subPath : prev));
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const navigateTo = (page: Page, subPath?: string) => {
+    const targetHash = buildHash(page, subPath);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+    setCurrentPage(page);
+    setCurrentSubPath(subPath);
+  };
+
+  const handleSubPathChange = (subPath?: string) => {
+    const targetHash = buildHash(currentPage, subPath);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+    setCurrentSubPath(subPath);
+  };
 
   const showToast = (type: ToastMessage['type'], message: string) => {
     const id = Date.now().toString();
@@ -92,25 +181,74 @@ function App() {
         await authApi.logout().catch(() => {});
         setIsAuthenticated(false);
         setCurrentClient(null);
-        setCurrentPage('overview');
+        navigateTo('overview');
         closeConfirm();
         showToast('info', 'You have been logged out successfully.');
       },
     });
   };
 
+  if (isCheckingAuth) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          height: '100vh',
+          width: '100vw',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#090d16',
+          color: '#38bdf8',
+          flexDirection: 'column',
+          gap: '16px',
+        }}
+      >
+        <div
+          style={{
+            width: '44px',
+            height: '44px',
+            border: '3px solid rgba(56, 189, 248, 0.2)',
+            borderTopColor: '#38bdf8',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <LoginPage onLogin={handleLogin} showToast={showToast} />;
+    return (
+      <>
+        <LoginPage onLogin={handleLogin} showToast={showToast} />
+        <Toast toasts={toasts} onDismiss={(id: string) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+      </>
+    );
   }
 
   const renderPage = () => {
     switch (currentPage) {
       case 'overview':
-        return <OverviewPage showToast={showToast} />;
+        return <OverviewPage showToast={showToast} onNavigate={navigateTo} />;
       case 'transactions':
-        return <TransactionsPage showToast={showToast} />;
+        return (
+          <TransactionsPage
+            showToast={showToast}
+            subPath={currentSubPath}
+            onSubPathChange={handleSubPathChange}
+          />
+        );
       case 'review':
-        return <ReviewPage showToast={showToast} showConfirm={showConfirm} />;
+        return (
+          <ReviewPage
+            showToast={showToast}
+            showConfirm={showConfirm}
+            onNavigate={navigateTo}
+            subPath={currentSubPath}
+            onSubPathChange={handleSubPathChange}
+          />
+        );
       case 'billing':
         return <BillingPage showToast={showToast} />;
       case 'detector':
@@ -118,76 +256,54 @@ function App() {
       case 'developers':
         return <DevelopersPage showToast={showToast} showConfirm={showConfirm} />;
       case 'settings':
-        return <SettingsPage showToast={showToast} />;
+        return (
+          <SettingsPage
+            showToast={showToast}
+            subPath={currentSubPath}
+            onSubPathChange={handleSubPathChange}
+          />
+        );
       case 'audit':
         return <AuditLogPage />;
       case 'security':
         return <SecurityPage showToast={showToast} showConfirm={showConfirm} />;
       default:
-        return <OverviewPage showToast={showToast} />;
+        return <OverviewPage showToast={showToast} onNavigate={navigateTo} />;
     }
   };
 
+  const { isDark } = useTheme();
+
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f1f5f9', overflow: 'hidden' }}>
-      <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
+    <div
+      className="app-main-layout"
+      style={{
+        display: 'flex',
+        height: '100vh',
+        width: '100vw',
+        backgroundColor: isDark ? '#090d16' : '#f1f5f9',
+        color: isDark ? '#f8fafc' : '#1e293b',
+        overflow: 'hidden',
+        transition: 'background-color 0.25s ease, color 0.25s ease',
+      }}
+    >
+      <Sidebar currentPage={currentPage} onNavigate={navigateTo} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        <div
-          className="md:hidden"
+        <Topbar client={currentClient} currentPage={currentPage} onLogout={handleLogout} onNavigate={navigateTo} />
+
+        <main
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 16px',
-            backgroundColor: 'white',
-            borderBottom: '1px solid #e2e8f0',
+            flex: 1,
+            overflow: 'auto',
+            padding: '24px',
+            backgroundColor: isDark ? '#090d16' : '#f1f5f9',
+            transition: 'background-color 0.25s ease',
           }}
         >
-          <button
-            onClick={() => setMobileMenuOpen(true)}
-            style={{ padding: '8px', borderRadius: '8px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
-            aria-label="Open menu"
-          >
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <h1 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>InstaPay Gateway</h1>
-          <div
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: '#2563eb',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontWeight: '600',
-              fontSize: '14px',
-            }}
-          >
-            {currentClient?.businessName ? currentClient.businessName[0].toUpperCase() : 'M'}
-          </div>
-        </div>
-
-        <Topbar client={currentClient} currentPage={currentPage} onLogout={handleLogout} />
-
-        <main style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
           <div style={{ animation: 'fadeIn 0.4s ease-out' }}>{renderPage()}</div>
         </main>
       </div>
-
-      <MobileNav
-        isOpen={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        currentPage={currentPage}
-        onNavigate={(page) => {
-          setCurrentPage(page);
-          setMobileMenuOpen(false);
-        }}
-      />
 
       <Toast toasts={toasts} onDismiss={(id: string) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
@@ -207,3 +323,4 @@ function App() {
 }
 
 export default App;
+

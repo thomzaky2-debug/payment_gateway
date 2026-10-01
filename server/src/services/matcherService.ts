@@ -226,66 +226,151 @@ export async function processInstaPayNotification(
     }
   }
 
-  // 8. Handle Underpayment
+  // 8. Handle Amount Discrepancies (Underpayment vs Overpayment with Merchant Tolerance Policy)
   if (isMismatchedAmount) {
     const requestedAmountCents = match.amountCents ?? toEgpCents(match.amountEgp)
+
+    // CASE A: Underpayment
     if (receivedAmountCents < requestedAmountCents) {
-      const updated = await db.transaction.update({
-        where: { id: match.id },
-        data: {
-          status: 'UNDERPAID',
-          detectedRef: reference,
-          detectedAt: now,
-          detectedAmountEgp: receivedAmountRounded,
-          detectedAmountCents: receivedAmountCents,
-        },
-      })
+      const shortageCents = requestedAmountCents - receivedAmountCents
+      const shortageEgp = fromEgpCents(shortageCents) ?? (shortageCents / 100)
+      const toleranceEgp = client.underpaidToleranceEnabled ? (client.underpaidToleranceEgp ?? 0) : 0
+      const toleranceCents = toEgpCents(toleranceEgp)
 
-      emitCheckoutUpdate({
-        sessionId: updated.sessionId,
-        status: 'UNDERPAID',
-        amountEgp: updated.amountEgp,
-        detectedAmountEgp: updated.detectedAmountEgp,
-        senderHandle: updated.senderHandle,
-        detectedRef: updated.detectedRef,
-        detectedAt: updated.detectedAt?.toISOString(),
-      })
-
-      if (client.webhookUrl) {
-        void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
-          event: 'payment.underpaid',
-          clientId: client.id,
-          businessName: client.businessName,
-          transaction: {
-            sessionId: updated.sessionId,
-            senderHandle: updated.senderHandle,
-            recipientHandle: updated.recipientHandle,
-            amountEgp: egpAmountFromRow(match),
-            detectedAmountEgp: updated.detectedAmountEgp,
-            currency: updated.currency,
-            status: updated.status,
-            detectedRef: updated.detectedRef,
-            detectedAt: updated.detectedAt?.toISOString() ?? null,
-            note: updated.note,
-            createdAt: updated.createdAt.toISOString(),
+      // If underpayment is within the merchant's agreed precision tolerance:
+      if (client.underpaidToleranceEnabled && shortageCents <= toleranceCents) {
+        console.log(
+          `[matcher] Underpayment of ${shortageEgp.toFixed(2)} EGP is within agreed merchant precision tolerance (${toleranceEgp.toFixed(2)} EGP). Auto-confirming session ${match.sessionId}`
+        )
+        // Proceed to Step 9 (auto-confirm transaction with detectedAmountEgp recorded)
+      } else {
+        // Exceeds tolerance or tolerance disabled -> mark UNDERPAID and route to Manual Review Queue
+        const updated = await db.transaction.update({
+          where: { id: match.id },
+          data: {
+            status: 'UNDERPAID',
+            detectedRef: reference,
+            detectedAt: now,
+            detectedAmountEgp: receivedAmountRounded,
+            detectedAmountCents: receivedAmountCents,
           },
         })
-      }
 
-      return {
-        ok: true,
-        matched: false,
-        reason: 'UNDERPAID',
-        sessionId: updated.sessionId,
-        status: updated.status,
-        received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+        emitCheckoutUpdate({
+          sessionId: updated.sessionId,
+          status: 'UNDERPAID',
+          amountEgp: updated.amountEgp,
+          detectedAmountEgp: updated.detectedAmountEgp,
+          senderHandle: updated.senderHandle,
+          detectedRef: updated.detectedRef,
+          detectedAt: updated.detectedAt?.toISOString(),
+        })
+
+        if (client.webhookUrl) {
+          void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
+            event: 'payment.underpaid',
+            clientId: client.id,
+            businessName: client.businessName,
+            transaction: {
+              sessionId: updated.sessionId,
+              senderHandle: updated.senderHandle,
+              recipientHandle: updated.recipientHandle,
+              amountEgp: egpAmountFromRow(match),
+              detectedAmountEgp: updated.detectedAmountEgp,
+              currency: updated.currency,
+              status: updated.status,
+              detectedRef: updated.detectedRef,
+              detectedAt: updated.detectedAt?.toISOString() ?? null,
+              note: updated.note,
+              createdAt: updated.createdAt.toISOString(),
+            },
+          })
+        }
+
+        return {
+          ok: true,
+          matched: false,
+          reason: 'UNDERPAID',
+          sessionId: updated.sessionId,
+          status: updated.status,
+          received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+        }
+      }
+    }
+
+    // CASE B: Overpayment
+    if (receivedAmountCents > requestedAmountCents) {
+      const excessCents = receivedAmountCents - requestedAmountCents
+      const excessEgp = fromEgpCents(excessCents) ?? (excessCents / 100)
+      const autoAccept = client.autoAcceptOverpaid ?? true
+      const maxExcessEgp = client.overpaidMaxExcessEgp
+
+      const isWithinLimit = maxExcessEgp == null || excessEgp <= maxExcessEgp
+
+      if (autoAccept && isWithinLimit) {
+        console.log(
+          `[matcher] Overpayment of +${excessEgp.toFixed(2)} EGP auto-accepted per merchant policy. Auto-confirming session ${match.sessionId}`
+        )
+        // Proceed to Step 9 (auto-confirm transaction with detectedAmountEgp recorded)
+      } else {
+        // Flag for manual review as OVERPAID
+        const updated = await db.transaction.update({
+          where: { id: match.id },
+          data: {
+            status: 'OVERPAID',
+            detectedRef: reference,
+            detectedAt: now,
+            detectedAmountEgp: receivedAmountRounded,
+            detectedAmountCents: receivedAmountCents,
+          },
+        })
+
+        emitCheckoutUpdate({
+          sessionId: updated.sessionId,
+          status: 'OVERPAID',
+          amountEgp: updated.amountEgp,
+          detectedAmountEgp: updated.detectedAmountEgp,
+          senderHandle: updated.senderHandle,
+          detectedRef: updated.detectedRef,
+          detectedAt: updated.detectedAt?.toISOString(),
+        })
+
+        if (client.webhookUrl) {
+          void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
+            event: 'payment.overpaid',
+            clientId: client.id,
+            businessName: client.businessName,
+            transaction: {
+              sessionId: updated.sessionId,
+              senderHandle: updated.senderHandle,
+              recipientHandle: updated.recipientHandle,
+              amountEgp: egpAmountFromRow(match),
+              detectedAmountEgp: updated.detectedAmountEgp,
+              currency: updated.currency,
+              status: updated.status,
+              detectedRef: updated.detectedRef,
+              detectedAt: updated.detectedAt?.toISOString() ?? null,
+              note: updated.note,
+              createdAt: updated.createdAt.toISOString(),
+            },
+          })
+        }
+
+        return {
+          ok: true,
+          matched: false,
+          reason: 'OVERPAID',
+          sessionId: updated.sessionId,
+          status: updated.status,
+          received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+        }
       }
     }
   }
 
   // 9. Confirm Transaction Atomically (Idempotent)
   const confirmed = await db.transaction.updateMany({
-    where: { id: match.id, status: { in: ['PENDING', 'EXPIRED'] } },
+    where: { id: match.id, status: { in: ['PENDING', 'EXPIRED', 'UNDERPAID', 'OVERPAID'] } },
     data: {
       status: 'CONFIRMED',
       senderHandle,
@@ -318,11 +403,25 @@ export async function processInstaPayNotification(
       where: { name: updatedTx.subscriptionPlanName },
     })
     if (plan) {
+      // Re-fetch fresh client state to obtain current subscription ends date
+      const freshClient = await db.client.findUnique({ where: { id: client.id } })
+      const nowMs = Date.now()
+      const currentEndMs = freshClient?.subscriptionEndsAt ? new Date(freshClient.subscriptionEndsAt).getTime() : 0
+      const trialPlan = await db.plan.findUnique({ where: { name: 'FREE_TRIAL' } })
+      const remainingTrialMs = Math.max(0, currentEndMs - nowMs)
+      let bonusDays = Math.ceil(remainingTrialMs / (24 * 60 * 60 * 1000))
+      if (trialPlan?.periodDays && bonusDays > trialPlan.periodDays) {
+        bonusDays = trialPlan.periodDays
+      }
+      const basePeriodDays = plan.periodDays || 30
+      const totalPeriodDays = basePeriodDays + bonusDays
+      const newEndsAt = new Date(nowMs + totalPeriodDays * 24 * 60 * 60 * 1000)
+
       await db.client.update({
         where: { id: client.id },
         data: {
           subscriptionPlan: plan.name,
-          subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          subscriptionEndsAt: newEndsAt,
           isFreeTrial: false,
           txLimit: plan.maxTransactions,
           txCount: 0,
@@ -332,7 +431,21 @@ export async function processInstaPayNotification(
         .create({
           data: {
             action: 'SUBSCRIPTION_ACTIVATED',
-            details: `Activated ${plan.name} for merchant ${client.businessName} via session ${updatedTx.sessionId}`,
+            details: `Activated ${plan.name} for merchant ${client.businessName} (Total: ${totalPeriodDays} days: ${basePeriodDays} plan + ${bonusDays} trial rollover, Limit: ${plan.maxTransactions} txs) via session ${updatedTx.sessionId}`,
+          },
+        })
+        .catch(() => {})
+
+      await db.merchantNotification
+        .create({
+          data: {
+            clientId: client.id,
+            title: 'Plan Activated Successfully',
+            message:
+              bonusDays > 0
+                ? `Your ${plan.name} plan is now active for ${totalPeriodDays} days (${basePeriodDays} days + ${bonusDays} rollover days from your trial)! Quota refreshed to ${plan.maxTransactions} transactions.`
+                : `Your ${plan.name} plan is now active for ${totalPeriodDays} days! Quota refreshed to ${plan.maxTransactions} transactions.`,
+            severity: 'SUCCESS',
           },
         })
         .catch(() => {})

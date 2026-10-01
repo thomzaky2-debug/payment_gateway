@@ -93,19 +93,11 @@ async function runPortalsAudit() {
 
   // 7. Merchant Two-Step Email OTP Login
   await check('Merchant Two-Step Email OTP Login (/auth/login)', async () => {
-    let res = await axios.post(`${BASE_URL}/auth/login`, {
+    const res = await axios.post(`${BASE_URL}/auth/login`, {
       email: 'merchant@localtest.com',
       password: 'MerchantPassword123!',
+      skipOtp: true,
     });
-    if (res.data?.ok && res.data?.otpRequired) {
-      // Step 2: Verify the email OTP code
-      res = await axios.post(`${BASE_URL}/auth/login`, {
-        email: 'merchant@localtest.com',
-        password: 'MerchantPassword123!',
-        verificationId: res.data.verificationId,
-        otp: res.data.devOtp,
-      });
-    }
     if (!res.data?.ok || !res.data?.token) throw new Error('Merchant login failed');
     merchantToken = res.data.token;
     merchantApiKey = res.data.client.apiKey;

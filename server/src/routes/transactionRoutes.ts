@@ -1,30 +1,10 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
-import { verifySessionToken } from '../services/authService.js'
 import { emitCheckoutUpdate } from '../services/notificationService.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
+import { requireMerchant } from '../middleware/requireMerchant.js'
 
 export const transactionRouter = Router()
-
-// Middleware to authenticate merchant session
-async function requireMerchant(req: Request, res: Response, next: () => void) {
-  const token =
-    req.headers.authorization?.replace(/^Bearer\s+/i, '') ||
-    req.cookies?.['instapay_merchant_session']
-
-  const clientId = verifySessionToken(token)
-  if (!clientId) {
-    return res.status(401).json({ ok: false, error: 'Unauthorized' })
-  }
-
-  const client = await db.client.findUnique({ where: { id: clientId } })
-  if (!client) {
-    return res.status(401).json({ ok: false, error: 'Merchant not found' })
-  }
-
-  ;(req as unknown as { client: typeof client }).client = client
-  next()
-}
 
 // ─── List Transactions ──────────────────────────────────────────────
 
@@ -121,7 +101,7 @@ transactionRouter.get('/stats', requireMerchant, async (req: Request, res: Respo
   }
 })
 
-// ─── Review Queue (Mismatched Payments) ─────────────────────────────
+// ─── Review Queue (All Anomaly Cases & Mismatched Payments) ───────────
 
 transactionRouter.get('/review-queue', requireMerchant, async (req: Request, res: Response) => {
   try {
@@ -132,17 +112,52 @@ transactionRouter.get('/review-queue', requireMerchant, async (req: Request, res
       take: 50,
     })
 
-    const underpaid = await db.transaction.findMany({
-      where: { clientId: client.id, status: 'UNDERPAID' },
+    const reviewStatuses = [
+      'UNDERPAID',
+      'OVERPAID',
+      'EXPIRED_PAID',
+      'LATE_PAYMENT',
+      'HANDLE_MISMATCH',
+      'DUPLICATE_SUSPECT',
+      'HIGH_VALUE_REVIEW',
+      'REVIEW',
+    ]
+
+    const reviewTransactions = await db.transaction.findMany({
+      where: {
+        clientId: client.id,
+        OR: [
+          { status: { in: reviewStatuses } },
+          { status: 'EXPIRED', detectedAmountEgp: { not: null } },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take: 100,
     })
+
+    const underpaid = reviewTransactions.filter((t) => t.status === 'UNDERPAID')
+    const overpaid = reviewTransactions.filter((t) => t.status === 'OVERPAID')
+    const latePayments = reviewTransactions.filter(
+      (t) =>
+        t.status === 'LATE_PAYMENT' ||
+        t.status === 'EXPIRED_PAID' ||
+        (t.status === 'EXPIRED' && t.detectedAmountEgp != null)
+    )
+    const handleMismatch = reviewTransactions.filter((t) => t.status === 'HANDLE_MISMATCH')
+    const duplicateSuspect = reviewTransactions.filter((t) => t.status === 'DUPLICATE_SUSPECT')
+    const highValueRisk = reviewTransactions.filter((t) => t.status === 'HIGH_VALUE_REVIEW')
 
     return res.json({
       ok: true,
       reviewQueue: {
         mismatched,
         underpaid,
+        overpaid,
+        latePayments,
+        handleMismatch,
+        duplicateSuspect,
+        highValueRisk,
+        allTransactions: reviewTransactions,
       },
     })
   } catch (err: unknown) {
@@ -275,6 +290,41 @@ transactionRouter.post('/review-queue/:id/dismiss', requireMerchant, async (req:
       data: { status: 'RESOLVED' },
     })
     return res.json({ ok: true })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+// ─── Reject / Cancel Review Transaction ─────────────────────────────
+
+transactionRouter.post('/:sessionId/reject', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const sessionId = String(req.params.sessionId)
+    const tx = await db.transaction.findFirst({
+      where: { sessionId, clientId: client.id },
+    })
+
+    if (!tx) {
+      return res.status(404).json({ ok: false, error: 'Transaction not found or not owned by you' })
+    }
+
+    const updated = await db.transaction.update({
+      where: { sessionId },
+      data: {
+        status: 'REJECTED',
+      },
+    })
+
+    await db.auditLog.create({
+      data: {
+        action: 'MERCHANT_REJECT',
+        details: `Merchant ${client.businessName} rejected transaction ${sessionId}`,
+      },
+    })
+
+    return res.json({ ok: true, transaction: updated })
   } catch (err: unknown) {
     const error = err as Error
     return res.status(500).json({ ok: false, error: error.message })

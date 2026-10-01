@@ -1,28 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
-import { verifySessionToken } from '../services/authService.js'
+import { requireMerchant } from '../middleware/requireMerchant.js'
 
 export const notificationRouter = Router()
-
-// Middleware to authenticate merchant session
-async function requireMerchant(req: Request, res: Response, next: () => void) {
-  const token =
-    req.headers.authorization?.replace(/^Bearer\s+/i, '') ||
-    req.cookies?.['instapay_merchant_session']
-
-  const clientId = verifySessionToken(token)
-  if (!clientId) {
-    return res.status(401).json({ ok: false, error: 'Unauthorized' })
-  }
-
-  const client = await db.client.findUnique({ where: { id: clientId } })
-  if (!client) {
-    return res.status(401).json({ ok: false, error: 'Merchant not found' })
-  }
-
-  ;(req as unknown as { client: typeof client }).client = client
-  next()
-}
 
 // ─── List Merchant Notifications ────────────────────────────────────
 

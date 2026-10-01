@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import type { Page } from '../App';
-import { LogOut, User, Shield, AlertTriangle, Bell, CheckCircle2, Globe, Check } from 'lucide-react';
+import { LogOut, User, Shield, AlertTriangle, Bell, CheckCircle2, Globe, Check, Sun, Moon } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { notificationsApi } from '../services/api';
 
 interface TopbarProps {
   currentPage: Page;
   client?: any;
   onLogout: () => void;
+  onNavigate?: (page: Page, subPath?: string) => void;
 }
 
 const pageTitles: Record<Page, { en: string; ar: string }> = {
@@ -22,8 +24,9 @@ const pageTitles: Record<Page, { en: string; ar: string }> = {
   security: { en: 'Security', ar: 'إعدادات الأمان' },
 };
 
-export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
+export function Topbar({ currentPage, client, onLogout, onNavigate }: TopbarProps) {
   const { lang, setLang, isRtl } = useLanguage();
+  const { theme, toggleTheme, isDark } = useTheme();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
@@ -56,12 +59,18 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
 
   return (
     <header
-      className="hidden md:flex items-center justify-between"
-      style={{ padding: '14px 24px', backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', position: 'relative' }}
+      className="flex items-center justify-between"
+      style={{
+        padding: '14px 24px',
+        backgroundColor: isDark ? '#0f172a' : 'white',
+        borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
+        position: 'relative',
+        transition: 'background-color 0.25s ease, border-color 0.25s ease',
+      }}
     >
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>
+          <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
             {pageTitles[currentPage]?.[lang] || pageTitles[currentPage]?.en}
           </h1>
           {isPending && (
@@ -71,19 +80,19 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
                 alignItems: 'center',
                 gap: '4px',
                 padding: '3px 8px',
-                backgroundColor: '#fef3c7',
-                color: '#b45309',
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7',
+                color: isDark ? '#fbbf24' : '#b45309',
                 fontSize: '11px',
                 fontWeight: 700,
                 borderRadius: '6px',
-                border: '1px solid #fde68a',
+                border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
               }}
             >
               <AlertTriangle size={12} /> {isRtl ? 'في انتظار اعتماد الإدارة' : 'Pending Admin Approval'}
             </span>
           )}
         </div>
-        <p style={{ fontSize: '13px', color: '#64748b', margin: '2px 0 0 0' }}>
+        <p style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0' }}>
           InstaPay Merchant Gateway • {client?.businessName || 'Business Account'}
         </p>
       </div>
@@ -97,18 +106,42 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
             alignItems: 'center',
             gap: '6px',
             padding: '7px 12px',
-            backgroundColor: '#f8fafc',
-            border: '1px solid #cbd5e1',
+            backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+            border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
             borderRadius: '8px',
             fontSize: '12px',
             fontWeight: 600,
             cursor: 'pointer',
-            color: '#334155',
+            color: isDark ? '#f8fafc' : '#334155',
+            transition: 'all 0.2s',
           }}
           title="Toggle Language / تغيير اللغة"
         >
-          <Globe size={14} color="#2563eb" />
+          <Globe size={14} color="#38bdf8" />
           <span>{lang === 'en' ? 'عربي' : 'English'}</span>
+        </button>
+
+        {/* Dark / Light Theme Switcher */}
+        <button
+          onClick={toggleTheme}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 12px',
+            backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+            border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            color: isDark ? '#f8fafc' : '#334155',
+            transition: 'all 0.2s',
+          }}
+          title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+        >
+          {isDark ? <Sun size={14} style={{ color: '#fbbf24' }} /> : <Moon size={14} style={{ color: '#6366f1' }} />}
+          <span>{isDark ? (isRtl ? 'النهاري' : 'Light') : (isRtl ? 'الليلي' : 'Dark')}</span>
         </button>
 
         {/* Notifications Dropdown */}
@@ -119,16 +152,18 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
               position: 'relative',
               padding: '8px',
               borderRadius: '8px',
-              border: '1px solid #e2e8f0',
+              border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
               cursor: 'pointer',
-              backgroundColor: '#f8fafc',
+              backgroundColor: isDark ? '#1e293b' : '#f8fafc',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              color: isDark ? '#cbd5e1' : '#475569',
+              transition: 'all 0.2s',
             }}
             aria-label="Notifications"
           >
-            <Bell size={16} color="#475569" />
+            <Bell size={16} color={isDark ? '#cbd5e1' : '#475569'} />
             {unreadCount > 0 && (
               <span
                 style={{
@@ -141,7 +176,7 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
                   fontSize: '10px',
                   fontWeight: 700,
                   padding: '1px 5px',
-                  border: '2px solid white',
+                  border: isDark ? '2px solid #0f172a' : '2px solid white',
                 }}
               >
                 {unreadCount}
@@ -157,10 +192,10 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
                 right: isRtl ? 'auto' : 0,
                 left: isRtl ? 0 : 'auto',
                 width: '320px',
-                backgroundColor: 'white',
-                border: '1px solid #e2e8f0',
+                backgroundColor: isDark ? '#1e293b' : 'white',
+                border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
                 borderRadius: '16px',
-                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
                 zIndex: 1000,
                 overflow: 'hidden',
               }}
@@ -168,13 +203,13 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
               <div
                 style={{
                   padding: '12px 16px',
-                  borderBottom: '1px solid #f1f5f9',
+                  borderBottom: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}
               >
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b' }}>
                   {isRtl ? 'إشعارات المتجر' : 'Notifications'}
                 </span>
                 {unreadCount > 0 && (
@@ -184,7 +219,7 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
                       background: 'none',
                       border: 'none',
                       fontSize: '11px',
-                      color: '#2563eb',
+                      color: '#38bdf8',
                       cursor: 'pointer',
                       fontWeight: 600,
                     }}
@@ -205,8 +240,10 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
                       key={n.id}
                       style={{
                         padding: '12px 16px',
-                        borderBottom: '1px solid #f8fafc',
-                        backgroundColor: n.readAt ? 'white' : '#f0fdf4',
+                        borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #f8fafc',
+                        backgroundColor: n.readAt
+                          ? (isDark ? '#1e293b' : 'white')
+                          : (isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0fdf4'),
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
@@ -216,64 +253,107 @@ export function Topbar({ currentPage, client, onLogout }: TopbarProps) {
                             fontWeight: 700,
                             padding: '1px 6px',
                             borderRadius: '4px',
-                            backgroundColor: n.severity === 'URGENT' ? '#fee2e2' : '#e0f2fe',
-                            color: n.severity === 'URGENT' ? '#b91c1c' : '#0369a1',
+                            backgroundColor: n.severity === 'URGENT'
+                              ? (isDark ? 'rgba(239, 68, 68, 0.25)' : '#fee2e2')
+                              : (isDark ? 'rgba(56, 189, 248, 0.2)' : '#e0f2fe'),
+                            color: n.severity === 'URGENT' ? '#f87171' : '#38bdf8',
                           }}
                         >
                           {n.severity}
                         </span>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>{n.title}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
+                          {n.title}
+                        </span>
                       </div>
-                      <p style={{ fontSize: '12px', color: '#64748b', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
-                      <span style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                      <p style={{ fontSize: '12px', color: isDark ? '#94a3b8' : '#64748b', margin: 0, lineHeight: 1.4 }}>
+                        {n.message}
+                      </p>
+                      <span style={{ fontSize: '10px', color: isDark ? '#64748b' : '#94a3b8', marginTop: '4px', display: 'block' }}>
                         {new Date(n.createdAt).toLocaleTimeString()}
                       </span>
                     </div>
                   ))
                 )}
               </div>
+
+              {onNavigate && (
+                <div
+                  style={{
+                    padding: '10px 16px',
+                    borderTop: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
+                    textAlign: 'center',
+                    backgroundColor: isDark ? '#162033' : '#f8fafc',
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      setShowNotifMenu(false);
+                      onNavigate('settings', 'Notifications');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '12px',
+                      color: '#38bdf8',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    {isRtl ? 'عرض كافة الإشعارات والإعدادات' : 'View all notifications & settings'} →
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Quick link to Superadmin Portal */}
-        <a
-          href="/admin"
+        <button
+          onClick={onLogout}
           style={{
-            display: 'inline-flex',
+            display: 'flex',
             alignItems: 'center',
             gap: '6px',
             padding: '7px 12px',
-            backgroundColor: '#0f172a',
-            color: '#38bdf8',
+            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2',
+            color: isDark ? '#f87171' : '#991b1b',
             fontSize: '12px',
-            fontWeight: 600,
+            fontWeight: 500,
             borderRadius: '8px',
-            textDecoration: 'none',
-            border: '1px solid #334155',
+            border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid #fecaca',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
           }}
-        >
-          <Shield size={14} color="#a855f7" /> {isRtl ? 'بوابة الإدارة ↗' : 'Admin Portal ↗'}
-        </a>
-
-        <button
-          onClick={onLogout}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', backgroundColor: '#fef2f2', color: '#991b1b', fontSize: '12px', fontWeight: 500, borderRadius: '8px', border: '1px solid #fecaca', cursor: 'pointer' }}
           aria-label="Logout"
         >
           <LogOut size={13} />
           {isRtl ? 'خروج' : 'Logout'}
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: isRtl ? '0' : '12px', paddingRight: isRtl ? '12px' : '0', borderLeft: isRtl ? 'none' : '1px solid #e2e8f0', borderRight: isRtl ? '1px solid #e2e8f0' : 'none' }}>
+        <div
+          onClick={() => onNavigate?.('settings')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            paddingLeft: isRtl ? '0' : '12px',
+            paddingRight: isRtl ? '12px' : '0',
+            borderLeft: isRtl ? 'none' : isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+            borderRight: isRtl ? (isDark ? '1px solid #334155' : '1px solid #e2e8f0') : 'none',
+            cursor: onNavigate ? 'pointer' : 'default',
+          }}
+          title={isRtl ? 'إعدادات الحساب' : 'Store Settings'}
+        >
           <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px' }}>
             {client?.businessName ? client.businessName[0].toUpperCase() : <User size={16} />}
           </div>
           <div>
-            <p style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', margin: 0 }}>
+            <p style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
               {client?.businessName || 'Merchant'}
             </p>
-            <p style={{ fontSize: '11px', color: '#64748b', margin: 0, fontFamily: 'monospace' }}>
+            <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: 0, fontFamily: 'monospace' }}>
               {client?.instapayHandle || 'Account'}
             </p>
           </div>

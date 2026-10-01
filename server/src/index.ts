@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser'
 
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
+import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanupWorker.js'
 
 import { authRouter } from './routes/authRoutes.js'
 import { webhookRouter } from './routes/webhookRoutes.js'
@@ -76,6 +77,7 @@ initSocketIO(server)
 
 // ─── Initialize Background Webhook Retry Worker ────────────────────
 startWebhookRetryWorker(30000) // Poll every 30 seconds
+startOtpCleanupWorker(60 * 60 * 1000) // Cleanup expired OTPs every hour
 
 // ─── API Routes ────────────────────────────────────────────────────
 
@@ -115,6 +117,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 process.on('SIGINT', () => {
   console.log('\n[Server] Shutting down gracefully...')
   stopWebhookRetryWorker()
+  stopOtpCleanupWorker()
   server.close(() => {
     console.log('[Server] Closed HTTP & Socket.IO server')
     process.exit(0)
@@ -123,6 +126,7 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
   stopWebhookRetryWorker()
+  stopOtpCleanupWorker()
   server.close(() => {
     process.exit(0)
   })

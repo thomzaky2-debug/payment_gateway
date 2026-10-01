@@ -1,28 +1,10 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
-import { verifySessionToken, generateMerchantKeys } from '../services/authService.js'
+import { generateMerchantKeys } from '../services/authService.js'
+import { validateWebhookUrl } from '../lib/urlValidator.js'
+import { requireMerchant } from '../middleware/requireMerchant.js'
 
 export const settingsRouter = Router()
-
-// Middleware to authenticate merchant session
-async function requireMerchant(req: Request, res: Response, next: () => void) {
-  const token =
-    req.headers.authorization?.replace(/^Bearer\s+/i, '') ||
-    req.cookies?.['instapay_merchant_session']
-
-  const clientId = verifySessionToken(token)
-  if (!clientId) {
-    return res.status(401).json({ ok: false, error: 'Unauthorized' })
-  }
-
-  const client = await db.client.findUnique({ where: { id: clientId } })
-  if (!client) {
-    return res.status(401).json({ ok: false, error: 'Merchant not found' })
-  }
-
-  ;(req as unknown as { client: typeof client }).client = client
-  next()
-}
 
 // ─── Get Settings & Detector Status ─────────────────────────────────
 
@@ -45,6 +27,10 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
         webhookUrl: client.webhookUrl,
         webhookSecret: client.webhookSecret,
         checkoutTtlMin: client.checkoutTtlMin,
+        autoAcceptOverpaid: client.autoAcceptOverpaid ?? true,
+        overpaidMaxExcessEgp: client.overpaidMaxExcessEgp ?? 100.0,
+        underpaidToleranceEnabled: client.underpaidToleranceEnabled ?? false,
+        underpaidToleranceEgp: client.underpaidToleranceEgp ?? 5.0,
         apiKey: client.apiKey,
         detectToken: client.detectToken,
         subscriptionPlan: client.subscriptionPlan,
@@ -60,14 +46,23 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
   }
 })
 
-import { validateWebhookUrl } from '../lib/urlValidator.js'
 
 // ─── Update Settings ────────────────────────────────────────────────
 
 settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
-    const { instapayPaymentUrl, instapayHandle, webhookUrl, checkoutTtlMin, businessName } = req.body
+    const {
+      instapayPaymentUrl,
+      instapayHandle,
+      webhookUrl,
+      checkoutTtlMin,
+      businessName,
+      autoAcceptOverpaid,
+      overpaidMaxExcessEgp,
+      underpaidToleranceEnabled,
+      underpaidToleranceEgp,
+    } = req.body
 
     const cleanWebhookUrl = webhookUrl !== undefined ? webhookUrl?.trim() || null : undefined
     if (cleanWebhookUrl) {
@@ -99,8 +94,48 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
         webhookUrl: cleanWebhookUrl,
         checkoutTtlMin: checkoutTtlMin ? Math.max(1, Math.min(60, Number(checkoutTtlMin))) : undefined,
         businessName: businessName?.trim() || undefined,
+        autoAcceptOverpaid: autoAcceptOverpaid !== undefined ? Boolean(autoAcceptOverpaid) : undefined,
+        overpaidMaxExcessEgp:
+          overpaidMaxExcessEgp !== undefined
+            ? overpaidMaxExcessEgp === null
+              ? null
+              : Math.max(0, Number(overpaidMaxExcessEgp))
+            : undefined,
+        underpaidToleranceEnabled:
+          underpaidToleranceEnabled !== undefined ? Boolean(underpaidToleranceEnabled) : undefined,
+        underpaidToleranceEgp:
+          underpaidToleranceEgp !== undefined ? Math.max(0, Number(underpaidToleranceEgp)) : undefined,
       },
     })
+
+    if (checkoutTtlMin) {
+      const ttlMin = Math.max(1, Math.min(60, Number(checkoutTtlMin)))
+      const newExpiresAt = new Date(Date.now() + ttlMin * 60 * 1000)
+      await db.transaction
+        .updateMany({
+          where: {
+            clientId: client.id,
+            status: 'PENDING',
+          },
+          data: {
+            expiresAt: newExpiresAt,
+          },
+        })
+        .catch(() => {})
+
+      // Also sync test demo session
+      await db.transaction
+        .updateMany({
+          where: {
+            sessionId: 'cmt_test_local_session',
+          },
+          data: {
+            expiresAt: newExpiresAt,
+            status: 'PENDING',
+          },
+        })
+        .catch(() => {})
+    }
 
     return res.json({ ok: true, settings: updated })
   } catch (err: unknown) {

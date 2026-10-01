@@ -22,7 +22,10 @@ const translations: Record<Language, Record<string, string>> = {
     audit: 'Audit Log',
     security: 'Security',
     logout: 'Logout',
-    admin_portal: 'Admin Portal',
+    collapse_sidebar: 'Collapse sidebar',
+    expand_sidebar: 'Expand sidebar',
+    system_online: 'System Online',
+    services_operational: 'All services operational',
     
     // Overview
     todays_confirmed: "Today's Confirmed",
@@ -31,6 +34,9 @@ const translations: Record<Language, Record<string, string>> = {
     plan_quota: 'Monthly Plan Quota',
     recent_activity: 'Recent Activity',
     onboarding_checklist: 'Merchant Onboarding Checklist',
+    purchase_type: 'Purchase Type',
+    purchased_item: 'Item Purchased',
+    timestamp: 'Timestamp',
     
     // Common Actions
     export_csv: 'Export CSV',
@@ -41,7 +47,6 @@ const translations: Record<Language, Record<string, string>> = {
     save_changes: 'Save Changes',
     upgrade_plan: 'Upgrade Plan',
     download_apk: 'Download Companion APK',
-    download_admin_apk: 'Download Admin APK',
     
     // Statuses
     confirmed: 'CONFIRMED',
@@ -69,6 +74,15 @@ const translations: Record<Language, Record<string, string>> = {
     resend_code: 'Resend Code',
     back_to_login: 'Back to Sign In',
     otp_help_note: 'Check your email inbox or spam folder for your 6-digit code.',
+    forgot_password: 'Forgot Password?',
+    reset_password: 'Reset Password',
+    reset_password_desc: 'Enter your email and we\'ll send a code to reset your password',
+    new_password: 'New Password',
+    confirm_new_password: 'Confirm New Password',
+    send_reset_code: 'Send Reset Code',
+    reset_and_login: 'Reset Password & Sign In',
+    password_reset_success: 'Password updated! You can now sign in.',
+    back_to_sign_in: 'Back to Sign In',
   },
   ar: {
     // Nav
@@ -82,7 +96,10 @@ const translations: Record<Language, Record<string, string>> = {
     audit: 'سجل العمليات',
     security: 'الأمان',
     logout: 'تسجيل الخروج',
-    admin_portal: 'بوابة الإدارة',
+    collapse_sidebar: 'طي القائمة الجانبية',
+    expand_sidebar: 'توسيع القائمة الجانبية',
+    system_online: 'النظام متصل',
+    services_operational: 'جميع الخدمات تعمل بنجاح',
     
     // Overview
     todays_confirmed: 'المدفوعات المؤكدة اليوم',
@@ -91,6 +108,9 @@ const translations: Record<Language, Record<string, string>> = {
     plan_quota: 'الباقة والحد الشهري',
     recent_activity: 'النشاط الأخير',
     onboarding_checklist: 'قائمة إعداد وتفعيل المتجر',
+    purchase_type: 'نوع المشتريات',
+    purchased_item: 'المنتج / نوع العملية',
+    timestamp: 'التوقيت والتاريخ',
     
     // Common Actions
     export_csv: 'تصدير CSV',
@@ -101,7 +121,6 @@ const translations: Record<Language, Record<string, string>> = {
     save_changes: 'حفظ التعديلات',
     upgrade_plan: 'ترقية الباقة',
     download_apk: 'تحميل تطبيق الكاشف APK',
-    download_admin_apk: 'تحميل تطبيق الإدارة APK',
     
     // Statuses
     confirmed: 'مؤكد',
@@ -129,6 +148,15 @@ const translations: Record<Language, Record<string, string>> = {
     resend_code: 'إعادة إرسال الرمز',
     back_to_login: 'العودة لتسجيل الدخول',
     otp_help_note: 'تحقق من صندوق الوارد أو الرسائل غير المرغوب فيها للرمز المكون من 6 أرقام.',
+    forgot_password: 'نسيت كلمة المرور؟',
+    reset_password: 'إعادة تعيين كلمة المرور',
+    reset_password_desc: 'أدخل بريدك الإلكتروني وسنرسل لك رمزاً لإعادة تعيين كلمة المرور',
+    new_password: 'كلمة المرور الجديدة',
+    confirm_new_password: 'تأكيد كلمة المرور الجديدة',
+    send_reset_code: 'إرسال رمز الاستعادة',
+    reset_and_login: 'تغيير كلمة المرور والدخول',
+    password_reset_success: 'تم تحديث كلمة المرور! يمكنك تسجيل الدخول الآن.',
+    back_to_sign_in: 'العودة لتسجيل الدخول',
   },
 };
 

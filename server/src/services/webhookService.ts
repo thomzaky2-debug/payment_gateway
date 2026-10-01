@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import axios from 'axios'
 import { db } from '../db.js'
+import { validateWebhookUrl } from '../lib/urlValidator.js'
 
 export interface WebhookPayload {
   event: string
@@ -38,8 +39,6 @@ export function generateWebhookSignature(
  * Dispatches an event to the merchant's configured webhook URL,
  * creates an audit record in WebhookLog, and schedules retry if failed.
  */
-import { validateWebhookUrl } from '../lib/urlValidator.js'
-
 export async function forwardToClientWebhook(
   clientId: string,
   webhookUrl: string,

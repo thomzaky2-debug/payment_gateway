@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import crypto from 'crypto'
+import { getOwnerSecret } from '../services/authService.js'
 
 export interface SendOtpEmailInput {
   to: string
@@ -7,17 +8,92 @@ export interface SendOtpEmailInput {
   purpose?: string
 }
 
+export interface VerifyOtpResult {
+  valid: boolean
+  error?: string
+}
+
 export function normalizeEmail(email: string): string {
   return email.toLowerCase().trim()
 }
 
 export function hashOtp(email: string, otp: string): string {
-  const secret = process.env.OWNER_SECRET || process.env.JWT_SECRET || 'instapay-secure-otp-secret-key-2026'
+  const secret = getOwnerSecret()
   return crypto.createHmac('sha256', secret).update(`${normalizeEmail(email)}:${otp}`).digest('hex')
 }
 
 export function generateOtp(): string {
   return crypto.randomInt(100000, 1000000).toString()
+}
+
+/**
+ * Centralized OTP verification helper.
+ * Eliminates duplicated verification logic across register/login/apk-login/password-reset.
+ *
+ * @param db          Prisma client instance
+ * @param email       Normalized email to verify against
+ * @param verificationId  The verification record ID
+ * @param otp         The OTP code submitted by the user
+ * @param purpose     Expected purpose (MERCHANT_SIGNUP | MERCHANT_LOGIN | PASSWORD_RESET)
+ * @returns           { valid: true } or { valid: false, error: string }
+ */
+export async function verifyOtpCode(
+  db: any,
+  email: string,
+  verificationId: string,
+  otp: string,
+  purpose: string,
+): Promise<VerifyOtpResult> {
+  const cleanEmail = normalizeEmail(email)
+  const cleanId = String(verificationId).trim()
+  const cleanOtp = String(otp).trim()
+
+  const verification = await db.emailVerification.findUnique({
+    where: { id: cleanId },
+  })
+
+  if (!verification || verification.email !== cleanEmail) {
+    return { valid: false, error: 'Please request a new verification code.' }
+  }
+
+  if (verification.consumedAt) {
+    return { valid: false, error: 'This verification code has already been used. Please request a new code.' }
+  }
+
+  if (verification.expiresAt.getTime() <= Date.now()) {
+    return { valid: false, error: 'Verification code has expired. Please request a new code.' }
+  }
+
+  if (verification.attempts >= 5) {
+    return { valid: false, error: 'Too many failed attempts. This code is locked. Please request a new code.' }
+  }
+
+  const expectedOtpHash = hashOtp(cleanEmail, cleanOtp)
+  if (verification.purpose !== purpose || verification.otpHash !== expectedOtpHash) {
+    const nextAttempts = verification.attempts + 1
+    await db.emailVerification
+      .update({
+        where: { id: verification.id },
+        data: { attempts: { increment: 1 } },
+      })
+      .catch(() => {})
+
+    const remaining = Math.max(0, 5 - nextAttempts)
+    if (remaining === 0) {
+      return { valid: false, error: 'Incorrect verification code. Maximum attempts reached. Please request a new code.' }
+    }
+    return { valid: false, error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.` }
+  }
+
+  // Mark OTP as consumed
+  await db.emailVerification
+    .update({
+      where: { id: verification.id },
+      data: { consumedAt: new Date() },
+    })
+    .catch(() => {})
+
+  return { valid: true }
 }
 
 function getFromAddress(): string {
