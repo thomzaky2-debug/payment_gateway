@@ -8,6 +8,7 @@ import {
 import { settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { DocumentationSection } from '../components/DocumentationSection';
 
 interface DevelopersPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
@@ -753,8 +754,9 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[
                 { method: 'POST', path: '/api/v1/checkout/create', desc: isRtl ? 'إنشاء جلسة دفع' : 'Create checkout session' },
-                { method: 'GET', path: '/api/v1/checkout/:id', desc: isRtl ? 'التحقق من حالة الجلسة' : 'Check session status' },
-                { method: 'POST', path: '/api/v1/webhook/test', desc: isRtl ? 'اختبار تسليم الويب هوك' : 'Test webhook delivery' },
+                { method: 'GET', path: '/api/v1/checkout/status', desc: isRtl ? 'التحقق من حالة الجلسة عبر المعرّف' : 'Check session status by sessionId' },
+                { method: 'GET', path: '/api/v1/checkout/snippets', desc: isRtl ? 'توليد أمثلة الشيفرة البرمجية' : 'Code snippets generator' },
+                { method: 'POST', path: 'Merchant Webhook', desc: isRtl ? 'إشعار توقيع HMAC-SHA256' : 'Signed HMAC-SHA256 event' },
               ].map((ep, i) => (
                 <div
                   key={i}
@@ -796,38 +798,12 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         </div>
       </div>
 
-      {/* ─── Bottom info banner ─── */}
-      <div style={{
-        ...card({ padding: '20px 24px' }),
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px',
-        flexWrap: 'wrap',
-        background: isDark
-          ? 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(56,189,248,0.06))'
-          : 'linear-gradient(135deg, #f5f3ff, #eff6ff)',
-        border: isDark ? '1px solid rgba(139,92,246,0.2)' : '1px solid #ddd6fe',
-      }}>
-        <div style={{
-          width: '40px', height: '40px', borderRadius: '12px',
-          background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <BookOpen size={20} color="white" />
-        </div>
-        <div style={{ flex: 1 }}>
-          <p style={{ fontSize: '13px', fontWeight: 700, color: textPrimary, margin: '0 0 3px 0' }}>
-            {isRtl ? 'التوثيق ودعم التكامل' : 'Documentation & Integration Support'}
-          </p>
-          <p style={{ fontSize: '12px', color: textSecondary, margin: 0, lineHeight: 1.5 }}>
-            {isRtl
-              ? 'جميع استدعاءات API موثقة بأمثلة كاملة. تحقق من التوقيعات باستخدام HMAC-SHA256 مع مفتاح الويب هوك أعلاه.'
-              : 'All API calls are documented with full examples. Verify webhook signatures using HMAC-SHA256 with your webhook secret above.'}
-          </p>
-        </div>
-        <ChevronRight size={18} color={textMuted} />
-      </div>
+      {/* ─── Documentation & Integration Support ─── */}
+      <DocumentationSection
+        apiKey={settings?.apiKey}
+        webhookSecret={settings?.webhookSecret}
+        showToast={showToast}
+      />
     </div>
   );
 }
