@@ -38,6 +38,19 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
 ]
 
+// Disable fingerprinting
+app.disable('x-powered-by')
+
+// ─── Security Headers ──────────────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+  res.setHeader('X-XSS-Protection', '1; mode=block')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  next()
+})
+
 // ─── Middlewares ───────────────────────────────────────────────────
 
 app.use(
@@ -64,6 +77,7 @@ app.use(cookieParser())
 // Rate limiters for sensitive endpoints
 const authLimiter = createRateLimiter(15 * 60 * 1000, 30, 'Too many login attempts. Please try again in 15 minutes.')
 const webhookLimiter = createRateLimiter(60 * 1000, 120, 'Webhook rate limit exceeded.')
+const generalApiLimiter = createRateLimiter(60 * 1000, 300, 'Too many requests. Please slow down.')
 
 // Request Logger
 app.use((req, _res, next) => {
@@ -96,15 +110,15 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authLimiter, authRouter)
 app.use('/api/webhooks', webhookLimiter, webhookRouter)
-app.use('/api/v1/checkout', v1CheckoutRouter)
-app.use('/api/checkout', checkoutRouter)
-app.use('/api/transactions', transactionRouter)
+app.use('/api/v1/checkout', generalApiLimiter, v1CheckoutRouter)
+app.use('/api/checkout', generalApiLimiter, checkoutRouter)
+app.use('/api/transactions', generalApiLimiter, transactionRouter)
 app.use('/api/admin', adminRouter)
-app.use('/api/settings', settingsRouter)
-app.use('/api/plans', planRouter)
-app.use('/api/subscription', planRouter)
-app.use('/api/notifications', notificationRouter)
-app.use('/api/apks', apkRouter)
+app.use('/api/settings', generalApiLimiter, settingsRouter)
+app.use('/api/plans', generalApiLimiter, planRouter)
+app.use('/api/subscription', generalApiLimiter, planRouter)
+app.use('/api/notifications', generalApiLimiter, notificationRouter)
+app.use('/api/apks', generalApiLimiter, apkRouter)
 
 // ─── Global Error Handler ──────────────────────────────────────────
 

@@ -222,6 +222,8 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
       return res.status(404).json({ ok: false, error: 'Transaction not found or not owned by you' })
     }
 
+    const wasAlreadyConfirmed = tx.status === 'CONFIRMED'
+
     const updated = await db.transaction.update({
       where: { sessionId },
       data: {
@@ -231,6 +233,69 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
         detectedAmountEgp: tx.detectedAmountEgp ?? tx.amountEgp,
       },
     })
+
+    // Auto-resolve any corresponding mismatched payment record in review queue
+    if (tx.detectedRef || tx.senderHandle) {
+      await db.mismatchedPayment
+        .updateMany({
+          where: {
+            clientId: client.id,
+            status: 'UNMATCHED',
+            OR: [
+              ...(tx.detectedRef ? [{ reference: tx.detectedRef }] : []),
+              ...(tx.senderHandle ? [{ senderHandle: tx.senderHandle }] : []),
+            ],
+          },
+          data: { status: 'RESOLVED' },
+        })
+        .catch(() => {})
+    }
+
+    // Update merchant quota or activate subscription if first time confirming
+    if (!wasAlreadyConfirmed) {
+      if (tx.purpose === 'SUBSCRIPTION' || tx.subscriptionPlanName) {
+        const planName = tx.subscriptionPlanName || tx.note?.replace('SUB_', '')
+        const plan = await (db.plan as any).findUnique({ where: { name: planName } })
+        if (plan) {
+          const nowMs = Date.now()
+          let bonusDays = 0
+          if (client.isFreeTrial && client.subscriptionEndsAt) {
+            const remainingTrialMs = Math.max(0, new Date(client.subscriptionEndsAt).getTime() - nowMs)
+            bonusDays = Math.ceil(remainingTrialMs / (24 * 60 * 60 * 1000))
+            const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
+            if (trialPlan?.periodDays && bonusDays > trialPlan.periodDays) {
+              bonusDays = trialPlan.periodDays
+            }
+          }
+          const basePeriodDays = plan.periodDays || 30
+          const totalPeriodDays = basePeriodDays + bonusDays
+          const newEndsAt = new Date(nowMs + totalPeriodDays * 24 * 60 * 60 * 1000)
+
+          await db.client
+            .update({
+              where: { id: client.id },
+              data: {
+                subscriptionPlan: plan.name,
+                subscriptionEndsAt: newEndsAt,
+                isFreeTrial: false,
+                txLimit: plan.maxTransactions,
+                txCount: 0,
+              },
+            })
+            .catch(() => {})
+        }
+      } else {
+        // Increment normal checkout transaction quota
+        await db.client
+          .update({
+            where: { id: client.id },
+            data: { txCount: { increment: 1 } },
+          })
+          .catch((err) => {
+            console.error('[transactionRoutes] Failed to increment merchant txCount:', err)
+          })
+      }
+    }
 
     // Emit live update to Customer Checkout Waiting Screen
     emitCheckoutUpdate({

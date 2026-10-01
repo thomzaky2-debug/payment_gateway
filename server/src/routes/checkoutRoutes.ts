@@ -139,8 +139,11 @@ checkoutRouter.patch('/:sessionId/sender', async (req: Request, res: Response) =
 
     const clean = senderHandle.trim().toLowerCase().replace(/^@/, '')
     const local = clean.split('@')[0]
-    if (!local) {
-      return res.status(400).json({ ok: false, error: 'Invalid InstaPay handle format' })
+    if (!local || !/^[a-zA-Z0-9._-]{2,50}$/.test(local)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'InstaPay handle must be 2-50 characters and contain only letters, numbers, dots, and dashes',
+      })
     }
     const normalized = `${local}@instapay`
 

@@ -1251,52 +1251,86 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                 }}>
                   {codeLang === 'nodejs' && `const crypto = require('crypto');
 
-function verifyWebhook(payload, signatureHeader, secret) {
-  const [timestampPart, sigPart] = signatureHeader.split(',');
-  const timestamp = timestampPart.split('=')[1];
-  const signature = sigPart.split('=')[1];
-
-  // Prevent replay attacks (allow up to 5 minutes tolerance)
-  if (Math.abs(Date.now() - parseInt(timestamp, 10)) > 300000) {
-    throw new Error('Webhook timestamp too old or invalid');
+// req.headers['x-instapay-signature'] and req.headers['x-instapay-timestamp']
+function verifyWebhook(rawPayload, signatureHeader, timestampHeader, secret) {
+  if (!signatureHeader || !timestampHeader) {
+    throw new Error('Missing X-Instapay-Signature or X-Instapay-Timestamp');
   }
 
+  // 1. Anti-Replay: allow up to 5 minutes tolerance (timestamp in seconds)
+  const currentTime = Math.floor(Date.now() / 1000);
+  const timestamp = parseInt(timestampHeader, 10);
+  if (isNaN(timestamp) || Math.abs(currentTime - timestamp) > 300) {
+    throw new Error('Webhook timestamp expired or outside 5-minute tolerance');
+  }
+
+  // 2. Extract digest from 'v1=<sig>' header
+  const signature = signatureHeader.startsWith('v1=')
+    ? signatureHeader.slice(3)
+    : signatureHeader;
+
+  // 3. Compute expected HMAC-SHA256 signature: "<timestamp>.<rawPayload>"
   const expectedSig = crypto
     .createHmac('sha256', secret)
-    .update(\`\${timestamp}.\${payload}\`)
+    .update(\`\${timestamp}.\${rawPayload}\`)
     .digest('hex');
 
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig));
+  // 4. Timing-safe comparison to prevent side-channel timing attacks
+  const sigBuffer = Buffer.from(signature, 'utf8');
+  const expBuffer = Buffer.from(expectedSig, 'utf8');
+  return sigBuffer.length === expBuffer.length && crypto.timingSafeEqual(sigBuffer, expBuffer);
 }`}
                   {codeLang === 'python' && `import hmac, hashlib, time
 
-def verify_webhook(payload: bytes, signature_header: str, secret: str) -> bool:
-    parts = dict(x.split('=') for x in signature_header.split(','))
-    timestamp = parts['t']
-    signature = parts['v1']
+# request.headers.get("X-Instapay-Signature") and request.headers.get("X-Instapay-Timestamp")
+def verify_webhook(raw_payload: str, signature_header: str, timestamp_header: str, secret: str) -> bool:
+    if not signature_header or not timestamp_header:
+        raise ValueError("Missing webhook signature or timestamp header")
 
-    if abs(time.time() * 1000 - int(timestamp)) > 300000:
-        raise ValueError('Webhook timestamp expired')
+    # 1. Anti-Replay: allow up to 300 seconds tolerance
+    current_time = int(time.time())
+    timestamp = int(timestamp_header)
+    if abs(current_time - timestamp) > 300:
+        raise ValueError("Webhook timestamp expired or invalid")
 
+    # 2. Extract digest from 'v1=<sig>'
+    signature = signature_header.replace("v1=", "")
+
+    # 3. Compute expected HMAC-SHA256 hex digest: "<timestamp>.<raw_payload>"
+    base_string = f"{timestamp}.{raw_payload}"
     expected = hmac.new(
-        secret.encode('utf-8'),
-        f"{timestamp}.{payload.decode('utf-8')}".encode('utf-8'),
+        secret.encode("utf-8"),
+        base_string.encode("utf-8"),
         hashlib.sha256
     ).hexdigest()
 
+    # 4. Constant-time comparison
     return hmac.compare_digest(signature, expected)`}
                   {codeLang === 'php' && `<?php
-function verify_webhook($payload, $signatureHeader, $secret) {
-    parse_str(str_replace(',', '&', $signatureHeader), $parts);
-    $timestamp = $parts['t'];
-    $signature = $parts['v1'];
-
-    if (abs((time() * 1000) - intval($timestamp)) > 300000) {
+// $_SERVER['HTTP_X_INSTAPAY_SIGNATURE'] and $_SERVER['HTTP_X_INSTAPAY_TIMESTAMP']
+function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret) {
+    if (empty($signatureHeader) || empty($timestampHeader)) {
         return false;
     }
 
-    $expected = hash_hmac('sha256', "{$timestamp}.{$payload}", $secret);
-    return hash_equals($signature, $expected);
+    // 1. Anti-Replay: 300 seconds tolerance
+    $currentTime = time();
+    $timestamp = intval($timestampHeader);
+    if (abs($currentTime - $timestamp) > 300) {
+        return false;
+    }
+
+    // 2. Strip 'v1=' prefix if present
+    $signature = str_starts_with($signatureHeader, 'v1=')
+        ? substr($signatureHeader, 3)
+        : $signatureHeader;
+
+    // 3. Compute expected signature: "<timestamp>.<rawPayload>"
+    $baseString = "{$timestamp}.{$rawPayload}";
+    $expected = hash_hmac('sha256', $baseString, $secret);
+
+    // 4. Constant-time string comparison
+    return hash_equals($expected, $signature);
 }`}
                 </pre>
               </div>

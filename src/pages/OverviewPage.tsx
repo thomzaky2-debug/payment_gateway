@@ -96,40 +96,71 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
   const [settings, setSettings] = useState<any>(null);
   const [devices, setDevices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
+  const [, setTick] = useState(0);
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
   const [copiedSessionId, setCopiedSessionId] = useState(false);
 
+  // Auto tick every 10s for real-time relative timestamps
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const [statsData, txData, settingsData] = await Promise.all([
-          transactionsApi.getStats(),
-          transactionsApi.list({ limit: 5 }),
-          settingsApi.get().catch(() => ({ ok: false })),
-        ]);
+    const timer = setInterval(() => setTick((t) => t + 1), 10000);
+    return () => clearInterval(timer);
+  }, []);
 
-        if (statsData.ok && statsData.stats) {
-          setStats(statsData.stats);
-        }
-        if (txData.ok && txData.transactions) {
-          setRecentTransactions(txData.transactions);
-        }
-        if (settingsData.ok) {
-          setSettings(settingsData.settings || null);
-          setDevices(settingsData.devices || []);
-        }
-      } catch (err: any) {
-        if (showToast) {
-          showToast('error', 'Could not refresh dashboard statistics');
-        }
-      } finally {
-        setLoading(false);
+  const loadData = async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const [statsData, txData, settingsData] = await Promise.all([
+        transactionsApi.getStats(),
+        transactionsApi.list({ limit: 5 }),
+        settingsApi.get().catch(() => ({ ok: false })),
+      ]);
+
+      if (statsData.ok && statsData.stats) {
+        setStats(statsData.stats);
       }
-    };
+      if (txData.ok && txData.transactions) {
+        setRecentTransactions(txData.transactions);
+      }
+      if (settingsData.ok) {
+        setSettings(settingsData.settings || null);
+        setDevices(settingsData.devices || []);
+      }
+      setLastRefreshedAt(new Date());
+      if (isManualRefresh && showToast) {
+        showToast('success', isRtl ? 'تم تحديث لوحة التحكم بنجاح' : 'Dashboard refreshed successfully');
+      }
+    } catch (err: any) {
+      if (showToast) {
+        showToast('error', isRtl ? 'تعذر تحديث إحصائيات لوحة التحكم' : 'Could not refresh dashboard statistics');
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     loadData();
   }, []);
+
+  const handleRefresh = (isManual = true) => {
+    loadData(isManual);
+  };
+
+  const formatRelativeTime = (date: Date) => {
+    try {
+      const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+      if (diffSeconds < 5) return isRtl ? 'الآن' : 'Just now';
+      if (diffSeconds < 60) return isRtl ? `منذ ${diffSeconds} ث` : `${diffSeconds}s ago`;
+      if (diffSeconds < 3600) return isRtl ? `منذ ${Math.floor(diffSeconds / 60)} د` : `${Math.floor(diffSeconds / 60)}m ago`;
+      return isRtl ? `منذ ${Math.floor(diffSeconds / 3600)} س` : `${Math.floor(diffSeconds / 3600)}h ago`;
+    } catch {
+      return '';
+    }
+  };
 
   // Compute checklist progress
   const hasPaymentUrl = !!settings?.instapayPaymentUrl;
@@ -142,14 +173,91 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
-      {/* Page Title */}
-      <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
-          {isRtl ? 'لوحة التحكم الرئيسية' : 'Dashboard Overview'}
-        </h2>
-        <p style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
-          {isRtl ? 'متابعة بوابة الدفع والعمليات المباشرة عبر إنستاباي' : 'Monitor your live InstaPay payment gateway'}
-        </p>
+      {/* Page Title & Live Sync Controls */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px',
+          flexWrap: 'wrap',
+          gap: '16px',
+        }}
+      >
+        <div>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
+            {isRtl ? 'لوحة التحكم الرئيسية' : 'Dashboard Overview'}
+          </h2>
+          <p style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
+            {isRtl ? 'متابعة بوابة الدفع والعمليات المباشرة عبر إنستاباي' : 'Monitor your live InstaPay payment gateway'}
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Live Sync Status Badge */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '9999px',
+              fontSize: '12px',
+              fontWeight: 600,
+              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
+              color: '#0284c7',
+              border: isDark ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid #bae6fd',
+            }}
+          >
+            <Clock size={13} />
+            <span>
+              {isRtl ? 'آخر مزامنة:' : 'Last Synced:'}{' '}
+              {lastRefreshedAt.toLocaleTimeString(isRtl ? 'ar-EG' : 'en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                opacity: 0.85,
+                fontWeight: 500,
+              }}
+            >
+              ({formatRelativeTime(lastRefreshedAt)})
+            </span>
+          </div>
+
+          {/* Refresh Button */}
+          <button
+            onClick={() => handleRefresh(true)}
+            disabled={refreshing}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 16px',
+              backgroundColor: isDark ? '#1e293b' : 'white',
+              border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+              color: isDark ? '#f8fafc' : '#334155',
+              fontSize: '13px',
+              fontWeight: 600,
+              borderRadius: '12px',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <RefreshCw
+              size={14}
+              style={{
+                animation: refreshing ? 'spin 1s linear infinite' : 'none',
+              }}
+            />
+            <span>{refreshing ? (isRtl ? 'جارِ التحديث...' : 'Refreshing...') : (isRtl ? 'تحديث البيانات' : 'Refresh')}</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}

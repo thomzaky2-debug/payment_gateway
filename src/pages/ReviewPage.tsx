@@ -254,7 +254,32 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
   // Handler for Confirm / Accept
   const handleConfirmSession = (item: any, caseTitle: string) => {
     const detected = Number(item.detectedAmountEgp || item.amountEgp || 0);
-    if (!showConfirm) return;
+
+    const executeConfirm = async () => {
+      try {
+        const res = await transactionsApi.confirm(item.sessionId);
+        if (res.ok) {
+          if (showToast) {
+            showToast(
+              'success',
+              isRtl ? `تم تأكيد الجلسة ${item.sessionId} بنجاح!` : `Session ${item.sessionId} confirmed!`
+            );
+          }
+          fetchQueue();
+        } else {
+          if (showToast) showToast('error', res.error || (isRtl ? 'فشل التأكيد' : 'Failed to confirm'));
+        }
+      } catch {
+        if (showToast) showToast('error', isRtl ? 'خطأ أثناء تأكيد المعاملة' : 'Error confirming payment');
+      }
+    };
+
+    if (!showConfirm) {
+      if (window.confirm(isRtl ? `تأكيد الجلسة ${item.sessionId} بمبلغ ${detected.toFixed(2)} EGP؟` : `Confirm session ${item.sessionId} for ${detected.toFixed(2)} EGP?`)) {
+        void executeConfirm();
+      }
+      return;
+    }
 
     showConfirm({
       title: isRtl ? `تأكيد المعاملة (${caseTitle})` : `Accept & Confirm (${caseTitle})`,
@@ -264,30 +289,37 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
       confirmLabel: isRtl ? 'قبول وتأكيد' : 'Accept & Confirm',
       cancelLabel: isRtl ? 'إلغاء' : 'Cancel',
       variant: 'warning',
-      onConfirm: async () => {
-        try {
-          const res = await transactionsApi.confirm(item.sessionId);
-          if (res.ok) {
-            if (showToast) {
-              showToast(
-                'success',
-                isRtl ? `تم تأكيد الجلسة ${item.sessionId} بنجاح!` : `Session ${item.sessionId} confirmed!`
-              );
-            }
-            fetchQueue();
-          } else {
-            if (showToast) showToast('error', res.error || (isRtl ? 'فشل التأكيد' : 'Failed to confirm'));
-          }
-        } catch {
-          if (showToast) showToast('error', isRtl ? 'خطأ أثناء تأكيد المعاملة' : 'Error confirming payment');
-        }
-      },
+      onConfirm: executeConfirm,
     });
   };
 
   // Handler for Reject
   const handleRejectSession = (item: any) => {
-    if (!showConfirm) return;
+    const executeReject = async () => {
+      try {
+        const res = await transactionsApi.reject(item.sessionId);
+        if (res.ok) {
+          if (showToast) {
+            showToast(
+              'info',
+              isRtl ? `تم رفض الجلسة ${item.sessionId}` : `Session ${item.sessionId} rejected`
+            );
+          }
+          fetchQueue();
+        } else {
+          if (showToast) showToast('error', res.error || (isRtl ? 'فشل الرفض' : 'Failed to reject'));
+        }
+      } catch {
+        if (showToast) showToast('error', isRtl ? 'خطأ أثناء رفض المعاملة' : 'Error rejecting payment');
+      }
+    };
+
+    if (!showConfirm) {
+      if (window.confirm(isRtl ? `هل أنت متأكد من رفض الجلسة ${item.sessionId}؟` : `Reject session ${item.sessionId}?`)) {
+        void executeReject();
+      }
+      return;
+    }
 
     showConfirm({
       title: isRtl ? 'رفض المعاملة' : 'Reject Transaction',
@@ -297,24 +329,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
       confirmLabel: isRtl ? 'رفض وإلغاء' : 'Reject & Cancel',
       cancelLabel: isRtl ? 'تراجع' : 'Back',
       variant: 'danger',
-      onConfirm: async () => {
-        try {
-          const res = await transactionsApi.reject(item.sessionId);
-          if (res.ok) {
-            if (showToast) {
-              showToast(
-                'info',
-                isRtl ? `تم رفض الجلسة ${item.sessionId}` : `Session ${item.sessionId} rejected`
-              );
-            }
-            fetchQueue();
-          } else {
-            if (showToast) showToast('error', res.error || (isRtl ? 'فشل الرفض' : 'Failed to reject'));
-          }
-        } catch {
-          if (showToast) showToast('error', isRtl ? 'خطأ أثناء رفض المعاملة' : 'Error rejecting payment');
-        }
-      },
+      onConfirm: executeReject,
     });
   };
 

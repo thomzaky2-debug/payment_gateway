@@ -122,10 +122,30 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
 
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
+  const [, setTick] = useState(0);
   const [filter, setFilter] = useState(() => parseFilterFromSubPath(subPath));
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null);
   const [copiedSessionId, setCopiedSessionId] = useState(false);
+
+  // Auto tick every 10s for real-time relative timestamps
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatRelativeTime = (date: Date) => {
+    try {
+      const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+      if (diffSeconds < 5) return isRtl ? 'الآن' : 'Just now';
+      if (diffSeconds < 60) return isRtl ? `منذ ${diffSeconds} ث` : `${diffSeconds}s ago`;
+      if (diffSeconds < 3600) return isRtl ? `منذ ${Math.floor(diffSeconds / 60)} د` : `${Math.floor(diffSeconds / 60)}m ago`;
+      return isRtl ? `منذ ${Math.floor(diffSeconds / 3600)} س` : `${Math.floor(diffSeconds / 3600)}h ago`;
+    } catch {
+      return '';
+    }
+  };
 
   useEffect(() => {
     if (subPath !== undefined) {
@@ -148,6 +168,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
       if (data.ok && data.transactions) {
         setTransactions(data.transactions);
       }
+      setLastRefreshedAt(new Date());
     } catch (err: any) {
       if (showToast) {
         showToast('error', isRtl ? 'تعذر تحميل المعاملات من الخادم' : 'Failed to fetch transactions from server');
@@ -231,26 +252,63 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Live Sync Status Badge */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '9999px',
+              fontSize: '12px',
+              fontWeight: 600,
+              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
+              color: '#0284c7',
+              border: isDark ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid #bae6fd',
+            }}
+          >
+            <Clock size={13} />
+            <span>
+              {isRtl ? 'آخر مزامنة:' : 'Last Synced:'}{' '}
+              {lastRefreshedAt.toLocaleTimeString(isRtl ? 'ar-EG' : 'en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                opacity: 0.85,
+                fontWeight: 500,
+              }}
+            >
+              ({formatRelativeTime(lastRefreshedAt)})
+            </span>
+          </div>
+
           <button
             onClick={fetchTransactions}
+            disabled={loading}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '10px 16px',
+              padding: '9px 16px',
               backgroundColor: isDark ? '#1e293b' : 'white',
               border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
               color: isDark ? '#f8fafc' : '#334155',
               fontSize: '13px',
               fontWeight: 600,
-              borderRadius: '10px',
-              cursor: 'pointer',
+              borderRadius: '12px',
+              cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'all 0.15s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
             }}
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            {isRtl ? 'تحديث' : 'Refresh'}
+            <span>{loading ? (isRtl ? 'جارِ التحديث...' : 'Refreshing...') : (isRtl ? 'تحديث' : 'Refresh')}</span>
           </button>
 
           <button

@@ -40,9 +40,15 @@ export async function createCheckoutSession(
     }
   }
 
-  if (!amountEgp || amountEgp <= 0) {
-    throw new Error('amountEgp must be a positive number')
+  if (!amountEgp || !Number.isFinite(amountEgp) || amountEgp <= 0) {
+    throw new Error('amountEgp must be a positive finite number')
   }
+
+  if (amountEgp > 10_000_000) {
+    throw new Error('amountEgp exceeds the maximum allowed transaction limit (10,000,000 EGP)')
+  }
+
+  const cleanAmountEgp = Math.round(amountEgp * 100) / 100
 
   const sender = input.senderHandle?.trim()
     ? normalizeHandle(input.senderHandle)
@@ -58,7 +64,7 @@ export async function createCheckoutSession(
     client.instapayPaymentUrl?.trim() ||
     `https://ipn.eg/S/${client.instapayHandle.replace(/@instapay$/i, '')}/instapay/${deepLinkToken}`
 
-  const amountCents = toEgpCents(amountEgp)
+  const amountCents = toEgpCents(cleanAmountEgp)
 
   const transaction = await db.transaction.create({
     data: {
@@ -66,7 +72,7 @@ export async function createCheckoutSession(
       clientId: client.id,
       senderHandle: sender,
       recipientHandle: client.instapayHandle,
-      amountEgp,
+      amountEgp: cleanAmountEgp,
       amountCents,
       currency: 'EGP',
       status: 'PENDING',

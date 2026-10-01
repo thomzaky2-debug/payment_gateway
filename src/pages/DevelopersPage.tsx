@@ -102,6 +102,23 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   };
 
   const handleRotateKeys = () => {
+    const doRotate = async () => {
+      try {
+        const res = await settingsApi.rotateKeys();
+        if (res.ok) {
+          setSettings((prev: any) => ({
+            ...prev,
+            apiKey: res.apiKey,
+            detectToken: res.detectToken,
+            webhookSecret: res.webhookSecret,
+          }));
+          if (showToast) showToast('success', isRtl ? 'تم تدوير المفاتيح بنجاح!' : 'API Keys and Webhook Secret rotated successfully!');
+        }
+      } catch {
+        if (showToast) showToast('error', isRtl ? 'فشل تدوير المفاتيح' : 'Failed to rotate keys');
+      }
+    };
+
     if (showConfirm) {
       showConfirm({
         title: isRtl ? 'تدوير مفاتيح API' : 'Rotate API Keys',
@@ -111,23 +128,10 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         confirmLabel: isRtl ? 'تدوير المفاتيح' : 'Rotate Keys',
         cancelLabel: isRtl ? 'إلغاء' : 'Cancel',
         variant: 'danger',
-        onConfirm: async () => {
-          try {
-            const res = await settingsApi.rotateKeys();
-            if (res.ok) {
-              setSettings((prev: any) => ({
-                ...prev,
-                apiKey: res.apiKey,
-                detectToken: res.detectToken,
-                webhookSecret: res.webhookSecret,
-              }));
-              if (showToast) showToast('success', isRtl ? 'تم تدوير المفاتيح بنجاح!' : 'API Keys and Webhook Secret rotated successfully!');
-            }
-          } catch {
-            if (showToast) showToast('error', isRtl ? 'فشل تدوير المفاتيح' : 'Failed to rotate keys');
-          }
-        },
+        onConfirm: doRotate,
       });
+    } else if (window.confirm(isRtl ? 'هل أنت متأكد من تدوير مفاتيح API؟ ستتوقف أي خدمات تستخدم المفاتيح الحالية.' : 'Rotate API Keys? Any active services using old keys will stop working.')) {
+      void doRotate();
     }
   };
 
