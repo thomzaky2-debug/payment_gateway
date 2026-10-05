@@ -31,6 +31,7 @@ async function runSystemVerification() {
   try {
     const res = await axios.post(`${BACKEND_URL}/api/admin/auth`, {
       password: 'AdminPassword123!',
+      tokenTransport: 'bearer',
     });
     if (res.data.ok && res.data.token) {
       adminToken = res.data.token;
@@ -71,12 +72,14 @@ async function runSystemVerification() {
       throw new Error('Failed to generate signup OTP');
     }
 
-    // 4b. Register with skipOtp bypass (dev mode)
+    // 4b. Register with the development OTP returned by the local server
     const res = await axios.post(`${BACKEND_URL}/api/auth/register`, {
       businessName: `Store ${regTestId}`,
       email: testSignupEmail,
       password: 'Password123!',
       instapayHandle: 'https://ipn.eg/S/platform/instapay/TOKEN',
+      verificationId: otpRes.data.verificationId,
+      otp: otpRes.data.devOtp,
     });
     if (res.data.ok && res.data.client) {
       console.log(`✅ [4/10] Signup with Email OTP Verification & Link: Passed (URL parsed into platform@instapay)`);
@@ -90,19 +93,30 @@ async function runSystemVerification() {
 
   // ─── Test 5: Merchant Two-Step OTP Login ──────────────────────────
   let merchantSessionCookie = '';
+  let merchantToken = '';
+  let apiKey = '';
+  let detectToken = '';
   try {
     // Use skipOtp bypass for testing
     let res = await axios.post(`${BACKEND_URL}/api/auth/login`, {
       email: 'merchant@localtest.com',
       password: 'MerchantPassword123!',
       skipOtp: true,
+      tokenTransport: 'bearer',
     });
 
     if (res.data.ok && res.data.client) {
+      merchantToken = res.data.token || '';
       const setCookie = res.headers['set-cookie'];
       if (setCookie) {
         merchantSessionCookie = setCookie[0];
       }
+      const settingsRes = await axios.get(`${BACKEND_URL}/api/settings`, {
+        headers: { Authorization: `Bearer ${merchantToken}` },
+      });
+      apiKey = settingsRes.data?.settings?.apiKey || '';
+      detectToken = settingsRes.data?.settings?.detectToken || '';
+      if (!apiKey || !detectToken) throw new Error('Merchant integration credentials unavailable');
       console.log(`✅ [5/10] Merchant Two-Step OTP Login: Passed (${res.data.client.businessName})`);
       passed++;
     } else {
@@ -114,7 +128,6 @@ async function runSystemVerification() {
 
   // ─── Test 6: Create Checkout via Merchant API (v1) ────────────────
   let createdSessionId = '';
-  const apiKey = 'sk_test_cairo_hub_live_89412a';
   try {
     const res = await axios.post(
       `${BACKEND_URL}/api/v1/checkout/create`,
@@ -174,7 +187,6 @@ async function runSystemVerification() {
   }
 
   // ─── Test 9: Companion Android Detector Webhook Simulation ────────
-  const detectToken = 'dtk_test_cairo_hub_detector_99812';
   try {
     const res = await axios.post(
       `${BACKEND_URL}/api/webhooks/instapay`,

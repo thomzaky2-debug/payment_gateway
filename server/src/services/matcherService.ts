@@ -1,7 +1,9 @@
 import { db } from '../db.js'
+import crypto from 'crypto'
 import { toEgpCents, fromEgpCents, egpAmountFromRow } from '../lib/money.js'
 import { emitCheckoutUpdate } from './notificationService.js'
 import { forwardToClientWebhook } from './webhookService.js'
+import { confirmOrdinaryCheckout } from './settlementService.js'
 import type { Client } from '@prisma/client'
 
 export interface ProcessNotificationInput {
@@ -15,6 +17,7 @@ export interface ProcessNotificationInput {
   appVersion?: string | null
   androidVersion?: string | null
   requestIp?: string | null
+  eventId?: string | null
 }
 
 export interface MatchResult {
@@ -134,6 +137,60 @@ export async function processInstaPayNotification(
     throw new Error('Sender equals recipient handle.')
   }
 
+  const occurredAt = input.notificationTimestamp ? new Date(input.notificationTimestamp) : null
+  if (occurredAt && !Number.isFinite(occurredAt.getTime())) {
+    throw new Error('notificationTimestamp must be a valid timestamp.')
+  }
+
+  const sourceIdentity = (input.eventId || reference || '').trim()
+  if (!sourceIdentity && !occurredAt) {
+    throw new Error('A payment reference, eventId, or notificationTimestamp is required for replay protection.')
+  }
+  const eventKey = crypto
+    .createHash('sha256')
+    .update([
+      client.id,
+      sourceIdentity || 'timestamp-event',
+      senderHandle,
+      String(receivedAmountCents),
+      occurredAt?.toISOString() || '',
+    ].join('|'))
+    .digest('hex')
+
+  let incomingEventId: string
+  try {
+    const incomingEvent = await db.incomingPaymentEvent.create({
+      data: {
+        eventKey,
+        clientId: client.id,
+        reference,
+        senderHandle,
+        amountCents: receivedAmountCents,
+        occurredAt,
+      },
+      select: { id: true },
+    })
+    incomingEventId = incomingEvent.id
+  } catch (err: any) {
+    if (err?.code !== 'P2002') throw err
+    const existingEvent = await db.incomingPaymentEvent.findUnique({ where: { eventKey } })
+    return {
+      ok: true,
+      matched: existingEvent?.result === 'CONFIRMED',
+      duplicate: true,
+      reason: 'DUPLICATE_NOTIFICATION',
+      sessionId: existingEvent?.sessionId || undefined,
+      status: existingEvent?.result,
+      received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+    }
+  }
+
+  const finalizeIncomingEvent = (result: string, sessionId?: string) =>
+    db.incomingPaymentEvent.update({
+      where: { id: incomingEventId },
+      data: { result, sessionId: sessionId || null },
+    }).catch(() => null)
+
   const now = new Date()
   const GRACE_PERIOD_MS = 30 * 60 * 1000 // 30 minutes grace period
   const graceCutoff = new Date(now.getTime() - GRACE_PERIOD_MS)
@@ -142,6 +199,8 @@ export async function processInstaPayNotification(
   let match = await db.transaction.findFirst({
     where: {
       clientId: client.id,
+      purpose: 'CHECKOUT',
+      recipientHandle: client.instapayHandle,
       senderHandle,
       amountCents: receivedAmountCents,
       amountEgp: receivedAmountRounded,
@@ -156,6 +215,8 @@ export async function processInstaPayNotification(
     match = await db.transaction.findFirst({
       where: {
         clientId: client.id,
+        purpose: 'CHECKOUT',
+        recipientHandle: client.instapayHandle,
         senderHandle,
         amountCents: receivedAmountCents,
         amountEgp: receivedAmountRounded,
@@ -173,6 +234,8 @@ export async function processInstaPayNotification(
     match = await db.transaction.findFirst({
       where: {
         clientId: client.id,
+        purpose: 'CHECKOUT',
+        recipientHandle: client.instapayHandle,
         senderHandle,
         status: { in: ['PENDING', 'EXPIRED'] },
         expiresAt: { gte: graceCutoff },
@@ -189,6 +252,8 @@ export async function processInstaPayNotification(
     const potentialMatches = await db.transaction.findMany({
       where: {
         clientId: client.id,
+        purpose: 'CHECKOUT',
+        recipientHandle: client.instapayHandle,
         amountCents: receivedAmountCents,
         amountEgp: receivedAmountRounded,
         status: { in: ['PENDING', 'EXPIRED'] },
@@ -217,6 +282,8 @@ export async function processInstaPayNotification(
     } catch (err) {
       console.error('[matcher] Failed to save mismatched payment:', err)
     }
+
+    await finalizeIncomingEvent('UNMATCHED')
 
     return {
       ok: true,
@@ -287,6 +354,8 @@ export async function processInstaPayNotification(
           })
         }
 
+        await finalizeIncomingEvent('UNDERPAID', updated.sessionId)
+
         return {
           ok: true,
           matched: false,
@@ -356,6 +425,8 @@ export async function processInstaPayNotification(
           })
         }
 
+        await finalizeIncomingEvent('OVERPAID', updated.sessionId)
+
         return {
           ok: true,
           matched: false,
@@ -368,152 +439,36 @@ export async function processInstaPayNotification(
     }
   }
 
-  // 9. Confirm Transaction Atomically (Idempotent)
-  const confirmed = await db.transaction.updateMany({
-    where: { id: match.id, status: { in: ['PENDING', 'EXPIRED', 'UNDERPAID', 'OVERPAID'] } },
-    data: {
-      status: 'CONFIRMED',
-      senderHandle,
-      detectedRef: reference,
-      detectedAt: now,
-      detectedAmountEgp: receivedAmountRounded,
-      detectedAmountCents: receivedAmountCents,
-    },
+  // 9. Settle only ordinary checkouts. The state transition and quota counter
+  // update share one transaction so no reservation-to-count gap is observable.
+  const settlement = await confirmOrdinaryCheckout({
+    transactionId: match.id,
+    clientId: client.id,
+    allowedStatuses: ['PENDING', 'EXPIRED', 'UNDERPAID', 'OVERPAID'],
+    senderHandle,
+    detectedRef: reference,
+    detectedAt: now,
+    detectedAmountEgp: receivedAmountRounded,
+    detectedAmountCents: receivedAmountCents,
   })
 
-  if (confirmed.count === 0) {
+  if (!settlement || !settlement.newlyConfirmed) {
+    await finalizeIncomingEvent('DUPLICATE_TRANSACTION', match.sessionId)
     // Already confirmed previously
     return {
       ok: true,
       matched: true,
       duplicate: true,
       sessionId: match.sessionId,
-      status: match.status,
+      status: settlement?.transaction.status ?? match.status,
       received: { senderHandle, amountEgp: receivedAmountRounded, reference },
     }
   }
 
-  const updatedTx = await db.transaction.findUniqueOrThrow({
-    where: { id: match.id },
-  })
+  const updatedTx = settlement.transaction
+  await finalizeIncomingEvent('CONFIRMED', updatedTx.sessionId)
 
-  // 10. Handle Subscription Renewal or Bundle Top-Up if this was a subscription/bundle payment
-  if (updatedTx.purpose === 'SUBSCRIPTION' && updatedTx.subscriptionPlanName) {
-    // ─── Handle Top-Up Bundle Purchase ─────────────────────────────
-    if (updatedTx.subscriptionPlanName.startsWith('BUNDLE:')) {
-      const bundleName = updatedTx.subscriptionPlanName.replace('BUNDLE:', '')
-      try {
-        // Find and confirm the bundle purchase record
-        const bundlePurchase = await (db as any).bundlePurchase.findFirst({
-          where: { sessionId: updatedTx.sessionId, clientId: client.id, status: 'PENDING' },
-          include: { bundle: true },
-        })
-
-        if (bundlePurchase) {
-          const extraTx = bundlePurchase.extraTx || bundlePurchase.bundle?.extraTx || 0
-
-          // Increment merchant's txLimit by the bundle's extra transactions
-          await db.client.update({
-            where: { id: client.id },
-            data: { txLimit: { increment: extraTx } },
-          })
-
-          // Mark the bundle purchase as confirmed
-          await (db as any).bundlePurchase.update({
-            where: { id: bundlePurchase.id },
-            data: { status: 'CONFIRMED' },
-          })
-
-          await db.auditLog.create({
-            data: {
-              action: 'BUNDLE_PURCHASED',
-              details: `Merchant ${client.businessName} purchased ${bundlePurchase.bundle?.displayName || bundleName} bundle (+${extraTx} tx, ${bundlePurchase.priceEgp} EGP) via session ${updatedTx.sessionId}`,
-            },
-          }).catch(() => {})
-
-          await db.merchantNotification.create({
-            data: {
-              clientId: client.id,
-              title: 'Extra Bundle Activated! 🎉',
-              message: `Your ${bundlePurchase.bundle?.displayName || bundleName} top-up has been applied! +${extraTx} extra transactions added to your quota.`,
-              severity: 'SUCCESS',
-            },
-          }).catch(() => {})
-
-          console.log(`[matcher] Bundle ${bundleName} activated for merchant ${client.businessName}: +${extraTx} tx`)
-        } else {
-          console.warn(`[matcher] Bundle purchase record not found for session ${updatedTx.sessionId}`)
-        }
-      } catch (bundleErr) {
-        console.error('[matcher] Failed to process bundle purchase:', bundleErr)
-      }
-    } else {
-      // ─── Handle Normal Subscription Plan Activation ──────────────
-      const plan = await db.plan.findUnique({
-        where: { name: updatedTx.subscriptionPlanName },
-      })
-      if (plan) {
-        // Re-fetch fresh client state to obtain current subscription ends date
-        const freshClient = await db.client.findUnique({ where: { id: client.id } })
-        const nowMs = Date.now()
-        const currentEndMs = freshClient?.subscriptionEndsAt ? new Date(freshClient.subscriptionEndsAt).getTime() : 0
-        const trialPlan = await db.plan.findUnique({ where: { name: 'FREE_TRIAL' } })
-        const remainingTrialMs = Math.max(0, currentEndMs - nowMs)
-        let bonusDays = Math.ceil(remainingTrialMs / (24 * 60 * 60 * 1000))
-        if (trialPlan?.periodDays && bonusDays > trialPlan.periodDays) {
-          bonusDays = trialPlan.periodDays
-        }
-        const basePeriodDays = plan.periodDays || 30
-        const totalPeriodDays = basePeriodDays + bonusDays
-        const newEndsAt = new Date(nowMs + totalPeriodDays * 24 * 60 * 60 * 1000)
-
-        await db.client.update({
-          where: { id: client.id },
-          data: {
-            subscriptionPlan: plan.name,
-            subscriptionEndsAt: newEndsAt,
-            isFreeTrial: false,
-            txLimit: plan.maxTransactions,
-            txCount: 0,
-          },
-        })
-        await db.auditLog
-          .create({
-            data: {
-              action: 'SUBSCRIPTION_ACTIVATED',
-              details: `Activated ${plan.name} for merchant ${client.businessName} (Total: ${totalPeriodDays} days: ${basePeriodDays} plan + ${bonusDays} trial rollover, Limit: ${plan.maxTransactions} txs) via session ${updatedTx.sessionId}`,
-            },
-          })
-          .catch(() => {})
-
-        await db.merchantNotification
-          .create({
-            data: {
-              clientId: client.id,
-              title: 'Plan Activated Successfully',
-              message:
-                bonusDays > 0
-                  ? `Your ${plan.name} plan is now active for ${totalPeriodDays} days (${basePeriodDays} days + ${bonusDays} rollover days from your trial)! Quota refreshed to ${plan.maxTransactions} transactions.`
-                  : `Your ${plan.name} plan is now active for ${totalPeriodDays} days! Quota refreshed to ${plan.maxTransactions} transactions.`,
-              severity: 'SUCCESS',
-            },
-          })
-          .catch(() => {})
-      }
-    }
-  } else {
-    // Increment normal checkout transaction quota
-    await db.client
-      .update({
-        where: { id: client.id },
-        data: { txCount: { increment: 1 } },
-      })
-      .catch((err) => {
-        console.error('[matcher] Failed to increment merchant txCount:', err)
-      })
-  }
-
-  // 11. Real-time broadcast to Customer Checkout waiting screen
+  // 10. Real-time broadcast to Customer Checkout waiting screen
   emitCheckoutUpdate({
     sessionId: updatedTx.sessionId,
     status: 'CONFIRMED',
@@ -524,13 +479,10 @@ export async function processInstaPayNotification(
     detectedAt: updatedTx.detectedAt?.toISOString() ?? null,
   })
 
-  // 12. Deliver signed webhook callback to Merchant server
+  // 11. Deliver signed webhook callback to Merchant server
   if (client.webhookUrl) {
     void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
-      event:
-        updatedTx.purpose === 'SUBSCRIPTION'
-          ? 'subscription.payment_confirmed'
-          : 'payment.confirmed',
+      event: 'payment.confirmed',
       clientId: client.id,
       businessName: client.businessName,
       transaction: {

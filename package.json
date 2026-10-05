@@ -10,6 +10,7 @@
     "client:build": "vite build",
     "server:build": "tsc -p server/tsconfig.json",
     "typecheck": "tsc --noEmit",
+    "test:auth": "tsx --test server/src/config.test.ts server/src/services/authService.test.ts server/src/services/checkoutService.test.ts server/src/services/settlementService.test.ts server/src/policies/transactionPolicy.test.ts server/src/lib/totp.test.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx server/src/scripts/seed.ts",

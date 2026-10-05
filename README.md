@@ -24,6 +24,8 @@ This codebase brings together the refined modular React dashboard UI with a prod
 5. **High Financial Precision**:
    - Integer cents (`amountCents`) stored alongside EGP floats to prevent JavaScript floating-point rounding errors.
 
+The principal model, session lifecycle, payment authorization rules, and production checklist are documented in [Authentication & Authorization Architecture](docs/AUTHENTICATION_AUTHORIZATION.md).
+
 ---
 
 ## 🔄 High-Level Payment & Matching Lifecycle
@@ -75,7 +77,7 @@ Gateway Matcher Service
 | `prisma/schema.prisma` | Unified PostgreSQL schema for Supabase |
 | `android/app/` | Native Kotlin Merchant Detector APK source code (`com.instapaydetector.app`) |
 | `android/admin/` | Native Kotlin Admin Mobile App source code (`com.instapaydetector.admin`) |
-| `apks/` | Built release APKs ready for mobile installation |
+| `apks/` | Legacy APK artifacts; downloads stay disabled until replaced with current release-signed builds |
 
 ---
 
@@ -119,9 +121,9 @@ npm run dev
 
 ## 📲 Android Companion APK Setup
 
-1. Copy `apks/InstaPay-Detector.apk` to the Android phone receiving merchant payments.
-2. Install the APK and launch it.
-3. Sign in with your merchant email and password.
+1. Configure the release gateway URL and external signing credentials described in [Authentication & Authorization Architecture](docs/AUTHENTICATION_AUTHORIZATION.md).
+2. Build and verify the current Detector release APK; do not distribute the legacy checked-in artifact.
+3. Install the verified APK and sign in with your merchant email, password, and OTP.
 4. When prompted, grant **Notification Listener Permission** in Android settings.
 5. In your device's battery settings, set background activity to **Unrestricted** (prevents aggressive OEM task killers from stopping the listener).
 

@@ -1,4 +1,5 @@
 import { db } from '../db.js'
+import { cleanupExpiredAuthSessions } from '../services/authService.js'
 
 /**
  * Periodically purges expired and consumed OTP verification records
@@ -12,10 +13,12 @@ let cleanupInterval: ReturnType<typeof setInterval> | null = null
 export function startOtpCleanupWorker(intervalMs = 60 * 60 * 1000) {
   // Run immediately on startup
   cleanupExpiredOtps().catch((err) => console.error('[otp-cleanup] Initial run error:', err))
+  cleanupExpiredAuthSessions().catch((err) => console.error('[session-cleanup] Initial run error:', err))
 
   cleanupInterval = setInterval(async () => {
     try {
       await cleanupExpiredOtps()
+      await cleanupExpiredAuthSessions()
     } catch (err) {
       console.error('[otp-cleanup] Worker error:', err)
     }

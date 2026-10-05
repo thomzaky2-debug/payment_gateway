@@ -133,6 +133,8 @@ export function buildAdminHash(tab: AdminTab, subPath?: string): string {
 export function AdminPortalPage() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean | null>(null);
   const [adminPassword, setAdminPassword] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminTotp, setAdminTotp] = useState('');
   const [loginError, setLoginError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -380,10 +382,11 @@ export function AdminPortalPage() {
     setLoginError('');
     setAuthLoading(true);
     try {
-      const res = await adminApi.login(adminPassword);
+      const res = await adminApi.login(adminPassword, adminEmail.trim() || undefined, adminTotp.trim() || undefined);
       if (res?.ok) {
         setIsAdminAuthenticated(true);
         setAdminPassword('');
+        setAdminTotp('');
         showToast('Superadmin authenticated successfully');
       } else {
         setLoginError(res?.error || 'Invalid credentials');
@@ -396,10 +399,14 @@ export function AdminPortalPage() {
   };
 
   const handleAdminLogout = async () => {
-    await adminApi.logout();
-    setIsAdminAuthenticated(false);
-    window.location.hash = '';
-    showToast('Admin session logged out');
+    try {
+      await adminApi.logout();
+      setIsAdminAuthenticated(false);
+      window.location.hash = '';
+      showToast('Admin session logged out');
+    } catch {
+      showToast('Logout could not be confirmed. Please try again.', 'error');
+    }
   };
 
   // Merchant Approval
@@ -644,6 +651,30 @@ export function AdminPortalPage() {
           )}
 
           <form onSubmit={handleAdminLogin}>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Admin Email
+              </label>
+              <input
+                type="email"
+                autoComplete="username"
+                placeholder="admin@example.com"
+                value={adminEmail}
+                onChange={(e) => setAdminEmail(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  backgroundColor: '#1e293b',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Master Admin Password
@@ -651,6 +682,7 @@ export function AdminPortalPage() {
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   placeholder="Enter administrator password..."
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
@@ -685,6 +717,33 @@ export function AdminPortalPage() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Authenticator Code
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="6-digit code"
+                value={adminTotp}
+                maxLength={6}
+                onChange={(e) => setAdminTotp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  backgroundColor: '#1e293b',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  letterSpacing: '0.25em',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
             </div>
 
             <button

@@ -145,6 +145,7 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
         .updateMany({
           where: {
             sessionId: 'cmt_test_local_session',
+            clientId: client.id,
           },
           data: {
             expiresAt: newExpiresAt,
@@ -241,4 +242,3 @@ settingsRouter.get('/audit-logs', requireMerchant, async (req: Request, res: Res
     return res.status(500).json({ ok: false, error: error.message })
   }
 })
-

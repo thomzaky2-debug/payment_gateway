@@ -3,6 +3,8 @@ import { db } from '../db.js'
 import { emitCheckoutUpdate } from '../services/notificationService.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
+import { canMerchantResolveTransaction } from '../policies/transactionPolicy.js'
+import { confirmOrdinaryCheckout } from '../services/settlementService.js'
 
 export const transactionRouter = Router()
 
@@ -222,17 +224,29 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
       return res.status(404).json({ ok: false, error: 'Transaction not found or not owned by you' })
     }
 
-    const wasAlreadyConfirmed = tx.status === 'CONFIRMED'
+    if (tx.purpose !== 'CHECKOUT' || tx.subscriptionPlanName) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Subscription and bundle payments cannot be settled by a merchant session.',
+      })
+    }
+    if (!canMerchantResolveTransaction(tx)) {
+      return res.status(409).json({ ok: false, error: `Transaction in ${tx.status} is not eligible for manual review.` })
+    }
 
-    const updated = await db.transaction.update({
-      where: { sessionId },
-      data: {
-        status: 'CONFIRMED',
-        detectedAt: new Date(),
-        detectedRef: tx.detectedRef || 'MERCHANT_MANUAL_CONFIRM',
-        detectedAmountEgp: tx.detectedAmountEgp ?? tx.amountEgp,
-      },
+    const settlement = await confirmOrdinaryCheckout({
+      transactionId: tx.id,
+      clientId: client.id,
+      allowedStatuses: [tx.status],
+      detectedAt: new Date(),
+      detectedRef: tx.detectedRef || 'MERCHANT_MANUAL_CONFIRM',
+      detectedAmountEgp: tx.detectedAmountEgp ?? tx.amountEgp,
+      detectedAmountCents: tx.detectedAmountCents ?? tx.amountCents,
     })
+    if (!settlement || !settlement.newlyConfirmed) {
+      return res.status(409).json({ ok: false, error: 'Transaction state changed. Refresh and try again.' })
+    }
+    const updated = settlement.transaction
 
     // Auto-resolve any corresponding mismatched payment record in review queue
     if (tx.detectedRef || tx.senderHandle) {
@@ -249,52 +263,6 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
           data: { status: 'RESOLVED' },
         })
         .catch(() => {})
-    }
-
-    // Update merchant quota or activate subscription if first time confirming
-    if (!wasAlreadyConfirmed) {
-      if (tx.purpose === 'SUBSCRIPTION' || tx.subscriptionPlanName) {
-        const planName = tx.subscriptionPlanName || tx.note?.replace('SUB_', '')
-        const plan = await (db.plan as any).findUnique({ where: { name: planName } })
-        if (plan) {
-          const nowMs = Date.now()
-          let bonusDays = 0
-          if (client.isFreeTrial && client.subscriptionEndsAt) {
-            const remainingTrialMs = Math.max(0, new Date(client.subscriptionEndsAt).getTime() - nowMs)
-            bonusDays = Math.ceil(remainingTrialMs / (24 * 60 * 60 * 1000))
-            const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
-            if (trialPlan?.periodDays && bonusDays > trialPlan.periodDays) {
-              bonusDays = trialPlan.periodDays
-            }
-          }
-          const basePeriodDays = plan.periodDays || 30
-          const totalPeriodDays = basePeriodDays + bonusDays
-          const newEndsAt = new Date(nowMs + totalPeriodDays * 24 * 60 * 60 * 1000)
-
-          await db.client
-            .update({
-              where: { id: client.id },
-              data: {
-                subscriptionPlan: plan.name,
-                subscriptionEndsAt: newEndsAt,
-                isFreeTrial: false,
-                txLimit: plan.maxTransactions,
-                txCount: 0,
-              },
-            })
-            .catch(() => {})
-        }
-      } else {
-        // Increment normal checkout transaction quota
-        await db.client
-          .update({
-            where: { id: client.id },
-            data: { txCount: { increment: 1 } },
-          })
-          .catch((err) => {
-            console.error('[transactionRoutes] Failed to increment merchant txCount:', err)
-          })
-      }
     }
 
     // Emit live update to Customer Checkout Waiting Screen
@@ -375,12 +343,26 @@ transactionRouter.post('/:sessionId/reject', requireMerchant, async (req: Reques
       return res.status(404).json({ ok: false, error: 'Transaction not found or not owned by you' })
     }
 
-    const updated = await db.transaction.update({
-      where: { sessionId },
+    if (tx.purpose !== 'CHECKOUT' || tx.subscriptionPlanName) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Subscription and bundle payments cannot be rejected by a merchant session.',
+      })
+    }
+    if (!canMerchantResolveTransaction(tx)) {
+      return res.status(409).json({ ok: false, error: `Transaction in ${tx.status} is not eligible for manual review.` })
+    }
+
+    const rejected = await db.transaction.updateMany({
+      where: { id: tx.id, status: tx.status },
       data: {
         status: 'REJECTED',
       },
     })
+    if (rejected.count !== 1) {
+      return res.status(409).json({ ok: false, error: 'Transaction state changed. Refresh and try again.' })
+    }
+    const updated = await db.transaction.findUniqueOrThrow({ where: { id: tx.id } })
 
     await db.auditLog.create({
       data: {
@@ -395,4 +377,3 @@ transactionRouter.post('/:sessionId/reject', requireMerchant, async (req: Reques
     return res.status(500).json({ ok: false, error: error.message })
   }
 })
-

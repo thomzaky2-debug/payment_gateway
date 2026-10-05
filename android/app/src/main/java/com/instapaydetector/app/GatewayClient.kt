@@ -46,7 +46,8 @@ class GatewayClient(ctx: Context) {
         rawNotificationText: String? = null,
         notificationTitle: String? = null,
         sourcePackage: String? = null,
-        confidence: Int? = null
+        confidence: Int? = null,
+        eventId: String? = null
     ): ReportResult = withContext(Dispatchers.IO) {
         val url = config.gatewayUrl
         val token = config.authToken
@@ -70,6 +71,7 @@ class GatewayClient(ctx: Context) {
             if (!notificationTitle.isNullOrBlank()) put("notificationTitle", notificationTitle)
             if (!sourcePackage.isNullOrBlank()) put("sourcePackage", sourcePackage)
             confidence?.let { put("confidence", it) }
+            if (!eventId.isNullOrBlank()) put("eventId", eventId)
             // Backwards-compatible fallback text for existing server parsers.
             put("text", rawNotificationText ?: "You have received ${formatAmount(amountEgp)} EGP from $senderHandle")
         }

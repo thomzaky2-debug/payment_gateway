@@ -18,26 +18,42 @@ import { checkoutRouter } from './routes/checkoutRoutes.js'
 import { transactionRouter } from './routes/transactionRoutes.js'
 import { adminRouter } from './routes/adminRoutes.js'
 import { settingsRouter } from './routes/settingsRoutes.js'
-import { planRouter } from './routes/planRoutes.js'
+import { planCatalogRouter, planRouter } from './routes/planRoutes.js'
 import { bundleRouter } from './routes/bundleRoutes.js'
 import { notificationRouter } from './routes/notificationRoutes.js'
 import { apkRouter } from './routes/apkRoutes.js'
 
 import { createRateLimiter } from './lib/rateLimiter.js'
+import { requireTrustedOrigin } from './middleware/requireTrustedOrigin.js'
+import { validateRuntimeConfig } from './config.js'
+
+validateRuntimeConfig()
 
 const app = express()
 const server = http.createServer(app)
 
 const PORT = Number(process.env.PORT) || 3001
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173'
+const isLocalRuntime = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
 
 const allowedOrigins = [
   CLIENT_URL,
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173',
+  ...(isLocalRuntime
+    ? [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+      ]
+    : []),
+  ...(process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
 ]
+const allowedOriginSet = new Set(allowedOrigins)
+
+const trustProxy = process.env.TRUST_PROXY
+if (trustProxy === 'true') app.set('trust proxy', 1)
+else if (trustProxy && /^\d+$/.test(trustProxy)) app.set('trust proxy', Number(trustProxy))
+else app.set('trust proxy', false)
 
 // Disable fingerprinting
 app.disable('x-powered-by')
@@ -59,11 +75,7 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, native tools)
       if (!origin) return callback(null, true)
-      if (
-        allowedOrigins.includes(origin) ||
-        process.env.NODE_ENV !== 'production' ||
-        (process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS.split(',').includes(origin))
-      ) {
+      if (isLocalRuntime || allowedOriginSet.has(origin)) {
         return callback(null, true)
       }
       callback(new Error('Blocked by CORS policy'))
@@ -74,6 +86,7 @@ app.use(
 
 app.use(express.json())
 app.use(cookieParser())
+app.use('/api', requireTrustedOrigin(allowedOriginSet))
 
 // Rate limiters for sensitive endpoints
 const authLimiter = createRateLimiter(15 * 60 * 1000, 30, 'Too many login attempts. Please try again in 15 minutes.')
@@ -83,13 +96,13 @@ const generalApiLimiter = createRateLimiter(60 * 1000, 300, 'Too many requests. 
 // Request Logger
 app.use((req, _res, next) => {
   if (!req.url.startsWith('/api/health')) {
-    console.log(`[HTTP] ${req.method} ${req.url}`)
+    console.log(`[HTTP] ${req.method} ${req.path}`)
   }
   next()
 })
 
 // ─── Initialize Real-time Socket.IO ────────────────────────────────
-initSocketIO(server)
+initSocketIO(server, allowedOrigins)
 
 // ─── Initialize Background Webhook Retry Worker ────────────────────
 startWebhookRetryWorker(30000) // Poll every 30 seconds
@@ -116,7 +129,7 @@ app.use('/api/checkout', generalApiLimiter, checkoutRouter)
 app.use('/api/transactions', generalApiLimiter, transactionRouter)
 app.use('/api/admin', adminRouter)
 app.use('/api/settings', generalApiLimiter, settingsRouter)
-app.use('/api/plans', generalApiLimiter, planRouter)
+app.use('/api/plans', generalApiLimiter, planCatalogRouter)
 app.use('/api/subscription', generalApiLimiter, planRouter)
 app.use('/api/bundles', generalApiLimiter, bundleRouter)
 app.use('/api/notifications', generalApiLimiter, notificationRouter)

@@ -76,13 +76,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState<Page>(() => initialRoute.page);
   const [currentSubPath, setCurrentSubPath] = useState<string | undefined>(() => initialRoute.subPath);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(() => {
-    try {
-      return Boolean(localStorage.getItem('instapay_merchant_token'));
-    } catch {
-      return false;
-    }
-  });
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmAction | null>(null);
@@ -159,15 +153,21 @@ function App() {
 
   const closeConfirm = () => setConfirmDialog(null);
 
-  const handleLogin = () => {
-    authApi
-      .getSession()
-      .then((res) => {
-        if (res?.client) setCurrentClient(res.client);
-      })
-      .catch(() => {});
-    setIsAuthenticated(true);
-    showToast('success', 'Welcome back! You are now logged in.');
+  const handleLogin = async () => {
+    try {
+      const res = await authApi.getSession();
+      if (res?.authenticated && res?.client) {
+        setCurrentClient(res.client);
+        setIsAuthenticated(true);
+        showToast('success', 'Welcome back! You are now logged in.');
+      } else {
+        setIsAuthenticated(false);
+        showToast('error', 'The session could not be verified. Please sign in again.');
+      }
+    } catch {
+      setIsAuthenticated(false);
+      showToast('error', 'The session could not be verified. Please sign in again.');
+    }
   };
 
   const handleLogout = () => {
@@ -178,12 +178,17 @@ function App() {
       cancelLabel: 'Cancel',
       variant: 'warning',
       onConfirm: async () => {
-        await authApi.logout().catch(() => {});
-        setIsAuthenticated(false);
-        setCurrentClient(null);
-        navigateTo('overview');
-        closeConfirm();
-        showToast('info', 'You have been logged out successfully.');
+        try {
+          await authApi.logout();
+          setIsAuthenticated(false);
+          setCurrentClient(null);
+          navigateTo('overview');
+          closeConfirm();
+          showToast('info', 'You have been logged out successfully.');
+        } catch {
+          closeConfirm();
+          showToast('error', 'Logout could not be confirmed. Please try again.');
+        }
       },
     });
   };
@@ -323,4 +328,3 @@ function App() {
 }
 
 export default App;
-

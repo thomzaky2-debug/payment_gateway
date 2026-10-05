@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:3001/api';
+const BASE_URL = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api`;
 
 async function runPortalsAudit() {
   console.log('======================================================');
@@ -24,16 +24,32 @@ async function runPortalsAudit() {
   let adminToken = '';
   let merchantToken = '';
   let merchantApiKey = '';
+  let merchantDetectToken = '';
   let testClientId = '';
   let testSessionId = '';
+  const portalSender = `portal_test_${Date.now()}@instapay`;
 
   // 1. Admin Authentication
   await check('Superadmin Authentication (/admin/auth)', async () => {
     const res = await axios.post(`${BASE_URL}/admin/auth`, {
       password: 'AdminPassword123!',
+      tokenTransport: 'bearer',
     });
     if (!res.data?.ok || !res.data?.token) throw new Error('Token not returned');
     adminToken = res.data.token;
+  });
+
+  await check('Browser Admin Authentication Is Cookie-Only', async () => {
+    const res = await axios.post(`${BASE_URL}/admin/auth`, {
+      password: 'AdminPassword123!',
+    });
+    if (!res.data?.ok || res.data?.token) {
+      throw new Error('Browser admin response exposed a bearer token');
+    }
+    const cookies = res.headers['set-cookie'] || [];
+    if (!cookies.some((cookie: string) => cookie.startsWith('instapay_owner_session='))) {
+      throw new Error('Owner session cookie was not issued');
+    }
   });
 
   // 2. Admin Session Check
@@ -97,10 +113,46 @@ async function runPortalsAudit() {
       email: 'merchant@localtest.com',
       password: 'MerchantPassword123!',
       skipOtp: true,
+      tokenTransport: 'bearer',
     });
     if (!res.data?.ok || !res.data?.token) throw new Error('Merchant login failed');
     merchantToken = res.data.token;
-    merchantApiKey = res.data.client.apiKey;
+
+    const settingsRes = await axios.get(`${BASE_URL}/settings`, {
+      headers: { Authorization: `Bearer ${merchantToken}` },
+    });
+    merchantApiKey = settingsRes.data?.settings?.apiKey;
+    merchantDetectToken = settingsRes.data?.settings?.detectToken;
+    if (!merchantApiKey || !merchantDetectToken) throw new Error('Merchant credentials unavailable');
+  });
+
+  await check('Detector APK Receives a Revocable Merchant Session', async () => {
+    const res = await axios.post(`${BASE_URL}/auth/apk-login`, {
+      email: 'merchant@localtest.com',
+      password: 'MerchantPassword123!',
+      skipOtp: true,
+      tokenTransport: 'bearer',
+    });
+    if (!res.data?.token?.startsWith('ims_') || !res.data?.detectToken || res.data?.apiKey) {
+      throw new Error('APK credential separation failed');
+    }
+    const session = await axios.get(`${BASE_URL}/auth/session`, {
+      headers: { Authorization: `Bearer ${res.data.token}` },
+    });
+    if (!session.data?.authenticated || session.data?.client?.email !== 'merchant@localtest.com') {
+      throw new Error('APK merchant session was not accepted');
+    }
+
+    // Re-read integration credentials after native session provisioning so the
+    // following scope tests always exercise the currently active credentials.
+    const currentSettings = await axios.get(`${BASE_URL}/settings`, {
+      headers: { Authorization: `Bearer ${merchantToken}` },
+    });
+    merchantApiKey = currentSettings.data?.settings?.apiKey;
+    merchantDetectToken = currentSettings.data?.settings?.detectToken;
+    if (!merchantApiKey || !merchantDetectToken || merchantDetectToken !== res.data.detectToken) {
+      throw new Error('APK and merchant credential views are inconsistent');
+    }
   });
 
   // 8. Merchant Dashboard Stats
@@ -117,7 +169,7 @@ async function runPortalsAudit() {
       `${BASE_URL}/v1/checkout/create`,
       {
         amountEgp: 75.5,
-        senderHandle: 'test_payer@instapay',
+        senderHandle: portalSender,
         note: 'Audit Check',
       },
       { headers: { Authorization: `Bearer ${merchantApiKey}` } }
@@ -130,6 +182,15 @@ async function runPortalsAudit() {
 
   // 10. Merchant Manual Review Resolution
   await check('Merchant Manual Confirm (/transactions/:sessionId/confirm)', async () => {
+    await axios.post(
+      `${BASE_URL}/webhooks/instapay`,
+      {
+        amountEgp: 50,
+        senderHandle: portalSender,
+        reference: `PORTAL-REVIEW-${Date.now()}`,
+      },
+      { headers: { Authorization: `Bearer ${merchantDetectToken}` } }
+    );
     const res = await axios.post(
       `${BASE_URL}/transactions/${testSessionId}/confirm`,
       {},
@@ -228,20 +289,15 @@ async function runPortalsAudit() {
     }
   });
 
-  // 17. Direct APK Download Verification
-  await check('APK Endpoints (/apks/detector & /apks/admin)', async () => {
-    const detectorRes = await axios.get(`${BASE_URL}/apks/detector`, {
-      responseType: 'arraybuffer',
-    });
-    if (detectorRes.status !== 200 || !detectorRes.data || detectorRes.data.length === 0) {
-      throw new Error('Detector APK download failed');
-    }
-
-    const adminRes = await axios.get(`${BASE_URL}/apks/admin`, {
-      responseType: 'arraybuffer',
-    });
-    if (adminRes.status !== 200 || !adminRes.data || adminRes.data.length === 0) {
-      throw new Error('Admin APK download failed');
+  // 17. Stale APK artifacts must not be downloadable by default.
+  await check('APK Endpoints are fail-closed until publishing', async () => {
+    for (const app of ['detector', 'admin']) {
+      try {
+        await axios.get(`${BASE_URL}/apks/${app}`, { responseType: 'arraybuffer' });
+        throw new Error(`${app} APK unexpectedly downloadable`);
+      } catch (err: any) {
+        if (err.response?.status !== 503) throw err;
+      }
     }
   });
 

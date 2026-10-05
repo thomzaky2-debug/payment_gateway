@@ -41,25 +41,33 @@ class LoginActivity : AppCompatActivity() {
         binding.tvBuildInfo.text = "Build ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
         config = GatewayConfig.get(this)
-        binding.etServerUrl.setText(config.serverBaseUrl)
 
-        binding.btnSendOtp.setOnClickListener { 
-            val serverUrl = binding.etServerUrl.text?.toString()?.trim()?.trimEnd('/') ?: ""
-            if (serverUrl.isNotBlank()) config.serverBaseUrl = serverUrl
-            requestOtp(config) 
+        binding.btnSendOtp.setOnClickListener {
+            if (validateConfiguredGateway()) requestOtp(config)
         }
         updateOtpUi(false)
 
         binding.btnLogin.setOnClickListener {
-            val serverUrl = binding.etServerUrl.text?.toString()?.trim()?.trimEnd('/') ?: ""
-            if (serverUrl.isNotBlank()) config.serverBaseUrl = serverUrl
-            handleLogin(config)
+            if (validateConfiguredGateway()) handleLogin(config)
         }
+    }
+
+    private fun validateConfiguredGateway(): Boolean {
+        val serverUrl = config.serverBaseUrl.trim().trimEnd('/')
+        if (serverUrl.isBlank() || serverUrl.contains("example.invalid")) {
+            showError("This app build does not have a gateway server configured.")
+            return false
+        }
+        if (!BuildConfig.DEBUG && !serverUrl.startsWith("https://")) {
+            showError("This app build requires a secure HTTPS gateway.")
+            return false
+        }
+        return true
     }
 
     private fun handleLogin(config: GatewayConfig) {
         val email = binding.etEmail.text?.toString()?.trim() ?: ""
-        val password = binding.etPassword.text?.toString()?.trim() ?: ""
+        val password = binding.etPassword.text?.toString() ?: ""
         val otp = binding.etOtp.text?.toString()?.trim() ?: ""
         val otpRequested = config.pendingVerificationId.isNotBlank()
 
@@ -96,17 +104,17 @@ class LoginActivity : AppCompatActivity() {
 
             result.fold(
                 onSuccess = { responseJson ->
-                    Log.d(loginTag, "loginResponse=${responseJson}")
-                    val apiKey = responseJson.optString("apiKey", "")
+                    val merchant = responseJson.optJSONObject("client") ?: responseJson
+                    val sessionToken = responseJson.optString("token", "")
                     val detectToken = responseJson.optString("detectToken", "")
-                    val instapayHandle = responseJson.optString("instapayHandle", "")
-                    val responseEmail = responseJson.optString("email", "")
-                    val plan = responseJson.optString("subscriptionPlan", "FREE_TRIAL")
-                    val subscriptionEndsAt = responseJson.optString("subscriptionEndsAt", "")
+                    val instapayHandle = merchant.optString("instapayHandle", "")
+                    val responseEmail = merchant.optString("email", email)
+                    val plan = merchant.optString("subscriptionPlan", "FREE_TRIAL")
+                    val subscriptionEndsAt = merchant.optString("subscriptionEndsAt", "")
 
-                    val businessName = responseJson.optString("businessName", "")
-                    val webhookUrl = responseJson.optString("webhookUrl", "")
-                    val paymentUrl = responseJson.optString("instapayPaymentUrl", "")
+                    val businessName = merchant.optString("businessName", "")
+                    val webhookUrl = merchant.optString("webhookUrl", "")
+                    val paymentUrl = merchant.optString("instapayPaymentUrl", "")
 
                     if (responseJson.optBoolean("otpRequired", false)) {
                         config.pendingVerificationId = responseJson.optString("verificationId")
@@ -114,9 +122,9 @@ class LoginActivity : AppCompatActivity() {
                         binding.btnLogin.text = "Verify and log in"
                         showError("[v${BuildConfig.VERSION_NAME}] Verification code sent to your email.")
                         binding.btnLogin.isEnabled = true
-                    } else if (apiKey.isNotEmpty() && detectToken.isNotEmpty() && instapayHandle.isNotEmpty()) {
+                    } else if (sessionToken.isNotEmpty() && detectToken.isNotEmpty() && instapayHandle.isNotEmpty()) {
                         config.gatewayUrl = "${config.serverBaseUrl}/api/webhooks/instapay"
-                        config.dashboardApiKey = apiKey
+                        config.merchantSessionToken = sessionToken
                         config.authToken = detectToken
                         config.merchantHandle = instapayHandle
                         config.merchantBusinessName = businessName
@@ -138,7 +146,7 @@ class LoginActivity : AppCompatActivity() {
                     } else {
                         binding.btnLogin.isEnabled = true
                         binding.btnLogin.text = "Log In"
-                        Log.w(loginTag, "Invalid login response payload: ${responseJson}")
+                        Log.w(loginTag, "Invalid login response payload shape")
                         showError("Invalid response from server.")
                     }
                 },
@@ -159,7 +167,7 @@ class LoginActivity : AppCompatActivity() {
 
     private fun requestOtp(config: GatewayConfig) {
         val email = binding.etEmail.text?.toString()?.trim() ?: ""
-        val password = binding.etPassword.text?.toString()?.trim() ?: ""
+        val password = binding.etPassword.text?.toString() ?: ""
         if (email.isBlank() || password.isBlank()) {
             showError("[v${BuildConfig.VERSION_NAME}] Enter your email and password first.")
             return
@@ -240,6 +248,7 @@ class LoginActivity : AppCompatActivity() {
         val jsonBody = JSONObject().apply {
             put("email", email)
             put("password", password)
+            put("tokenTransport", "bearer")
             if (verificationId.isNotBlank()) put("verificationId", verificationId)
             if (otp.isNotBlank()) put("otp", otp)
         }
@@ -253,7 +262,7 @@ class LoginActivity : AppCompatActivity() {
         return try {
             httpClient.newCall(request).execute().use { response ->
                 val bodyStr = response.body?.string().orEmpty()
-                Log.d(loginTag, "HTTP ${response.code} body=$bodyStr")
+                Log.d(loginTag, "Login endpoint returned HTTP ${response.code}")
                 if (response.code == 200) {
                     Result.success(JSONObject(bodyStr))
                 } else {

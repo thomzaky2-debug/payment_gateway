@@ -8,27 +8,19 @@ export const api = axios.create({
   },
 })
 
-// Set or clear bearer token for API calls
-export function setAuthToken(token: string | null) {
-  if (token) {
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-    try {
-      localStorage.setItem('instapay_merchant_token', token)
-    } catch {}
-  } else {
-    delete api.defaults.headers.common['Authorization']
-    try {
-      localStorage.removeItem('instapay_merchant_token')
-    } catch {}
-  }
-}
+const adminHttp = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
 
-// Initialize token from storage if available
+// Remove bearer tokens persisted by older builds. Browser authentication now
+// uses separate HttpOnly cookies for merchant and owner sessions.
 try {
-  const savedToken = localStorage.getItem('instapay_merchant_token')
-  if (savedToken) {
-    api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`
-  }
+  localStorage.removeItem('instapay_merchant_token')
+  localStorage.removeItem('instapay_admin_token')
 } catch {}
 
 // ─── Auth API ───────────────────────────────────────────────────────
@@ -52,11 +44,8 @@ export const authApi = {
     const res = await api.post('/auth/register', data)
     return res.data
   },
-  async login(email: string, password: string, verificationId?: string, otp?: string, skipOtp?: boolean) {
-    const res = await api.post('/auth/login', { email, password, verificationId, otp, skipOtp })
-    if (res.data?.token) {
-      setAuthToken(res.data.token)
-    }
+  async login(email: string, password: string, verificationId?: string, otp?: string) {
+    const res = await api.post('/auth/login', { email, password, verificationId, otp })
     return res.data
   },
   async resetPasswordRequest(email: string) {
@@ -72,9 +61,12 @@ export const authApi = {
     return res.data
   },
   async logout() {
-    const res = await api.post('/auth/logout')
-    setAuthToken(null)
-    return res.data
+    try {
+      const res = await api.post('/auth/logout')
+      return res.data
+    } finally {
+      delete api.defaults.headers.common['Authorization']
+    }
   },
 }
 
@@ -144,121 +136,72 @@ export const settingsApi = {
 // ─── Admin API ──────────────────────────────────────────────────────
 
 export const adminApi = {
-  setAdminToken(token: string | null) {
-    if (token) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      try {
-        localStorage.setItem('instapay_admin_token', token)
-      } catch {}
-    } else {
-      delete api.defaults.headers.common['Authorization']
-      try {
-        localStorage.removeItem('instapay_admin_token')
-      } catch {}
-    }
-  },
   async checkSession() {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.get('/admin/session', { headers })
+    const res = await adminHttp.get('/admin/session')
     return res.data
   },
-  async login(password: string) {
-    const res = await api.post('/admin/auth', { password })
-    if (res.data?.token) {
-      this.setAdminToken(res.data.token)
-    }
+  async login(password: string, email?: string, totp?: string) {
+    const res = await adminHttp.post('/admin/auth', { password, email, totp })
     return res.data
   },
   async logout() {
-    try {
-      await api.post('/admin/logout')
-    } catch {}
-    this.setAdminToken(null)
-    return { ok: true }
+    const res = await adminHttp.post('/admin/logout')
+    return res.data
   },
   async getStats() {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.get('/admin/stats', { headers })
+    const res = await adminHttp.get('/admin/stats')
     return res.data
   },
   async getTransactions(status?: string) {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.get('/admin/transactions', { params: { status }, headers })
+    const res = await adminHttp.get('/admin/transactions', { params: { status } })
     return res.data
   },
   async listClients() {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.get('/admin/clients', { headers })
+    const res = await adminHttp.get('/admin/clients')
     return res.data
   },
   async approveClient(id: string) {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.post(`/admin/clients/${id}/approve`, {}, { headers })
+    const res = await adminHttp.post(`/admin/clients/${id}/approve`, {})
     return res.data
   },
   async rejectClient(id: string) {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.post(`/admin/clients/${id}/reject`, {}, { headers })
+    const res = await adminHttp.post(`/admin/clients/${id}/reject`, {})
     return res.data
   },
   async forceConfirm(sessionId: string) {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.post(`/admin/transactions/${sessionId}/confirm`, {}, { headers })
+    const res = await adminHttp.post(`/admin/transactions/${sessionId}/confirm`, {})
     return res.data
   },
   async getAuditLogs() {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.get('/admin/audit', { headers })
+    const res = await adminHttp.get('/admin/audit')
     return res.data
   },
   async getWebhooks() {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.get('/admin/webhooks', { headers })
+    const res = await adminHttp.get('/admin/webhooks')
     return res.data
   },
   async getPlans() {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.get('/admin/plans', { headers })
+    const res = await adminHttp.get('/admin/plans')
     return res.data
   },
   async updatePlan(data: { name: string; priceEgp?: number; maxTransactions?: number; periodDays?: number; isActive?: boolean; description?: string }) {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.patch('/admin/plans', data, { headers })
+    const res = await adminHttp.patch('/admin/plans', data)
     return res.data
   },
   async getTrialPlan() {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.get('/admin/trial', { headers })
+    const res = await adminHttp.get('/admin/trial')
     return res.data
   },
   async updateTrialPlan(data: { periodDays?: number; maxTransactions?: number; isActive?: boolean; description?: string }) {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.patch('/admin/trial', data, { headers })
+    const res = await adminHttp.patch('/admin/trial', data)
     return res.data
   },
   async assignClientPlan(clientId: string, data: { planName: string; customTxLimit?: number; extendDays?: number }) {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.post(`/admin/clients/${clientId}/plan`, data, { headers })
+    const res = await adminHttp.post(`/admin/clients/${clientId}/plan`, data)
     return res.data
   },
   async sendNotification(data: { target?: string; clientId?: string; title: string; message: string; severity?: string }) {
-    const token = localStorage.getItem('instapay_admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-    const res = await api.post('/admin/notifications', data, { headers })
+    const res = await adminHttp.post('/admin/notifications', data)
     return res.data
   },
 }
@@ -328,4 +271,3 @@ export const bundlesApi = {
     return res.data
   },
 }
-

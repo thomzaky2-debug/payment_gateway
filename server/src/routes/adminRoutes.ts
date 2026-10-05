@@ -3,52 +3,99 @@ import { db } from '../db.js'
 import {
   createOwnerSessionToken,
   generateMerchantKeys,
+  OWNER_SESSION_COOKIE_NAME,
+  revokeAllMerchantSessions,
+  revokeSessionToken,
   timingSafeCompare,
 } from '../services/authService.js'
 import { emitCheckoutUpdate } from '../services/notificationService.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
-import { createRateLimiter } from '../lib/rateLimiter.js'
+import { createRateLimiter, createRateLimiterWithKey } from '../lib/rateLimiter.js'
 import { requireAdmin } from '../middleware/requireAdmin.js'
 import { sendMerchantApprovalEmail } from '../lib/emailDelivery.js'
+import { clearOwnerSessionCookie, setOwnerSessionCookie } from '../lib/authCookies.js'
+import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
+import { confirmTransactionAsOwner } from '../services/settlementService.js'
+import { verifyTotp } from '../lib/totp.js'
+import { normalizeEmail } from '../lib/emailDelivery.js'
 
 export const adminRouter = Router()
 
+adminRouter.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Pragma', 'no-cache')
+  next()
+})
+
 const adminAuthLimiter = createRateLimiter(15 * 60 * 1000, 30, 'Too many admin login attempts.')
+const adminAccountLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  10,
+  'Too many admin login attempts.',
+  () => 'platform-owner'
+)
+
+function safeAdminClient(client: any) {
+  const {
+    passwordHash: _passwordHash,
+    apiKeyHash: _apiKeyHash,
+    detectTokenHash: _detectTokenHash,
+    webhookSecretHash: _webhookSecretHash,
+    ...safe
+  } = client
+  return safe
+}
 
 // ─── Admin Login ────────────────────────────────────────────────────
 
-adminRouter.post('/auth', adminAuthLimiter, async (req: Request, res: Response) => {
-  const { password } = req.body
+adminRouter.post('/auth', adminAuthLimiter, adminAccountLimiter, async (req: Request, res: Response) => {
+  const { password, email, totp, tokenTransport } = req.body
   const expectedPassword = process.env.ADMIN_PASSWORD
-  if (!expectedPassword && process.env.NODE_ENV === 'production') {
+  if (!expectedPassword || expectedPassword.length < 12) {
     return res.status(500).json({ ok: false, error: 'ADMIN_PASSWORD environment variable is not configured' })
   }
-  const targetPassword = expectedPassword || 'ChangeMeInProduction123!'
 
-  if (!password || typeof password !== 'string' || !timingSafeCompare(password, targetPassword)) {
+  const isLocalRuntime = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
+  const expectedEmail = process.env.ADMIN_EMAIL
+  const totpSecret = process.env.ADMIN_TOTP_SECRET
+  const emailIsValid = isLocalRuntime && !email
+    ? true
+    : typeof email === 'string' && Boolean(expectedEmail) && normalizeEmail(email) === normalizeEmail(expectedEmail!)
+  const totpIsValid = isLocalRuntime && !totpSecret
+    ? true
+    : Boolean(totpSecret) && verifyTotp(totp, totpSecret!)
+
+  if (
+    !password ||
+    typeof password !== 'string' ||
+    Buffer.byteLength(password, 'utf8') > 128 ||
+    !timingSafeCompare(password, expectedPassword) ||
+    !emailIsValid ||
+    !totpIsValid
+  ) {
     return res.status(401).json({ ok: false, error: 'Invalid admin credentials' })
   }
 
-  const token = createOwnerSessionToken()
-
-  res.cookie('instapay_owner_session', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 12 * 60 * 60 * 1000,
+  const token = await createOwnerSessionToken({
+    userAgent: req.get('user-agent'),
+    ipAddress: getRequestIp(req),
   })
 
-  return res.json({ ok: true, token })
+  setOwnerSessionCookie(res, token)
+
+  // Browser callers receive only the HttpOnly cookie. Native clients must opt
+  // in explicitly so merely supplying MFA fields never exposes a bearer token
+  // to browser JavaScript.
+  const nativeBearerRequested = tokenTransport === 'bearer'
+  return res.json({ ok: true, ...(nativeBearerRequested ? { token } : {}) })
 })
 
 // ─── Admin Logout ───────────────────────────────────────────────────
 
-adminRouter.post('/logout', (_req: Request, res: Response) => {
-  res.clearCookie('instapay_owner_session', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-  })
+adminRouter.post('/logout', async (req: Request, res: Response) => {
+  const credential = getRequestAuthToken(req, OWNER_SESSION_COOKIE_NAME)
+  await revokeSessionToken(credential?.token, 'OWNER').catch(() => false)
+  clearOwnerSessionCookie(res)
   return res.json({ ok: true, message: 'Admin logged out' })
 })
 
@@ -133,8 +180,31 @@ adminRouter.get('/clients', requireAdmin, async (_req: Request, res: Response) =
   try {
     const clients = await db.client.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
-        detectorDevices: true,
+      select: {
+        id: true,
+        slug: true,
+        businessName: true,
+        businessType: true,
+        firstName: true,
+        lastName: true,
+        whatsappNumber: true,
+        email: true,
+        instapayHandle: true,
+        instapayPaymentUrl: true,
+        approvalStatus: true,
+        isActive: true,
+        apiKey: true,
+        detectToken: true,
+        webhookUrl: true,
+        webhookSecret: true,
+        subscriptionPlan: true,
+        subscriptionEndsAt: true,
+        isFreeTrial: true,
+        txLimit: true,
+        txCount: true,
+        createdAt: true,
+        updatedAt: true,
+        detectorDevices: { orderBy: { lastSeenAt: 'desc' }, take: 1 },
         _count: {
           select: { transactions: true },
         },
@@ -178,6 +248,7 @@ adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res:
         webhookSecretHash,
       },
     })
+    await revokeAllMerchantSessions(client.id)
 
     // Create an in-app welcome notification in the merchant's inbox
     await db.merchantNotification.create({
@@ -203,7 +274,7 @@ adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res:
       },
     })
 
-    return res.json({ ok: true, client })
+    return res.json({ ok: true, client: safeAdminClient(client) })
   } catch (err: unknown) {
     const error = err as Error
     return res.status(500).json({ ok: false, error: error.message })
@@ -222,6 +293,7 @@ adminRouter.post('/clients/:id/reject', requireAdmin, async (req: Request, res: 
         isActive: false,
       },
     })
+    await revokeAllMerchantSessions(client.id)
 
     await db.auditLog.create({
       data: {
@@ -230,7 +302,7 @@ adminRouter.post('/clients/:id/reject', requireAdmin, async (req: Request, res: 
       },
     })
 
-    return res.json({ ok: true, client })
+    return res.json({ ok: true, client: safeAdminClient(client) })
   } catch (err: unknown) {
     const error = err as Error
     return res.status(500).json({ ok: false, error: error.message })
@@ -242,22 +314,11 @@ adminRouter.post('/clients/:id/reject', requireAdmin, async (req: Request, res: 
 adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId)
-    const tx = await db.transaction.findUnique({ where: { sessionId } })
-
-    if (!tx) {
+    const settlement = await confirmTransactionAsOwner(sessionId)
+    if (!settlement) {
       return res.status(404).json({ ok: false, error: 'Transaction not found' })
     }
-
-    const updated = await db.transaction.update({
-      where: { sessionId },
-      data: {
-        status: 'CONFIRMED',
-        detectedAt: new Date(),
-        detectedRef: 'ADMIN_FORCE_CONFIRM',
-        detectedAmountEgp: tx.amountEgp,
-      },
-      include: { client: true },
-    })
+    const updated = settlement.transaction
 
     // Emit live update to Customer Checkout Waiting Screen
     emitCheckoutUpdate({
@@ -271,9 +332,9 @@ adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: R
     })
 
     // Deliver signed webhook to Merchant server
-    if (updated.client.webhookUrl) {
+    if (settlement.newlyConfirmed && updated.client.webhookUrl) {
       void forwardToClientWebhook(updated.client.id, updated.client.webhookUrl, updated.client.webhookSecret, {
-        event: 'payment.confirmed',
+        event: updated.purpose === 'SUBSCRIPTION' ? 'subscription.payment_confirmed' : 'payment.confirmed',
         clientId: updated.client.id,
         businessName: updated.client.businessName,
         transaction: {
@@ -295,11 +356,14 @@ adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: R
     await db.auditLog.create({
       data: {
         action: 'FORCE_CONFIRM',
-        details: `Admin force-confirmed transaction ${sessionId} for ${tx.amountEgp} EGP`,
+        details: settlement.newlyConfirmed
+          ? `Admin force-confirmed transaction ${sessionId} for ${updated.amountEgp} EGP`
+          : `Admin confirmation was idempotent for already-confirmed transaction ${sessionId}`,
       },
     })
 
-    return res.json({ ok: true, transaction: updated })
+    const { client: _client, ...safeTransaction } = updated
+    return res.json({ ok: true, transaction: safeTransaction })
   } catch (err: unknown) {
     const error = err as Error
     return res.status(500).json({ ok: false, error: error.message })
@@ -559,7 +623,7 @@ adminRouter.post('/clients/:id/plan', requireAdmin, async (req: Request, res: Re
       },
     })
 
-    return res.json({ ok: true, client: updated })
+    return res.json({ ok: true, client: safeAdminClient(updated) })
   } catch (err: unknown) {
     const error = err as Error
     return res.status(500).json({ ok: false, error: error.message })
@@ -617,4 +681,3 @@ adminRouter.post('/notifications', requireAdmin, async (req: Request, res: Respo
     return res.status(500).json({ ok: false, error: error.message })
   }
 })
-

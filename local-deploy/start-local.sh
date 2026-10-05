@@ -30,6 +30,10 @@ if [ -f "$SCRIPT_DIR/.env.local" ]; then
   set +a
 fi
 
+# These escape hatches are intentionally scoped to this local orchestrator.
+export AUTH_ALLOW_DEV_BYPASS=true
+export AUTH_EXPOSE_DEV_OTP=true
+
 # Ensure data directory exists
 mkdir -p "$SCRIPT_DIR/data"
 

@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { db } from '../db.js'
 import { toEgpCents } from '../lib/money.js'
 import { normalizeHandle } from './matcherService.js'
-import type { Client } from '@prisma/client'
+import { Prisma, type Client } from '@prisma/client'
 
 export interface CreateCheckoutInput {
   client: Client
@@ -25,20 +25,47 @@ export interface CheckoutResult {
   expiresAt: string
 }
 
+const SERIALIZABLE_RETRY_LIMIT = 5
+
+function isSerializableConflict(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'P2034'
+  )
+}
+
+async function waitForSerializableRetry(attempt: number): Promise<void> {
+  const exponentialDelayMs = Math.min(10 * 2 ** attempt, 100)
+  const jitterMs = Math.floor(Math.random() * 10)
+  await new Promise((resolve) => setTimeout(resolve, exponentialDelayMs + jitterMs))
+}
+
+async function runSerializableCheckout<T>(
+  operation: (transactionDb: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  for (let attempt = 0; attempt < SERIALIZABLE_RETRY_LIMIT; attempt += 1) {
+    try {
+      return await db.$transaction(operation, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      })
+    } catch (error) {
+      if (!isSerializableConflict(error)) throw error
+      if (attempt === SERIALIZABLE_RETRY_LIMIT - 1) {
+        throw new Error('Checkout capacity is busy. Please retry your request.')
+      }
+      await waitForSerializableRetry(attempt)
+    }
+  }
+
+  throw new Error('Checkout capacity is busy. Please retry your request.')
+}
+
 export async function createCheckoutSession(
   input: CreateCheckoutInput
 ): Promise<CheckoutResult> {
   const { client, amountEgp, note, purpose = 'CHECKOUT', subscriptionPlanName } = input
-
-  // Check quota if checkout is for customer payment
-  if (purpose === 'CHECKOUT') {
-    if (client.subscriptionEndsAt && new Date(client.subscriptionEndsAt).getTime() < Date.now()) {
-      throw new Error('Subscription expired. Please upgrade or renew your plan.')
-    }
-    if (client.txCount >= client.txLimit) {
-      throw new Error(`Transaction limit reached (${client.txCount}/${client.txLimit}). Upgrade your plan.`)
-    }
-  }
 
   if (!amountEgp || !Number.isFinite(amountEgp) || amountEgp <= 0) {
     throw new Error('amountEgp must be a positive finite number')
@@ -53,40 +80,80 @@ export async function createCheckoutSession(
   const sender = input.senderHandle?.trim()
     ? normalizeHandle(input.senderHandle)
     : 'pending@instapay'
-
-  const ttlMin = client.checkoutTtlMin || 10
-  const expiresAt = new Date(Date.now() + ttlMin * 60 * 1000)
-  const sessionId = `cmt_${crypto.randomBytes(12).toString('hex')}`
-  const deepLinkToken = crypto.randomBytes(8).toString('hex')
-
-  // Reuse static payment URL if configured, otherwise fallback to standard deep link pattern
-  const deepLinkUrl =
-    client.instapayPaymentUrl?.trim() ||
-    `https://ipn.eg/S/${client.instapayHandle.replace(/@instapay$/i, '')}/instapay/${deepLinkToken}`
-
   const amountCents = toEgpCents(cleanAmountEgp)
 
-  const transaction = await db.transaction.create({
-    data: {
-      sessionId,
-      clientId: client.id,
-      senderHandle: sender,
-      recipientHandle: client.instapayHandle,
-      amountEgp: cleanAmountEgp,
-      amountCents,
-      currency: 'EGP',
-      status: 'PENDING',
-      purpose,
-      subscriptionPlanName,
-      note,
-      deepLinkUrl,
-      deepLinkToken,
-      expiresAt,
-    },
-  })
+  const createTransaction = (
+    transactionDb: Pick<Prisma.TransactionClient, 'transaction'>,
+    effectiveClient: Client,
+    now: Date
+  ) => {
+    const ttlMin = effectiveClient.checkoutTtlMin || 10
+    const expiresAt = new Date(now.getTime() + ttlMin * 60 * 1000)
+    const sessionId = `cmt_${crypto.randomBytes(12).toString('hex')}`
+    const deepLinkToken = crypto.randomBytes(8).toString('hex')
+    const deepLinkUrl =
+      effectiveClient.instapayPaymentUrl?.trim() ||
+      `https://ipn.eg/S/${effectiveClient.instapayHandle.replace(/@instapay$/i, '')}/instapay/${deepLinkToken}`
+
+    return transactionDb.transaction.create({
+      data: {
+        sessionId,
+        clientId: effectiveClient.id,
+        senderHandle: sender,
+        recipientHandle: effectiveClient.instapayHandle,
+        amountEgp: cleanAmountEgp,
+        amountCents,
+        currency: 'EGP',
+        status: 'PENDING',
+        purpose,
+        subscriptionPlanName,
+        note,
+        deepLinkUrl,
+        deepLinkToken,
+        expiresAt,
+      },
+    })
+  }
+
+  const transaction = purpose === 'CHECKOUT'
+    ? await runSerializableCheckout(async (transactionDb) => {
+        const now = new Date()
+        const freshClient = await transactionDb.client.findUnique({ where: { id: client.id } })
+
+        if (!freshClient || freshClient.approvalStatus !== 'APPROVED' || !freshClient.isActive) {
+          throw new Error('Merchant account is inactive or not approved.')
+        }
+        if (
+          (freshClient.isFreeTrial || freshClient.subscriptionPlan === 'FREE_TRIAL') &&
+          !freshClient.subscriptionEndsAt
+        ) {
+          throw new Error('Activate your free trial before creating checkout sessions.')
+        }
+        if (freshClient.subscriptionEndsAt && freshClient.subscriptionEndsAt.getTime() < now.getTime()) {
+          throw new Error('Subscription expired. Please upgrade or renew your plan.')
+        }
+
+        const activeReservations = await transactionDb.transaction.count({
+          where: {
+            clientId: freshClient.id,
+            purpose: 'CHECKOUT',
+            status: 'PENDING',
+            expiresAt: { gt: now },
+          },
+        })
+        const usedAndReserved = freshClient.txCount + activeReservations
+        if (usedAndReserved >= freshClient.txLimit) {
+          throw new Error(
+            `Transaction limit reached (${freshClient.txCount} confirmed + ${activeReservations} pending / ${freshClient.txLimit}). Upgrade your plan.`
+          )
+        }
+
+        return createTransaction(transactionDb, freshClient, now)
+      })
+    : await createTransaction(db, client, new Date())
 
   const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173'
-  const checkoutUrl = `${clientUrl}/pay/${sessionId}`
+  const checkoutUrl = `${clientUrl}/pay/${transaction.sessionId}`
 
   return {
     sessionId: transaction.sessionId,

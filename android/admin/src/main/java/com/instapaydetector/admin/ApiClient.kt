@@ -17,7 +17,7 @@ object ApiClient {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    const val DEFAULT_GATEWAY_URL = "http://10.0.2.2:3001"
+    val DEFAULT_GATEWAY_URL: String = if (BuildConfig.DEBUG) "http://10.0.2.2:3001" else BuildConfig.GATEWAY_BASE_URL
     private const val PREFS_NAME = "admin_prefs"
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 

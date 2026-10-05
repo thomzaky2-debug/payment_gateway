@@ -47,7 +47,7 @@ class SetupActivity : AppCompatActivity() {
         val prefs = ApiClient.getPrefs(this)
         val gatewayUrl = ApiClient.getGatewayUrl(this)
         val email = binding.etEmail.text?.toString()?.trim() ?: ""
-        val password = binding.etPassword.text?.toString()?.trim() ?: ""
+        val password = binding.etPassword.text?.toString() ?: ""
         val totp = binding.etTotp.text?.toString()?.trim() ?: ""
 
         if (email.isEmpty() || password.isEmpty() || totp.isEmpty()) {
@@ -94,6 +94,7 @@ class SetupActivity : AppCompatActivity() {
             put("email", email)
             put("password", password)
             put("totp", totp)
+            put("tokenTransport", "bearer")
         }
         val requestBody = jsonBody.toString().toRequestBody(mediaType)
         val request = Request.Builder()

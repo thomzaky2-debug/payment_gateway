@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { authenticateByDetectToken } from '../services/authService.js'
 import { processInstaPayNotification } from '../services/matcherService.js'
+import { getRequestIp } from '../middleware/authToken.js'
 
 export const webhookRouter = Router()
 
@@ -12,7 +13,8 @@ export const webhookRouter = Router()
 webhookRouter.post('/instapay', async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers.authorization
-    const token = authHeader?.replace(/^Bearer\s+/i, '') || (req.query.detectToken as string)
+    const bearerMatch = authHeader?.match(/^Bearer\s+([^\s]+)$/i)
+    const token = bearerMatch?.[1]
 
     if (!token) {
       return res.status(401).json({ ok: false, error: 'Unauthorized. Missing detectToken.' })
@@ -32,12 +34,8 @@ webhookRouter.post('/instapay', async (req: Request, res: Response) => {
       deviceId,
       appVersion,
       androidVersion,
+      eventId,
     } = req.body
-
-    const requestIp =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.socket.remoteAddress ||
-      null
 
     const result = await processInstaPayNotification({
       client,
@@ -49,7 +47,8 @@ webhookRouter.post('/instapay', async (req: Request, res: Response) => {
       deviceId,
       appVersion,
       androidVersion,
-      requestIp,
+      requestIp: getRequestIp(req),
+      eventId: eventId || req.get('x-instapay-event-id') || null,
     })
 
     return res.json(result)

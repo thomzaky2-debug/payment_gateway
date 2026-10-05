@@ -7,11 +7,12 @@ export const v1CheckoutRouter = Router()
 // Middleware to authenticate merchant by API key
 async function requireApiKey(req: Request, res: Response, next: () => void) {
   const authHeader = req.headers.authorization
-  if (!authHeader) {
+  const bearerMatch = authHeader?.match(/^Bearer\s+([^\s]+)$/i)
+  if (!bearerMatch) {
     return res.status(401).json({ ok: false, error: 'Missing Authorization header with API key' })
   }
 
-  const client = await authenticateByApiKey(authHeader)
+  const client = await authenticateByApiKey(bearerMatch[1])
   if (!client) {
     return res.status(401).json({ ok: false, error: 'Invalid or deactivated API key' })
   }

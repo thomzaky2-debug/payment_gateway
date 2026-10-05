@@ -96,8 +96,8 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
 
     if (!password) {
       newErrors.password = 'Password is required';
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (isRegister && new TextEncoder().encode(password).length < 12) {
+      newErrors.password = 'Password must be at least 12 characters';
     }
 
     setErrors(newErrors);
@@ -293,8 +293,8 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
       showToast('error', msg);
       return;
     }
-    if (!forgotNewPassword || forgotNewPassword.length < 6) {
-      showToast('error', 'New password must be at least 6 characters');
+    if (!forgotNewPassword || new TextEncoder().encode(forgotNewPassword).length < 12) {
+      showToast('error', 'New password must be at least 12 characters');
       return;
     }
     if (forgotNewPassword !== forgotConfirmPassword) {

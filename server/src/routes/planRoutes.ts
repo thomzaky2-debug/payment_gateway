@@ -4,10 +4,54 @@ import { toEgpCents } from '../lib/money.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
 
 export const planRouter = Router()
+export const planCatalogRouter = Router()
+
+class PlanRequestError extends Error {
+  status = 400
+}
+
+async function activateFreeTrial(client: any) {
+  if (client.trialRedeemedAt || client.subscriptionEndsAt) {
+    throw new PlanRequestError('You have already utilized your introductory Free Trial. Please choose a subscription tier.')
+  }
+
+  const trialPlan = await db.plan.findUnique({ where: { name: 'FREE_TRIAL' } })
+  if (!trialPlan || !trialPlan.isActive) {
+    throw new PlanRequestError('Free trial is currently disabled or unavailable.')
+  }
+
+  const now = new Date()
+  const periodDays = trialPlan.periodDays || 14
+  const maxTransactions = trialPlan.maxTransactions || 50
+  const subscriptionEndsAt = new Date(now.getTime() + periodDays * 24 * 60 * 60 * 1000)
+
+  const claimed = await db.client.updateMany({
+    where: {
+      id: client.id,
+      trialRedeemedAt: null,
+      subscriptionEndsAt: null,
+      subscriptionPlan: 'FREE_TRIAL',
+      isFreeTrial: true,
+    },
+    data: {
+      trialRedeemedAt: now,
+      subscriptionEndsAt,
+      txLimit: maxTransactions,
+      txCount: 0,
+    },
+  })
+
+  if (claimed.count !== 1) {
+    throw new PlanRequestError('You have already utilized your introductory Free Trial. Please choose a subscription tier.')
+  }
+
+  const updated = await db.client.findUniqueOrThrow({ where: { id: client.id } })
+  return { trialPlan, updated, periodDays, maxTransactions }
+}
 
 // ─── List Public Plans ──────────────────────────────────────────────
 
-planRouter.get('/', async (_req: Request, res: Response) => {
+planCatalogRouter.get('/', async (_req: Request, res: Response) => {
   try {
     const plans = await (db.plan as any).findMany({
       where: { isActive: true },
@@ -16,7 +60,7 @@ planRouter.get('/', async (_req: Request, res: Response) => {
     return res.json({ ok: true, plans })
   } catch (err: unknown) {
     const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return res.status(err instanceof PlanRequestError ? err.status : 500).json({ ok: false, error: error.message })
   }
 })
 
@@ -26,34 +70,7 @@ planRouter.post('/trial/activate', requireMerchant, async (req: Request, res: Re
   try {
     const client = (req as unknown as { client: any }).client
 
-    // Prevent re-activating trial if merchant already has a paid plan
-    if (!client.isFreeTrial && client.subscriptionPlan !== 'FREE_TRIAL') {
-      return res.status(400).json({
-        ok: false,
-        error: 'You have already utilized your introductory Free Trial. Please choose a subscription tier.',
-      })
-    }
-
-    const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
-
-    if (!trialPlan || !(trialPlan as any).isActive) {
-      return res.status(400).json({ ok: false, error: 'Free trial is currently disabled or unavailable.' })
-    }
-
-    const periodDays = (trialPlan as any).periodDays || 14
-    const maxTransactions = trialPlan.maxTransactions || 50
-    const subscriptionEndsAt = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000)
-
-    const updated = await db.client.update({
-      where: { id: client.id },
-      data: {
-        subscriptionPlan: 'FREE_TRIAL',
-        isFreeTrial: true,
-        txLimit: maxTransactions,
-        txCount: 0,
-        subscriptionEndsAt,
-      },
-    })
+    const { trialPlan, updated, periodDays, maxTransactions } = await activateFreeTrial(client)
 
     await db.auditLog.create({
       data: {
@@ -79,7 +96,7 @@ planRouter.post('/trial/activate', requireMerchant, async (req: Request, res: Re
     })
   } catch (err: unknown) {
     const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return res.status(err instanceof PlanRequestError ? err.status : 500).json({ ok: false, error: error.message })
   }
 })
 
@@ -97,31 +114,7 @@ planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response
 
     // If merchant selects the Free Trial plan, activate directly with 0 EGP cost
     if (normalizedName === 'FREE_TRIAL') {
-      if (!client.isFreeTrial && client.subscriptionPlan !== 'FREE_TRIAL') {
-        return res.status(400).json({
-          ok: false,
-          error: 'You have already utilized the introductory Free Trial. Please select a subscription tier.',
-        })
-      }
-
-      const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
-      if (!trialPlan || !(trialPlan as any).isActive) {
-        return res.status(400).json({ ok: false, error: 'Free trial is currently disabled by admin.' })
-      }
-      const periodDays = (trialPlan as any).periodDays || 14
-      const maxTransactions = trialPlan.maxTransactions || 50
-      const subscriptionEndsAt = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000)
-
-      const updated = await db.client.update({
-        where: { id: client.id },
-        data: {
-          subscriptionPlan: 'FREE_TRIAL',
-          isFreeTrial: true,
-          txLimit: maxTransactions,
-          txCount: 0,
-          subscriptionEndsAt,
-        },
-      })
+      const { trialPlan, updated, periodDays, maxTransactions } = await activateFreeTrial(client)
 
       await db.auditLog.create({
         data: {
@@ -148,7 +141,7 @@ planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response
     }
 
     const plan = await (db.plan as any).findUnique({ where: { name: normalizedName } })
-    if (!plan || plan.priceEgp <= 0) {
+    if (!plan || !plan.isActive || plan.priceEgp <= 0) {
       return res.status(404).json({ ok: false, error: 'Plan not found or not payable online.' })
     }
 
@@ -238,7 +231,7 @@ planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response
     })
   } catch (err: unknown) {
     const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return res.status(err instanceof PlanRequestError ? err.status : 500).json({ ok: false, error: error.message })
   }
 })
 

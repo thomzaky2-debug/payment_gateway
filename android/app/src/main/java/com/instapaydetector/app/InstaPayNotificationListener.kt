@@ -75,6 +75,7 @@ class InstaPayNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null) return
         if (sbn.packageName != monitoredPackage) return
+        if (!GatewayConfig.get(this).isLoggedIn) return
 
         val notification = sbn.notification ?: return
         val payload = buildPayload(sbn, notification) ?: return
@@ -134,7 +135,8 @@ class InstaPayNotificationListener : NotificationListenerService() {
                     rawNotificationText = payload.rawText,
                     notificationTitle = payload.title,
                     sourcePackage = sbn.packageName,
-                    confidence = payload.confidence
+                    confidence = payload.confidence,
+                    eventId = payload.dedupeKey
                 )
 
                 if (result == ReportResult.ERROR) {

@@ -69,7 +69,17 @@ export async function verifyOtpCode(
   }
 
   const expectedOtpHash = hashOtp(cleanEmail, cleanOtp)
-  if (verification.purpose !== purpose || verification.otpHash !== expectedOtpHash) {
+  const otpMatches = (() => {
+    try {
+      const actual = Buffer.from(verification.otpHash, 'hex')
+      const expected = Buffer.from(expectedOtpHash, 'hex')
+      return actual.length === expected.length && crypto.timingSafeEqual(actual, expected)
+    } catch {
+      return false
+    }
+  })()
+
+  if (verification.purpose !== purpose || !otpMatches) {
     const nextAttempts = verification.attempts + 1
     await db.emailVerification
       .update({
@@ -85,13 +95,23 @@ export async function verifyOtpCode(
     return { valid: false, error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.` }
   }
 
-  // Mark OTP as consumed
-  await db.emailVerification
-    .update({
-      where: { id: verification.id },
-      data: { consumedAt: new Date() },
-    })
-    .catch(() => {})
+  // Atomic conditional consumption prevents concurrent replay of a valid code.
+  const consumed = await db.emailVerification.updateMany({
+    where: {
+      id: verification.id,
+      email: cleanEmail,
+      purpose,
+      otpHash: expectedOtpHash,
+      consumedAt: null,
+      expiresAt: { gt: new Date() },
+      attempts: { lt: 5 },
+    },
+    data: { consumedAt: new Date() },
+  })
+
+  if (consumed.count !== 1) {
+    return { valid: false, error: 'This verification code is no longer valid. Please request a new code.' }
+  }
 
   return { valid: true }
 }
@@ -176,7 +196,11 @@ export async function sendOtpEmail(input: SendOtpEmailInput): Promise<void> {
     return
   }
 
-  // 3. Fallback / Dev / Test logging
+  if (process.env.NODE_ENV !== 'development' || process.env.AUTH_EXPOSE_DEV_OTP !== 'true') {
+    throw new Error('No OTP email delivery provider is configured')
+  }
+
+  // Explicit local-development fallback only.
   console.info(`\n======================================================`)
   console.info(`📧 [EMAIL OTP DISPATCH]`)
   console.info(`To: ${input.to}`)
@@ -323,4 +347,3 @@ export async function sendMerchantApprovalEmail(input: SendApprovalEmailInput): 
   console.info(`Status: APPROVED (Integration Tokens Generated)`)
   console.info(`======================================================\n`)
 }
-

@@ -28,6 +28,12 @@ class GatewayConfig private constructor(ctx: Context) {
         )
     }
 
+    init {
+        // Older builds stored the merchant's server-to-server API key for
+        // dashboard calls. It is no longer a valid mobile credential.
+        prefs.edit().remove(LEGACY_KEY_DASHBOARD_API_KEY).apply()
+    }
+
     var serverBaseUrl: String
         get() {
             val saved = prefs.getString(KEY_SERVER_BASE_URL, "") ?: ""
@@ -58,10 +64,10 @@ class GatewayConfig private constructor(ctx: Context) {
             prefs.edit().putString(KEY_TOKEN, value.trim()).apply()
         }
 
-    var dashboardApiKey: String
-        get() = prefs.getString(KEY_DASHBOARD_API_KEY, "") ?: ""
+    var merchantSessionToken: String
+        get() = prefs.getString(KEY_MERCHANT_SESSION_TOKEN, "") ?: ""
         set(value) {
-            prefs.edit().putString(KEY_DASHBOARD_API_KEY, value.trim()).apply()
+            prefs.edit().putString(KEY_MERCHANT_SESSION_TOKEN, value.trim()).apply()
         }
 
     var merchantHandle: String
@@ -136,9 +142,6 @@ class GatewayConfig private constructor(ctx: Context) {
         if (!merchant.detectToken.isNullOrBlank()) {
             editor.putString(KEY_TOKEN, merchant.detectToken.trim())
         }
-        if (!merchant.apiKey.isNullOrBlank()) {
-            editor.putString(KEY_DASHBOARD_API_KEY, merchant.apiKey.trim())
-        }
         if (subscription != null) {
             editor.putString(KEY_SUBSCRIPTION_PLAN, subscription.plan.trim())
             editor.putString(KEY_SUBSCRIPTION_ENDS_AT, subscription.subscriptionEndsAt?.trim())
@@ -151,7 +154,8 @@ class GatewayConfig private constructor(ctx: Context) {
         private const val KEY_SERVER_BASE_URL = "server_base_url"
         private const val KEY_URL = "gateway_url"
         private const val KEY_TOKEN = "auth_token"
-        private const val KEY_DASHBOARD_API_KEY = "dashboard_api_key"
+        private const val KEY_MERCHANT_SESSION_TOKEN = "merchant_session_token"
+        private const val LEGACY_KEY_DASHBOARD_API_KEY = "dashboard_api_key"
         private const val KEY_MERCHANT_HANDLE = "merchant_handle"
         private const val KEY_MERCHANT_BUSINESS_NAME = "merchant_business_name"
         private const val KEY_MERCHANT_EMAIL = "merchant_email"
@@ -162,9 +166,9 @@ class GatewayConfig private constructor(ctx: Context) {
         private const val KEY_IS_LOGGED_IN = "is_logged_in"
         private const val KEY_PENDING_VERIFICATION = "pending_verification"
 
-        private const val DEFAULT_SERVER_BASE_URL = "http://10.0.2.2:3001"
-        private const val DEFAULT_URL = "$DEFAULT_SERVER_BASE_URL/api/webhooks/instapay"
-        private const val DEFAULT_TOKEN = "instapay-sandbox-detector-token-2026"
+        private val DEFAULT_SERVER_BASE_URL = BuildConfig.GATEWAY_BASE_URL.trimEnd('/')
+        private val DEFAULT_URL = "$DEFAULT_SERVER_BASE_URL/api/webhooks/instapay"
+        private const val DEFAULT_TOKEN = ""
         private const val DEFAULT_MERCHANT_HANDLE = "merchant@instapay"
 
         @Volatile

@@ -2,27 +2,36 @@ import crypto from 'crypto'
 import { db } from '../db.js'
 import type { Client } from '@prisma/client'
 
-const SESSION_COOKIE_NAME = 'instapay_merchant_session'
-const OWNER_COOKIE_NAME = 'instapay_owner_session'
+export const MERCHANT_SESSION_COOKIE_NAME = 'instapay_merchant_session'
+export const OWNER_SESSION_COOKIE_NAME = 'instapay_owner_session'
+export const MERCHANT_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export const OWNER_SESSION_TTL_MS = 12 * 60 * 60 * 1000
+
+const MERCHANT_SESSION_PREFIX = 'ims_'
+const OWNER_SESSION_PREFIX = 'ios_'
+const MAX_ACTIVE_SESSIONS = 10
+
+function acceptsLegacySessions(): boolean {
+  return process.env.NODE_ENV === 'development' && process.env.AUTH_ACCEPT_LEGACY_SESSIONS === 'true'
+}
+
+export interface SessionMetadata {
+  userAgent?: string | null
+  ipAddress?: string | null
+}
 
 export function getOwnerSecret(): string {
   const secret = process.env.OWNER_SECRET
-  if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('OWNER_SECRET environment variable is missing!')
-    }
-    return 'dev-insecure-owner-secret-key-32-chars-long-minimum'
+  if (!secret || secret.length < 32 || secret.startsWith('dev-insecure-')) {
+    throw new Error('OWNER_SECRET must be configured with at least 32 random characters')
   }
   return secret
 }
 
 export function getTokenPepper(): string {
   const pepper = process.env.TOKEN_PEPPER
-  if (!pepper) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('TOKEN_PEPPER environment variable is missing!')
-    }
-    return 'dev-insecure-token-pepper-minimum-32-chars'
+  if (!pepper || pepper.length < 32 || pepper.startsWith('dev-insecure-')) {
+    throw new Error('TOKEN_PEPPER must be configured with at least 32 random characters')
   }
   return pepper
 }
@@ -48,6 +57,9 @@ export function hashToken(token: string): string {
 // ─── Password Hashing (Secure Scrypt) ──────────────────────────────
 
 export function hashPassword(password: string): string {
+  if (typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > 1024) {
+    throw new Error('Password is invalid or too long')
+  }
   const salt = crypto.randomBytes(16).toString('hex')
   const derivedKey = crypto.scryptSync(password, salt, 64)
   return `${salt}.${derivedKey.toString('hex')}`
@@ -58,50 +70,103 @@ export function verifyPassword(password: string, storedHash: string): boolean {
     'd7d8e8b0a9c8d7e6f5a4b3c2d1e0f9a8b7.c5d753f0c97333b3b3e882c657419c1606d7689933532099665293a3965e6a2d9eca1f012b2a2c186f5441450215d2f37680a8e4fbeaf08e41880b9702d3'
   const hasFormat = storedHash && storedHash.includes('.')
   const targetHash = hasFormat ? storedHash : dummyHash
+  const safePassword = typeof password === 'string' && Buffer.byteLength(password, 'utf8') <= 1024 ? password : ''
 
   const [salt, hash] = targetHash.split('.')
-  const derivedKey = crypto.scryptSync(password, salt, 64)
+  const derivedKey = crypto.scryptSync(safePassword, salt, 64)
   const isMatch = timingSafeCompare(derivedKey.toString('hex'), hash)
 
-  if (!hasFormat) return false
+  if (!hasFormat || safePassword !== password) return false
   return isMatch
+}
+
+export function validatePasswordPolicy(password: unknown): string | null {
+  if (typeof password !== 'string') return 'Password is required'
+  const bytes = Buffer.byteLength(password, 'utf8')
+  if (bytes < 12) return 'Password must be at least 12 characters'
+  if (bytes > 128) return 'Password must be at most 128 bytes'
+  return null
+}
+
+export function isApprovedActiveMerchant(client: Pick<Client, 'approvalStatus' | 'isActive'>): boolean {
+  return client.approvalStatus === 'APPROVED' && client.isActive === true
 }
 
 // ─── Session Management ─────────────────────────────────────────────
 
-interface ClientSessionPayload {
+interface LegacyClientSessionPayload {
   clientId: string
   expiresAt: number
 }
 
-interface OwnerSessionPayload {
+interface LegacyOwnerSessionPayload {
   subject: 'owner'
   scope: 'admin'
   issuedAt: number
   expiresAt: number
 }
 
-export function createSessionToken(clientId: string): string {
-  const secret = getOwnerSecret()
-  const payload: ClientSessionPayload = {
-    clientId,
-    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-  }
-  const payloadStr = JSON.stringify(payload)
-  const base64Payload = Buffer.from(payloadStr).toString('base64url')
-
-  const signature = crypto
-    .createHmac('sha256', secret)
-    .update(base64Payload)
-    .digest('hex')
-
-  return `${base64Payload}.${signature}`
+function createOpaqueSessionToken(kind: 'MERCHANT' | 'OWNER'): string {
+  const prefix = kind === 'MERCHANT' ? MERCHANT_SESSION_PREFIX : OWNER_SESSION_PREFIX
+  return `${prefix}${crypto.randomBytes(32).toString('base64url')}`
 }
 
-export function verifySessionToken(token: string | null | undefined): string | null {
-  if (!token || !token.includes('.')) return null
+function cleanSessionMetadata(metadata?: SessionMetadata) {
+  return {
+    userAgent: metadata?.userAgent?.trim().slice(0, 512) || null,
+    ipAddress: metadata?.ipAddress?.trim().slice(0, 128) || null,
+  }
+}
+
+async function enforceSessionLimit(kind: 'MERCHANT' | 'OWNER', clientId: string | null) {
+  const sessions = await db.authSession.findMany({
+    where: {
+      kind,
+      clientId,
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' },
+    skip: MAX_ACTIVE_SESSIONS,
+  })
+
+  if (sessions.length > 0) {
+    await db.authSession.updateMany({
+      where: { id: { in: sessions.map((session) => session.id) }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    })
+  }
+}
+
+/**
+ * Creates a random, revocable merchant session. Only the peppered token hash is
+ * persisted, so a database read cannot be used to impersonate an active user.
+ */
+export async function createSessionToken(clientId: string, metadata?: SessionMetadata): Promise<string> {
+  const token = createOpaqueSessionToken('MERCHANT')
+  const now = new Date()
+  const cleanMetadata = cleanSessionMetadata(metadata)
+
+  await db.authSession.create({
+    data: {
+      tokenHash: hashToken(token),
+      kind: 'MERCHANT',
+      clientId,
+      ...cleanMetadata,
+      expiresAt: new Date(now.getTime() + MERCHANT_SESSION_TTL_MS),
+    },
+  })
+  await enforceSessionLimit('MERCHANT', clientId)
+  return token
+}
+
+function verifyLegacyClientSessionToken(token: string): string | null {
   const secret = getOwnerSecret()
-  const [base64Payload, signature] = token.split('.')
+  if (!token || !token.includes('.')) return null
+  const parts = token.split('.')
+  if (parts.length !== 2) return null
+  const [base64Payload, signature] = parts
 
   try {
     const expectedSignature = crypto
@@ -112,38 +177,88 @@ export function verifySessionToken(token: string | null | undefined): string | n
     if (!timingSafeCompare(signature, expectedSignature)) return null
 
     const payloadStr = Buffer.from(base64Payload, 'base64url').toString('utf8')
-    const payload = JSON.parse(payloadStr) as ClientSessionPayload
+    const payload = JSON.parse(payloadStr) as LegacyClientSessionPayload
 
-    if (Date.now() > payload.expiresAt) return null
+    if (!payload.clientId || typeof payload.clientId !== 'string') return null
+    if (!Number.isFinite(payload.expiresAt) || Date.now() > payload.expiresAt) return null
     return payload.clientId
   } catch {
     return null
   }
 }
 
-export function createOwnerSessionToken(): string {
-  const secret = getOwnerSecret()
-  const payload: OwnerSessionPayload = {
-    subject: 'owner',
-    scope: 'admin',
-    issuedAt: Date.now(),
-    expiresAt: Date.now() + 12 * 60 * 60 * 1000, // 12 hours
+export async function verifySessionToken(token: string | null | undefined): Promise<string | null> {
+  if (!token || token.length > 4096) return null
+
+  // Transitional verification keeps already-issued signed sessions valid until
+  // their original expiry only when explicitly enabled in local development.
+  if (!token.startsWith(MERCHANT_SESSION_PREFIX)) {
+    return acceptsLegacySessions() ? verifyLegacyClientSessionToken(token) : null
   }
-  const payloadStr = JSON.stringify(payload)
-  const base64Payload = Buffer.from(payloadStr).toString('base64url')
 
-  const signature = crypto
-    .createHmac('sha256', secret)
-    .update(base64Payload)
-    .digest('hex')
+  const session = await db.authSession.findUnique({
+    where: { tokenHash: hashToken(token) },
+    select: {
+      id: true,
+      kind: true,
+      clientId: true,
+      expiresAt: true,
+      revokedAt: true,
+      lastSeenAt: true,
+    },
+  })
 
-  return `${base64Payload}.${signature}`
+  if (
+    !session ||
+    session.kind !== 'MERCHANT' ||
+    !session.clientId ||
+    session.revokedAt ||
+    session.expiresAt.getTime() <= Date.now()
+  ) {
+    return null
+  }
+
+  if (Date.now() - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
+    void db.authSession.updateMany({
+      where: { id: session.id, revokedAt: null },
+      data: { lastSeenAt: new Date() },
+    })
+  }
+
+  return session.clientId
 }
 
-export function verifyOwnerSessionToken(token: string | null | undefined): boolean {
+export async function createOwnerSessionToken(metadata?: SessionMetadata): Promise<string> {
+  const token = createOpaqueSessionToken('OWNER')
+  const now = new Date()
+  const cleanMetadata = cleanSessionMetadata(metadata)
+  const adminPassword = process.env.ADMIN_PASSWORD
+  if (!adminPassword) throw new Error('ADMIN_PASSWORD is not configured')
+
+  await db.authSession.create({
+    data: {
+      tokenHash: hashToken(token),
+      kind: 'OWNER',
+      clientId: null,
+      credentialFingerprint: ownerCredentialFingerprint(adminPassword),
+      ...cleanMetadata,
+      expiresAt: new Date(now.getTime() + OWNER_SESSION_TTL_MS),
+    },
+  })
+  await enforceSessionLimit('OWNER', null)
+  return token
+}
+
+function ownerCredentialFingerprint(adminPassword: string): string {
+  return hashToken(`owner-credential:${adminPassword}:${process.env.ADMIN_TOTP_SECRET || ''}`)
+}
+
+function verifyLegacyOwnerSessionToken(token: string): boolean {
   if (!token || !token.includes('.')) return false
+  const parts = token.split('.')
+  if (parts.length !== 2) return false
   const secret = getOwnerSecret()
-  const [base64Payload, signature] = token.split('.')
+  const [base64Payload, signature] = parts
 
   try {
     const expectedSignature = crypto
@@ -154,14 +269,93 @@ export function verifyOwnerSessionToken(token: string | null | undefined): boole
     if (!timingSafeCompare(signature, expectedSignature)) return false
 
     const payloadStr = Buffer.from(base64Payload, 'base64url').toString('utf8')
-    const payload = JSON.parse(payloadStr) as OwnerSessionPayload
+    const payload = JSON.parse(payloadStr) as LegacyOwnerSessionPayload
 
     if (payload.subject !== 'owner' || payload.scope !== 'admin') return false
-    if (Date.now() > payload.expiresAt) return false
+    if (!Number.isFinite(payload.expiresAt) || Date.now() > payload.expiresAt) return false
     return true
   } catch {
     return false
   }
+}
+
+export async function verifyOwnerSessionToken(token: string | null | undefined): Promise<boolean> {
+  if (!token || token.length > 4096) return false
+  if (!token.startsWith(OWNER_SESSION_PREFIX)) {
+    return acceptsLegacySessions() ? verifyLegacyOwnerSessionToken(token) : false
+  }
+
+  const session = await db.authSession.findUnique({
+    where: { tokenHash: hashToken(token) },
+    select: {
+      id: true,
+      kind: true,
+      expiresAt: true,
+      revokedAt: true,
+      lastSeenAt: true,
+      credentialFingerprint: true,
+    },
+  })
+
+  if (
+    !session ||
+    session.kind !== 'OWNER' ||
+    session.revokedAt ||
+    session.expiresAt.getTime() <= Date.now() ||
+    !process.env.ADMIN_PASSWORD ||
+    !timingSafeCompare(
+      session.credentialFingerprint || '',
+      ownerCredentialFingerprint(process.env.ADMIN_PASSWORD)
+    )
+  ) {
+    return false
+  }
+
+  if (Date.now() - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
+    void db.authSession.updateMany({
+      where: { id: session.id, revokedAt: null },
+      data: { lastSeenAt: new Date() },
+    })
+  }
+
+  return true
+}
+
+export async function revokeSessionToken(
+  token: string | null | undefined,
+  expectedKind?: 'MERCHANT' | 'OWNER'
+): Promise<boolean> {
+  if (!token || token.length > 4096) return false
+  const result = await db.authSession.updateMany({
+    where: {
+      tokenHash: hashToken(token),
+      revokedAt: null,
+      ...(expectedKind ? { kind: expectedKind } : {}),
+    },
+    data: { revokedAt: new Date() },
+  })
+  return result.count > 0
+}
+
+export async function revokeAllMerchantSessions(clientId: string): Promise<number> {
+  const result = await db.authSession.updateMany({
+    where: { clientId, kind: 'MERCHANT', revokedAt: null },
+    data: { revokedAt: new Date() },
+  })
+  return result.count
+}
+
+export async function cleanupExpiredAuthSessions(): Promise<number> {
+  const retentionCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const result = await db.authSession.deleteMany({
+    where: {
+      OR: [
+        { expiresAt: { lt: retentionCutoff } },
+        { revokedAt: { lt: retentionCutoff } },
+      ],
+    },
+  })
+  return result.count
 }
 
 // ─── Token Authentication Lookups ───────────────────────────────────
@@ -173,13 +367,13 @@ export async function authenticateByApiKey(rawKey: string): Promise<Client | nul
   const keyHash = hashToken(cleanKey)
   // Try hashed lookup first
   let client = await db.client.findFirst({
-    where: { apiKeyHash: keyHash, isActive: true },
+    where: { apiKeyHash: keyHash, isActive: true, approvalStatus: 'APPROVED' },
   })
 
   // Fallback to legacy plaintext lookup if not yet migrated
   if (!client) {
     client = await db.client.findFirst({
-      where: { apiKey: cleanKey, isActive: true },
+      where: { apiKey: cleanKey, isActive: true, approvalStatus: 'APPROVED' },
     })
     if (client && !client.apiKeyHash) {
       await db.client.update({
@@ -192,7 +386,7 @@ export async function authenticateByApiKey(rawKey: string): Promise<Client | nul
     void db.client.update({
       where: { id: client.id },
       data: { apiKeyLastUsedAt: new Date() },
-    })
+    }).catch(() => {})
   }
 
   return client
@@ -204,12 +398,12 @@ export async function authenticateByDetectToken(rawToken: string): Promise<Clien
 
   const tokenHash = hashToken(cleanToken)
   let client = await db.client.findFirst({
-    where: { detectTokenHash: tokenHash, isActive: true },
+    where: { detectTokenHash: tokenHash, isActive: true, approvalStatus: 'APPROVED' },
   })
 
   if (!client) {
     client = await db.client.findFirst({
-      where: { detectToken: cleanToken, isActive: true },
+      where: { detectToken: cleanToken, isActive: true, approvalStatus: 'APPROVED' },
     })
     if (client && !client.detectTokenHash) {
       await db.client.update({
@@ -221,7 +415,7 @@ export async function authenticateByDetectToken(rawToken: string): Promise<Clien
     void db.client.update({
       where: { id: client.id },
       data: { detectTokenLastUsedAt: new Date() },
-    })
+    }).catch(() => {})
   }
 
   return client
@@ -337,5 +531,3 @@ export async function syncApprovedMerchantsTokens(): Promise<number> {
     return 0
   }
 }
-
-

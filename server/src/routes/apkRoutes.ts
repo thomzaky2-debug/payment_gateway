@@ -9,6 +9,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '../../..')
 const apksDir = path.join(rootDir, 'apks')
 
+apkRouter.use((_req: Request, res: Response, next) => {
+  if (process.env.ENABLE_APK_DOWNLOADS !== 'true') {
+    return res.status(503).json({
+      ok: false,
+      error: 'APK downloads are disabled until current release-signed artifacts are published.',
+    })
+  }
+  next()
+})
+
 // ─── Download Detector APK ──────────────────────────────────────────
 
 apkRouter.get('/detector', (_req: Request, res: Response) => {

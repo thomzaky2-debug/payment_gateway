@@ -63,18 +63,25 @@ class SettingsFragment : Fragment() {
         binding.grantPermissionButton.setOnClickListener { openNotificationAccessSettings() }
         binding.testButton.setOnClickListener { sendTestNotification() }
         binding.logoutButton.setOnClickListener {
+            val appContext = requireContext().applicationContext
+            val sessionToken = config.merchantSessionToken
             MerchantNotificationService.stop(requireContext())
             config.isLoggedIn = false
-            // Reset to defaults
-            config.authToken = "instapay-sandbox-detector-token-2026"
-            config.merchantHandle = "merchant@instapay"
+            OfflineQueueManager.get(requireContext()).clear()
+            config.authToken = ""
+            config.merchantHandle = ""
             config.merchantBusinessName = ""
             config.merchantWebhookUrl = ""
             config.merchantPaymentUrl = ""
-            config.dashboardApiKey = ""
+            config.merchantSessionToken = ""
             config.merchantEmail = ""
             config.subscriptionPlan = "FREE_TRIAL"
             config.subscriptionEndsAt = null
+            config.pendingVerificationId = ""
+
+            MainScope().launch {
+                DashboardApiClient(appContext).revokeSession(sessionToken)
+            }
             
             val intent = Intent(requireContext(), LoginActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

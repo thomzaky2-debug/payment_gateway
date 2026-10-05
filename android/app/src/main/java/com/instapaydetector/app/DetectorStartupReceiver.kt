@@ -11,6 +11,10 @@ import android.util.Log
 class DetectorStartupReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action.orEmpty()
+        if (!GatewayConfig.get(context).isLoggedIn) {
+            Log.i(TAG, "Detector is logged out; skipping startup work for $action")
+            return
+        }
         if (!InstaPayNotificationListener.isPermissionGranted(context)) {
             Log.i(TAG, "Notification listener access is not granted; skipping rebind for $action")
             return

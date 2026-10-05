@@ -80,7 +80,7 @@ object MerchantNotificationPoller {
                 }
             }
 
-            if (config.dashboardApiKey.isBlank() && config.authToken.isBlank()) return
+            if (config.merchantSessionToken.isBlank()) return
 
             val apiClient = DashboardApiClient(context)
             try {

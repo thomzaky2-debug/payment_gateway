@@ -37,8 +37,8 @@ model EmailVerification {
 
 // ─── Client / Merchant Account (Self-Service) ──────────────────────
 model Client {
-  id                 String   @id @default(cuid())
-  slug               String   @unique
+  id                 String  @id @default(cuid())
+  slug               String  @unique
   businessName       String
   businessType       String?
   instapayHandle     String
@@ -48,7 +48,7 @@ model Client {
   firstName      String?
   lastName       String?
   whatsappNumber String?
-  email          String   @unique
+  email          String  @unique
   passwordHash   String
 
   // Authentication keys (Generated ONLY after Admin Approval)
@@ -81,6 +81,7 @@ model Client {
   subscriptionPlan   String    @default("FREE_TRIAL")
   subscriptionEndsAt DateTime?
   isFreeTrial        Boolean   @default(true)
+  trialRedeemedAt    DateTime?
   txLimit            Int       @default(5)
   txCount            Int       @default(0)
 
@@ -93,6 +94,8 @@ model Client {
   detectorDevices    DetectorDevice[]
   notifications      MerchantNotification[]
   bundlePurchases    BundlePurchase[]
+  authSessions       AuthSession[]
+  incomingPayments   IncomingPaymentEvent[]
 
   @@index([instapayHandle])
   @@index([instapayPaymentUrl])
@@ -102,32 +105,73 @@ model Client {
   @@index([detectTokenHash])
 }
 
+// Immutable ingestion ledger used to reject replayed detector notifications.
+model IncomingPaymentEvent {
+  id           String    @id @default(cuid())
+  eventKey     String    @unique
+  clientId     String
+  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  reference    String?
+  senderHandle String
+  amountCents  Int
+  occurredAt   DateTime?
+  sessionId    String?
+  result       String    @default("PROCESSING")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([clientId, createdAt])
+  @@index([clientId, reference])
+  @@index([sessionId])
+}
+
+// ─── Revocable browser/native control-plane sessions ───────────────────────
+// API keys and detector tokens remain separate integration credentials.
+model AuthSession {
+  id                    String    @id @default(cuid())
+  tokenHash             String    @unique
+  kind                  String // MERCHANT | OWNER
+  clientId              String?
+  client                Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  userAgent             String?
+  ipAddress             String?
+  credentialFingerprint String?
+  createdAt             DateTime  @default(now())
+  lastSeenAt            DateTime  @default(now())
+  expiresAt             DateTime
+  revokedAt             DateTime?
+
+  @@index([clientId, kind, revokedAt, expiresAt])
+  @@index([kind, revokedAt, expiresAt])
+  @@index([expiresAt])
+}
+
 // ─── Top-Up Bundles (Extra Transaction Packs) ───────────────────────
 model TopUpBundle {
-  id              String  @id @default(cuid())
-  name            String  @unique // e.g. "STARTER_PACK", "GROWTH_PACK", "MEGA_PACK"
-  displayName     String           // e.g. "Starter Pack", "Growth Pack"
-  priceEgp        Float
-  extraTx         Int              // Number of extra transactions granted
-  description     String?
-  isActive        Boolean @default(true)
-  sortOrder       Int     @default(0)
+  id          String  @id @default(cuid())
+  name        String  @unique // e.g. "STARTER_PACK", "GROWTH_PACK", "MEGA_PACK"
+  displayName String // e.g. "Starter Pack", "Growth Pack"
+  priceEgp    Float
+  extraTx     Int // Number of extra transactions granted
+  description String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
 
   purchases BundlePurchase[]
 }
 
 // ─── Bundle Purchase Records ────────────────────────────────────────
 model BundlePurchase {
-  id         String   @id @default(cuid())
-  clientId   String
-  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  bundleId   String
-  bundle     TopUpBundle @relation(fields: [bundleId], references: [id])
-  sessionId  String?  // Links to the Transaction used for payment
-  extraTx    Int      // Snapshot of how many tx were granted
-  priceEgp   Float    // Snapshot of the price paid
-  status     String   @default("PENDING") // PENDING | CONFIRMED | EXPIRED
-  createdAt  DateTime @default(now())
+  id        String      @id @default(cuid())
+  clientId  String
+  client    Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  bundleId  String
+  bundle    TopUpBundle @relation(fields: [bundleId], references: [id])
+  sessionId String? // Links to the Transaction used for payment
+  extraTx   Int // Snapshot of how many tx were granted
+  priceEgp  Float // Snapshot of the price paid
+  status    String      @default("PENDING") // PENDING | CONFIRMED | EXPIRED
+  createdAt DateTime    @default(now())
 
   @@index([clientId, createdAt])
   @@index([sessionId])
@@ -196,9 +240,9 @@ model WebhookLog {
   url           String
   event         String
   eventId       String?
-  payload       String    // Stringified JSON payload
-  statusCode    Int?      // HTTP status code returned
-  response      String?   // Response body from merchant server
+  payload       String // Stringified JSON payload
+  statusCode    Int? // HTTP status code returned
+  response      String? // Response body from merchant server
   isSuccess     Boolean
   attempt       Int       @default(1)
   nextAttemptAt DateTime?
@@ -212,8 +256,8 @@ model WebhookLog {
 // ─── Administrative Audit Log ──────────────────────────────────────
 model AuditLog {
   id        String   @id @default(cuid())
-  action    String   // e.g. "APPROVE_MERCHANT", "DISABLE_MERCHANT", "UPDATE_TZ", "FORCE_CONFIRM"
-  details   String   // Text description
+  action    String // e.g. "APPROVE_MERCHANT", "DISABLE_MERCHANT", "UPDATE_TZ", "FORCE_CONFIRM"
+  details   String // Text description
   createdAt DateTime @default(now())
 
   @@index([createdAt])
@@ -261,4 +305,3 @@ model Plan {
   description     String?
   isActive        Boolean @default(true)
 }
-

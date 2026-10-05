@@ -39,7 +39,6 @@ data class MerchantInfo(
     val instapayPaymentUrl: String? = null,
     val checkoutTtlMin: Int? = null,
     val detectToken: String? = null,
-    val apiKey: String? = null,
 )
 
 data class SubscriptionInfo(

@@ -25,7 +25,7 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
     let currentStatus = tx.status
 
     // Ensure session remaining time adheres to merchant's checkoutTtlMin setting:
-    if (tx.sessionId === 'cmt_test_local_session') {
+    if (process.env.NODE_ENV === 'development' && tx.sessionId === 'cmt_test_local_session') {
       if (isFresh || secondsRemaining <= 0 || secondsRemaining > merchantTtlSec) {
         expiresAtMs = now + merchantTtlSec * 1000
         secondsRemaining = merchantTtlSec

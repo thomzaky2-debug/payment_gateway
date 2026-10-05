@@ -3,6 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val gatewayBaseUrl = providers.gradleProperty("GATEWAY_BASE_URL").orNull
+val releaseRequested = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+
+if (releaseRequested && (gatewayBaseUrl == null || !gatewayBaseUrl.startsWith("https://"))) {
+    throw org.gradle.api.GradleException("Release builds require -PGATEWAY_BASE_URL=https://your-gateway.example")
+}
+
 android {
     namespace = "com.instapaydetector.admin"
     compileSdk = 34
@@ -14,20 +21,37 @@ android {
         versionCode = 3
         versionName = "1.2.0-admin-portal-parity"
         resValue("string", "app_name", "InstaPay Admin")
+        buildConfigField(
+            "String",
+            "GATEWAY_BASE_URL",
+            "\"${gatewayBaseUrl ?: "https://gateway.example.invalid"}\""
+        )
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file("../app/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+    val releaseStoreFile = providers.gradleProperty("RELEASE_STORE_FILE").orNull
+    val releaseStorePassword = providers.gradleProperty("RELEASE_STORE_PASSWORD").orNull
+    val releaseKeyAlias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull
+    val releaseKeyPassword = providers.gradleProperty("RELEASE_KEY_PASSWORD").orNull
+    val releaseSigning = if (
+        releaseStoreFile != null && releaseStorePassword != null &&
+        releaseKeyAlias != null && releaseKeyPassword != null
+    ) {
+        signingConfigs.create("release") {
+            storeFile = file(releaseStoreFile)
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
         }
+    } else null
+
+    if (releaseRequested && releaseSigning == null) {
+        throw org.gradle.api.GradleException("Release builds require all RELEASE_* signing properties")
     }
 
     buildTypes {
         debug {
             isMinifyEnabled = false
+            buildConfigField("String", "GATEWAY_BASE_URL", "\"http://10.0.2.2:3001\"")
         }
         release {
             isMinifyEnabled = true
@@ -35,7 +59,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = releaseSigning
         }
     }
 

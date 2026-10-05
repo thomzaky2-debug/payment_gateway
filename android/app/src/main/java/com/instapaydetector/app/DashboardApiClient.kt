@@ -21,10 +21,8 @@ import java.util.concurrent.TimeUnit
  *   GET  /api/transactions?q=&status=&limit=&cursor= — paginated list
  *
  * The base URL is derived from the configured webhook URL by stripping
- * the trailing /api/webhooks/instapay path. The auth token is sent as
- * a Bearer header on every request (the gateway accepts it for all
- * endpoints — unauthenticated GET is also allowed, but we send the token
- * anyway so the merchant can see private data).
+ * the trailing /api/webhooks/instapay path. The revocable merchant session
+ * token is sent as a Bearer header on every private control-plane request.
  */
 class DashboardApiClient(private val ctx: Context) {
 
@@ -85,7 +83,7 @@ class DashboardApiClient(private val ctx: Context) {
     suspend fun markNotificationsRead(ids: List<String>) = withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext
         val body = JSONObject().put("ids", JSONArray(ids)).toString().toRequestBody("application/json".toMediaType())
-        val request = Request.Builder().url("${baseUrl()}/api/notifications").addHeader("Authorization", "Bearer ${config.dashboardApiKey.ifBlank { config.authToken }}").patch(body).build()
+        val request = Request.Builder().url("${baseUrl()}/api/notifications").addHeader("Authorization", "Bearer ${merchantSessionToken()}").patch(body).build()
         httpClient.newCall(request).execute().close()
     }
 
@@ -130,7 +128,7 @@ class DashboardApiClient(private val ctx: Context) {
     }
 
     private fun get(url: String): HttpResponse {
-        val bearer = config.dashboardApiKey.ifBlank { config.authToken }
+        val bearer = merchantSessionToken()
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $bearer")
@@ -157,7 +155,7 @@ class DashboardApiClient(private val ctx: Context) {
                 }
             }
             val body = json.toString().toRequestBody("application/json".toMediaType())
-            val bearer = config.dashboardApiKey.ifBlank { config.authToken }
+            val bearer = merchantSessionToken()
             val request = Request.Builder()
                 .url("${baseUrl()}/api/transactions")
                 .addHeader("Authorization", "Bearer $bearer")
@@ -174,6 +172,23 @@ class DashboardApiClient(private val ctx: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "updateTransactionStatus failed: ${e.message}", e)
             Result.failure(e)
+        }
+    }
+
+    suspend fun revokeSession(sessionToken: String) = withContext(Dispatchers.IO) {
+        if (sessionToken.isBlank()) return@withContext
+        val body = "{}".toRequestBody("application/json".toMediaType())
+        val request = Request.Builder()
+            .url("${baseUrl()}/api/auth/logout")
+            .addHeader("Authorization", "Bearer $sessionToken")
+            .post(body)
+            .build()
+        runCatching { httpClient.newCall(request).execute().close() }
+    }
+
+    private fun merchantSessionToken(): String {
+        return config.merchantSessionToken.ifBlank {
+            throw IllegalStateException("Merchant session unavailable. Sign in again.")
         }
     }
 
@@ -213,7 +228,6 @@ class DashboardApiClient(private val ctx: Context) {
             instapayPaymentUrl = if (merchant.has("instapayPaymentUrl") && !merchant.isNull("instapayPaymentUrl")) merchant.getString("instapayPaymentUrl") else null,
             checkoutTtlMin = if (merchant.has("checkoutTtlMin")) merchant.optInt("checkoutTtlMin", 10) else null,
             detectToken = if (merchant.has("detectToken") && !merchant.isNull("detectToken")) merchant.getString("detectToken") else null,
-            apiKey = if (merchant.has("apiKey") && !merchant.isNull("apiKey")) merchant.getString("apiKey") else null,
         )
 
         return DashboardStats(

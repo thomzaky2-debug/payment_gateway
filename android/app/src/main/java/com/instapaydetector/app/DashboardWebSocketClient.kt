@@ -72,7 +72,7 @@ class DashboardWebSocketClient(ctx: Context) {
 
             val request = Request.Builder()
                 .url(wsUrl)
-                .addHeader("Authorization", "Bearer ${config.authToken}")
+                .addHeader("Authorization", "Bearer ${config.merchantSessionToken}")
                 .build()
 
             webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {

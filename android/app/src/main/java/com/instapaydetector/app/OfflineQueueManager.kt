@@ -14,6 +14,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Manages persistent storage and background retries for failed webhook POST requests.
@@ -27,6 +28,7 @@ class OfflineQueueManager private constructor(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queueFile = File(context.filesDir, "pending_webhooks_queue.json")
     private val isFlushing = AtomicBoolean(false)
+    private val flushGeneration = AtomicLong(0)
 
     init {
         registerNetworkCallback()
@@ -95,6 +97,7 @@ class OfflineQueueManager private constructor(private val context: Context) {
 
     @Synchronized
     fun enqueue(report: QueuedReport) {
+        if (!GatewayConfig.get(context).isLoggedIn) return
         val current = loadQueue()
         current.add(report)
         saveQueue(current)
@@ -130,8 +133,19 @@ class OfflineQueueManager private constructor(private val context: Context) {
         }
     }
 
+    @Synchronized
+    private fun saveQueueIfActive(generation: Long, list: List<QueuedReport>): Boolean {
+        if (generation != flushGeneration.get() || !GatewayConfig.get(context).isLoggedIn) {
+            return false
+        }
+        saveQueue(list)
+        return true
+    }
+
     fun triggerFlush() {
+        if (!GatewayConfig.get(context).isLoggedIn) return
         if (!isFlushing.compareAndSet(false, true)) return
+        val generation = flushGeneration.get()
 
         scope.launch {
             try {
@@ -139,6 +153,9 @@ class OfflineQueueManager private constructor(private val context: Context) {
                 val client = GatewayClient(context)
 
                 while (pending.isNotEmpty()) {
+                    if (generation != flushGeneration.get() || !GatewayConfig.get(context).isLoggedIn) {
+                        return@launch
+                    }
                     val item = pending.first()
                     Log.i(TAG, "Attempting to flush queued report (id=${item.id}, attempt=${item.retries + 1})")
 
@@ -151,25 +168,27 @@ class OfflineQueueManager private constructor(private val context: Context) {
                         rawNotificationText = item.rawNotificationText,
                         notificationTitle = item.notificationTitle,
                         sourcePackage = item.sourcePackage,
-                        confidence = item.confidence
+                        confidence = item.confidence,
+                        eventId = item.id
                     )
 
                     if (result == ReportResult.SUCCESS) {
                         Log.i(TAG, "Successfully flushed report id=${item.id}")
                         pending.removeAt(0)
-                        saveQueue(pending)
+                        if (!saveQueueIfActive(generation, pending)) return@launch
                     } else if (result == ReportResult.SUBSCRIPTION_ENDED) {
                         Log.e(TAG, "Dropping report id=${item.id} because subscription/trial ended.")
                         pending.removeAt(0)
-                        saveQueue(pending)
+                        if (!saveQueueIfActive(generation, pending)) return@launch
                     } else {
                         val updatedRetries = item.retries + 1
                         if (updatedRetries > 10) {
                             Log.w(TAG, "Dropping report id=${item.id} after 10 failed retries")
                             pending.removeAt(0)
+                            if (!saveQueueIfActive(generation, pending)) return@launch
                         } else {
                             pending[0] = item.copy(retries = updatedRetries)
-                            saveQueue(pending)
+                            if (!saveQueueIfActive(generation, pending)) return@launch
                             // Exponential backoff: 2s, 4s, 8s, 16s... capped at 60s
                             val delayMs = (Math.pow(2.0, updatedRetries.toDouble()) * 1000).toLong().coerceAtMost(60_000L)
                             Log.i(TAG, "Backing off for ${delayMs}ms before retrying queue")
@@ -181,6 +200,14 @@ class OfflineQueueManager private constructor(private val context: Context) {
             } finally {
                 isFlushing.set(false)
             }
+        }
+    }
+
+    @Synchronized
+    fun clear() {
+        flushGeneration.incrementAndGet()
+        if (queueFile.exists() && !queueFile.delete()) {
+            saveQueue(emptyList())
         }
     }
 

@@ -12,31 +12,35 @@ interface RateLimitRecord {
  * @param message Custom error message.
  */
 export function createRateLimiter(windowMs: number, max: number, message = 'Too many requests, please try again later.') {
+  return createRateLimiterWithKey(windowMs, max, message)
+}
+
+export function createRateLimiterWithKey(
+  windowMs: number,
+  max: number,
+  message = 'Too many requests, please try again later.',
+  keyGenerator: (req: Request) => string = (req) => req.ip || req.socket.remoteAddress || 'unknown'
+) {
   const hits = new Map<string, RateLimitRecord>()
 
-  // Cleanup expired windows every 5 minutes
   setInterval(() => {
     const now = Date.now()
     for (const [key, record] of hits.entries()) {
-      if (now > record.resetAt) {
-        hits.delete(key)
-      }
+      if (now > record.resetAt) hits.delete(key)
     }
   }, 5 * 60 * 1000).unref()
 
   return (req: Request, res: Response, next: NextFunction) => {
-    const ip =
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.socket.remoteAddress ||
-      'unknown'
+    const ip = req.ip || req.socket.remoteAddress || 'unknown'
+    const key = keyGenerator(req).slice(0, 512)
     const now = Date.now()
     const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip === 'localhost'
-    const effectiveMax = process.env.NODE_ENV !== 'production' && isLocalhost ? Math.max(max * 20, 500) : max
+    const effectiveMax = process.env.NODE_ENV === 'development' && isLocalhost ? Math.max(max * 20, 500) : max
 
-    const record = hits.get(ip)
+    const record = hits.get(key)
 
     if (!record || now > record.resetAt) {
-      hits.set(ip, { count: 1, resetAt: now + windowMs })
+      hits.set(key, { count: 1, resetAt: now + windowMs })
       return next()
     }
 
