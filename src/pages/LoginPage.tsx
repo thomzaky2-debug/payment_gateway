@@ -210,9 +210,9 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
 
         if (handle.startsWith('http://') || handle.startsWith('https://') || handle.includes('ipn.eg')) {
           paymentUrl = handle;
-          const match = handle.match(/ipn\.eg\/S\/([^\/\s?#]+)/i);
+          const match = handle.match(/ipn\.eg\/S\/([^\/\s?#]+)/i) || handle.match(/\/S\/([^\/\?#]+)/i);
           if (match && match[1]) {
-            handle = `${match[1].toLowerCase()}@instapay`;
+            handle = `${match[1].toLowerCase().replace(/^@/, '')}@instapay`;
           }
         }
 

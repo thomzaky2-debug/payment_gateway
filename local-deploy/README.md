@@ -13,6 +13,7 @@ From the project root directory, run:
 ```
 
 ### What this command does automatically:
+
 1. Loads the pre-configured local environment from `local-deploy/.env.local`.
 2. Starts a persistent, embedded **PostgreSQL** instance on port `54329` (stored in `local-deploy/data/pg/`).
 3. Runs `npx prisma db push` to synchronize all database tables and indexes.
@@ -26,14 +27,15 @@ From the project root directory, run:
 
 Once started, open your browser to:
 
-| Destination | Local URL | Credentials / Notes |
-| :--- | :--- | :--- |
-| **Customer Checkout Demo** | `http://localhost:3000/pay/cmt_test_local_session` | 150.00 EGP checkout with live timer & handle input |
-| **Merchant Portal** | `http://localhost:3000/login` | **Email:** `merchant@localtest.com`<br>**Password:** `MerchantPassword123!` |
-| **Superadmin Portal** | `http://localhost:3000/portal/admin` | **Password:** `AdminPassword123!` |
-| **Backend REST API** | `http://localhost:3001/api/health` | Service health & version status |
+| Destination                      | Local URL                                            | Credentials / Notes                                                                     |
+| :------------------------------- | :--------------------------------------------------- | :-------------------------------------------------------------------------------------- |
+| **Customer Checkout Demo** | `http://localhost:3000/pay/cmt_test_local_session` | 150.00 EGP checkout with live timer & handle input                                      |
+| **Merchant Portal**        | `http://localhost:3000/login`                      | **Email:** `merchant@localtest.com`**Password:** `MerchantPassword123!` |
+| **Superadmin Portal**      | `http://localhost:3000/portal/admin`               | **Password:** `AdminPassword123!`                                               |
+| **Backend REST API**       | `http://localhost:3001/api/health`                 | Service health & version status                                                         |
 
 ### Pre-Configured API & Detector Keys:
+
 * **Merchant API Key:** `sk_test_cairo_hub_live_89412a`
 * **Merchant Slug:** `cairo-hub` (Cairo Retail Hub)
 * **InstaPay Handle:** `mohammedshabana77@instapay`
@@ -53,15 +55,16 @@ npx tsx local-deploy/test-system.ts
 ```
 
 ### What the test suite verifies:
-* [x] **[1/9]** Backend Health Check (`GET /api/health`)
-* [x] **[2/9]** Superadmin Authentication (`POST /api/admin/auth`)
-* [x] **[3/9]** Superadmin Metrics & Merchants summary
-* [x] **[4/9]** Merchant Login & Session generation
-* [x] **[5/9]** Programmatic Checkout Creation (`POST /api/v1/checkout/create` with API Key)
-* [x] **[6/9]** Customer Hosted Checkout retrieval (`GET /api/checkout/:id`)
-* [x] **[7/9]** Customer InstaPay Username Submission & Normalization (`PATCH /api/checkout/:id/sender`)
-* [x] **[8/9]** Companion Android Detector Webhook Simulation (`POST /api/webhooks/detector`)
-* [x] **[9/9]** Transaction State Transition to `CONFIRMED` with bank reference verification
+
+* [X] **[1/9]** Backend Health Check (`GET /api/health`)
+* [X] **[2/9]** Superadmin Authentication (`POST /api/admin/auth`)
+* [X] **[3/9]** Superadmin Metrics & Merchants summary
+* [X] **[4/9]** Merchant Login & Session generation
+* [X] **[5/9]** Programmatic Checkout Creation (`POST /api/v1/checkout/create` with API Key)
+* [X] **[6/9]** Customer Hosted Checkout retrieval (`GET /api/checkout/:id`)
+* [X] **[7/9]** Customer InstaPay Username Submission & Normalization (`PATCH /api/checkout/:id/sender`)
+* [X] **[8/9]** Companion Android Detector Webhook Simulation (`POST /api/webhooks/detector`)
+* [X] **[9/9]** Transaction State Transition to `CONFIRMED` with bank reference verification
 
 ---
 

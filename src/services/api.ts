@@ -308,3 +308,24 @@ export const notificationsApi = {
   },
 }
 
+// ─── Top-Up Bundles API ─────────────────────────────────────────────
+
+export const bundlesApi = {
+  async list() {
+    const res = await api.get('/bundles')
+    return res.data
+  },
+  async purchase(bundleName: string, senderHandle?: string) {
+    const res = await api.post('/bundles/purchase', { bundleName, senderHandle })
+    return res.data
+  },
+  async getHistory() {
+    const res = await api.get('/bundles/history')
+    return res.data
+  },
+  async getStatus(sessionId: string) {
+    const res = await api.get(`/bundles/status/${sessionId}`)
+    return res.data
+  },
+}
+

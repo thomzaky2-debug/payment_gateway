@@ -101,6 +101,27 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
   // Webhook Code language tab
   const [codeLang, setCodeLang] = useState<'nodejs' | 'python' | 'php'>('nodejs');
 
+  // Helper to extract IPA handle from InstaPay Share / Payment URLs
+  const extractIpaFromUrl = (url: string): string | null => {
+    if (!url) return null;
+    const match = url.match(/ipn\.eg\/S\/([^\/\s?#]+)/i) || url.match(/\/S\/([^\/\?#]+)/i);
+    if (match && match[1]) {
+      const clean = match[1].toLowerCase().replace(/^@/, '');
+      return `${clean}@instapay`;
+    }
+    return null;
+  };
+
+  const handlePaymentUrlChange = (val: string) => {
+    setInstapayPaymentUrl(val);
+    const derived = extractIpaFromUrl(val);
+    if (derived) {
+      setInstapayHandle(derived);
+    } else if (!val.trim()) {
+      setInstapayHandle('');
+    }
+  };
+
   // Real-time ticking for relative timestamps
   useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 10000);
@@ -231,6 +252,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
     try {
       const res = await settingsApi.update({
         businessName,
+        instapayHandle: instapayHandle.trim(),
         instapayPaymentUrl,
         webhookUrl,
         checkoutTtlMin: Number(checkoutTtlMin),
@@ -247,7 +269,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
         setSaved(true);
         setLastRefreshedAt(new Date());
         if (showToast) {
-          showToast('success', isRtl ? 'تم حفظ الإعدادات وتطبيق القواعد فوراً!' : 'Settings updated & policies applied immediately!');
+          showToast('success', isRtl ? 'تم حفظ الإعدادات وتحديث معرّف IPA بنجاح!' : 'Settings & InstaPay IPA updated successfully!');
         }
         setTimeout(() => setSaved(false), 2500);
       } else {
@@ -675,58 +697,81 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <label style={{ fontSize: '12.5px', fontWeight: 600, color: textPrimary, margin: 0 }}>
-                        {isRtl ? 'معرّف إنستاباي المستلم (مقفل)' : 'Receiving InstaPay Handle (Locked)'}
+                        {isRtl ? 'عنوان الدفع اللحظي (InstaPay IPA / Handle)' : 'Receiving InstaPay IPA / Handle'}
                       </label>
                       <span style={{
                         fontSize: '10px',
                         fontWeight: 700,
-                        padding: '1px 6px',
+                        padding: '2px 7px',
                         borderRadius: '6px',
-                        backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : '#dcfce7',
-                        color: '#10b981',
+                        backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#eef2ff',
+                        color: isDark ? '#a5b4fc' : '#6366f1',
+                        border: isDark ? '1px solid rgba(99,102,241,0.3)' : '1px solid #c7d2fe',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
                       }}>
-                        Verified IPA
+                        <span>🔒</span> {isRtl ? 'تلقائي من الرابط' : 'Auto-synced from URL'}
                       </span>
                     </div>
 
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <input
                         type="text"
-                        disabled
+                        readOnly
                         value={instapayHandle}
+                        placeholder={isRtl ? 'يتم استخراجه تلقائياً من رابط الدفع أدناه' : 'Auto-derived from Payment URL below'}
                         style={{
                           ...inputStyle,
-                          backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9',
-                          color: textSecondary,
                           fontFamily: "'JetBrains Mono', monospace",
+                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.6)' : '#f1f5f9',
+                          cursor: 'default',
+                          color: instapayHandle ? textPrimary : textSecondary,
                           paddingRight: isRtl ? '14px' : '42px',
                           paddingLeft: isRtl ? '42px' : '14px',
                         }}
                       />
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(instapayHandle, 'handle')}
-                        style={{
-                          position: 'absolute',
-                          [isRtl ? 'left' : 'right']: '10px',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          color: copiedKey === 'handle' ? '#10b981' : textSecondary,
-                          display: 'flex',
-                          alignItems: 'center',
-                          padding: '4px',
-                        }}
-                        title={isRtl ? 'نسخ المعرف' : 'Copy handle'}
-                      >
-                        {copiedKey === 'handle' ? <Check size={16} /> : <Copy size={16} />}
-                      </button>
+                      {instapayHandle && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(instapayHandle, 'handle')}
+                          style={{
+                            position: 'absolute',
+                            [isRtl ? 'left' : 'right']: '10px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: copiedKey === 'handle' ? '#10b981' : textSecondary,
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '4px',
+                          }}
+                          title={isRtl ? 'نسخ المعرف' : 'Copy handle'}
+                        >
+                          {copiedKey === 'handle' ? <Check size={16} /> : <Copy size={16} />}
+                        </button>
+                      )}
                     </div>
-                    <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
-                      {isRtl
-                        ? 'عنوان IPA المرتبط بتطبيق الكاشف. لتعديله يرجى التواصل مع الدعم الفني.'
-                        : 'IPA bound to companion detector. Contact support to alter receiving credentials.'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '11px', color: textSecondary }}>
+                        {isRtl
+                          ? 'عنوان الـ IPA يتم تحديثه ومزامنته تلقائياً عند تعديل رابط المشاركة أدناه لاستلام ومطابقة التحويلات بدقة.'
+                          : 'Your InstaPay Payment Address (IPA) is automatically synced from the Static Payment URL below to receive customer transfers.'}
+                      </span>
+                      {instapayHandle && (
+                        <span style={{
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#ecfdf5',
+                          color: isDark ? '#34d399' : '#059669',
+                          border: isDark ? '1px solid rgba(16,185,129,0.25)' : '1px solid #a7f3d0',
+                        }}>
+                          ⚡ {instapayHandle}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -754,15 +799,28 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
-                      {isRtl ? 'رابط المشاركة الثابت لإنستاباي (Static InstaPay URL)' : 'Static InstaPay Payment / Share URL'}
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '12.5px', fontWeight: 600, color: textPrimary, margin: 0 }}>
+                        {isRtl ? 'رابط المشاركة الثابت لإنستاباي (Static InstaPay URL)' : 'Static InstaPay Payment / Share URL'}
+                      </label>
+                      <span style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: '6px',
+                        backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#ecfdf5',
+                        color: isDark ? '#34d399' : '#059669',
+                        border: isDark ? '1px solid rgba(16,185,129,0.25)' : '1px solid #a7f3d0',
+                      }}>
+                        ⚡ {isRtl ? 'يستخرج الـ IPA تلقائياً' : 'Auto-derives IPA'}
+                      </span>
+                    </div>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <input
                         type="url"
                         value={instapayPaymentUrl}
-                        onChange={(e) => setInstapayPaymentUrl(e.target.value)}
-                        placeholder="https://ipn.eg/S/username/instapay/TOKEN"
+                        onChange={(e) => handlePaymentUrlChange(e.target.value)}
+                        placeholder="https://ipn.eg/S/mohammedshabana77/instapay/fdef45"
                         style={{
                           ...inputStyle,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -794,8 +852,8 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                     </div>
                     <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
                       {isRtl
-                        ? 'رابط إنستاباي المباشر الذي يفتح تطبيق البنك فوراً لتحويل القيمة بدقة.'
-                        : 'Exact share link from InstaPay app that triggers the bank transfer UI for the buyer.'}
+                        ? 'رابط إنستاباي المباشر (مثل: https://ipn.eg/S/username/instapay/TOKEN). يقوم تلقائياً بملء معرف الحساب (IPA) كـ username@instapay.'
+                        : 'InstaPay share link (e.g. https://ipn.eg/S/mohammedshabana77/instapay/fdef45). Automatically populates your Receiving IPA as mohammedshabana77@instapay.'}
                     </span>
                   </div>
 

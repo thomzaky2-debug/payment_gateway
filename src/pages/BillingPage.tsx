@@ -24,8 +24,14 @@ import {
   MessageSquare,
   Phone,
   Mail,
+  Package,
+  TrendingUp,
+  ShoppingCart,
+  History,
+  ChevronDown,
+  Plus,
 } from 'lucide-react';
-import { plansApi, subscriptionApi, authApi } from '../services/api';
+import { plansApi, subscriptionApi, authApi, bundlesApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -53,13 +59,22 @@ export function BillingPage({ showToast }: BillingPageProps) {
   const [isSavingSender, setIsSavingSender] = useState<boolean>(false);
   const [senderSaved, setSenderSaved] = useState<boolean>(false);
 
+  // Extra Bundles State
+  const [bundles, setBundles] = useState<any[]>([]);
+  const [bundleHistory, setBundleHistory] = useState<any[]>([]);
+  const [purchasingBundle, setPurchasingBundle] = useState<string | null>(null);
+  const [showBundleHistory, setShowBundleHistory] = useState(false);
+  const [bundleCheckoutModal, setBundleCheckoutModal] = useState<any>(null);
+
   const loadData = async (isManual = false) => {
     setLoading(true);
     try {
       const timestamp = Date.now();
-      const [sessionRes, plansRes] = await Promise.all([
+      const [sessionRes, plansRes, bundlesRes, historyRes] = await Promise.all([
         authApi.getSession({ _t: timestamp }),
         plansApi.list({ _t: timestamp }),
+        bundlesApi.list().catch(() => ({ ok: false, bundles: [] })),
+        bundlesApi.getHistory().catch(() => ({ ok: false, purchases: [] })),
       ]);
 
       if (sessionRes?.ok && sessionRes?.client) {
@@ -67,6 +82,12 @@ export function BillingPage({ showToast }: BillingPageProps) {
       }
       if (plansRes?.ok && plansRes?.plans) {
         setPlans(plansRes.plans);
+      }
+      if (bundlesRes?.ok && bundlesRes?.bundles) {
+        setBundles(bundlesRes.bundles);
+      }
+      if (historyRes?.ok && historyRes?.purchases) {
+        setBundleHistory(historyRes.purchases);
       }
       if (isManual && showToast) {
         showToast('success', isRtl ? 'تم تحديث بيانات الاشتراكات والخطط بنجاح' : 'Plans & subscription details refreshed');
@@ -222,6 +243,50 @@ export function BillingPage({ showToast }: BillingPageProps) {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  // ─── Bundle Purchase Handler ──────────────────────────────────────
+  const handlePurchaseBundle = async (bundleName: string) => {
+    setPurchasingBundle(bundleName);
+    try {
+      const res = await bundlesApi.purchase(bundleName);
+      if (res?.ok) {
+        const targetUrl =
+          res?.checkoutUrl ||
+          res?.checkout?.checkoutUrl ||
+          (res?.sessionId ? `http://checkout.localhost:3000/pay/${res.sessionId}` : null) ||
+          (res?.checkout?.sessionId ? `http://checkout.localhost:3000/pay/${res.checkout.sessionId}` : null);
+
+        if (targetUrl) {
+          window.location.href = targetUrl;
+          return;
+        }
+        if (showToast) showToast('error', 'Failed to generate bundle checkout URL');
+      } else {
+        if (showToast) showToast('error', res?.error || (isRtl ? 'فشل شراء الحزمة الإضافية' : 'Failed to purchase bundle'));
+      }
+    } catch (err: any) {
+      if (showToast) showToast('error', err.response?.data?.error || (isRtl ? 'خطأ في شراء الحزمة' : 'Bundle purchase error'));
+    } finally {
+      setPurchasingBundle(null);
+    }
+  };
+
+  // Poll bundle checkout status if modal is open
+  useEffect(() => {
+    if (!bundleCheckoutModal?.sessionId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await bundlesApi.getStatus(bundleCheckoutModal.sessionId);
+        if (res?.ok && res?.purchase?.status === 'CONFIRMED') {
+          clearInterval(interval);
+          if (showToast) showToast('success', isRtl ? `تم تفعيل الحزمة الإضافية بنجاح! +${res.purchase.extraTx} معاملة` : `Bundle activated! +${res.purchase.extraTx} extra transactions added.`);
+          setBundleCheckoutModal(null);
+          loadData();
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [bundleCheckoutModal?.sessionId]);
+
   const trialPlan = plans.find((p: any) => p.name === 'FREE_TRIAL');
   const isMerchantOnTrial = Boolean(client?.isFreeTrial || client?.subscriptionPlan === 'FREE_TRIAL');
   const isTrialClaimed = Boolean(client && !client.isFreeTrial && client.subscriptionPlan !== 'FREE_TRIAL');
@@ -249,57 +314,99 @@ export function BillingPage({ showToast }: BillingPageProps) {
       : rawDaysRemaining;
   const activeTrialDaysRemaining = isMerchantOnTrial && daysRemaining && daysRemaining > 0 && !isExpired ? daysRemaining : 0;
 
+  /* ──────────────── Shared "Detector Companion" Theme Styles ──────────────── */
+  const card = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#111827' : '#ffffff',
+    borderRadius: '20px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+    boxShadow: isDark
+      ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
+      : '0 4px 16px rgba(0,0,0,0.06)',
+    transition: 'all 0.3s ease',
+    ...extra,
+  });
+
+  const subcard = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#162033' : '#f8fafc',
+    borderRadius: '14px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+    ...extra,
+  });
+
+  const textPrimary = isDark ? '#f8fafc' : '#1e293b';
+  const textSecondary = isDark ? '#94a3b8' : '#64748b';
+  const accent = '#38bdf8';
+
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
-      {/* Page Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+      {/* ─── Page Header (Detector Companion Style) ─── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '26px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
-              {isRtl ? 'الاشتراكات وإدارة الباقات' : 'Plans & Subscription Billing'}
-            </h2>
-            {trialPlan && trialPlan.isActive !== false && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '3px 10px',
-                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5',
-                  color: '#10b981',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  borderRadius: '9999px',
-                  border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #a7f3d0',
-                }}
-              >
-                <Sparkles size={12} /> {isRtl ? 'فترة تجريبية متاحة' : 'Free Trial Available'}
-              </span>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #8b5cf6, #ec4899)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)',
+              }}
+            >
+              <Zap size={22} color="white" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
+                  {isRtl ? 'الاشتراكات وإدارة الباقات' : 'Plans & Subscription Billing'}
+                </h2>
+                {trialPlan && trialPlan.isActive !== false && (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '3px 10px',
+                      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5',
+                      color: '#10b981',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      borderRadius: '9999px',
+                      border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #a7f3d0',
+                    }}
+                  >
+                    <Sparkles size={12} /> {isRtl ? 'فترة تجريبية متاحة' : 'Free Trial Available'}
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: '13px', color: textSecondary, margin: '2px 0 0 0' }}>
+                {isRtl ? 'اختر باقة تناسب حجم أعمالك أو جرب الباقة المجانية مع كاشف إنستاباي الآلي' : 'Choose a plan tailored to your business volume or start with the Free Trial'}
+              </p>
+            </div>
           </div>
-          <p style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
-            {isRtl ? 'اختر باقة تناسب حجم أعمالك أو جرب الباقة المجانية مع كاشف إنستاباي الآلي' : 'Choose a plan tailored to your business volume or start with the Free Trial'}
-          </p>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-
           <button
             onClick={() => loadData(true)}
             disabled={loading}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
+              gap: '8px',
+              padding: '10px 18px',
               backgroundColor: isDark ? '#1e293b' : 'white',
               border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
-              color: isDark ? '#f8fafc' : '#334155',
-              borderRadius: '8px',
+              color: textPrimary,
+              borderRadius: '12px',
               fontSize: '13px',
+              fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.7 : 1,
-              transition: 'all 0.15s ease',
+              transition: 'all 0.2s ease',
+              boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
             }}
             title={isRtl ? 'تحديث بيانات الاشتراك والحدود' : 'Refresh plan details and quotas'}
           >
@@ -309,7 +416,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
         </div>
       </div>
 
-      {/* Current Active Plan Card */}
+      {/* ─── Current Active Plan Hero Card (Detector Companion Signature) ─── */}
       <div
         style={{
           background: isDark
@@ -321,9 +428,37 @@ export function BillingPage({ showToast }: BillingPageProps) {
           marginBottom: '32px',
           boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.25)',
           border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #334155',
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+        {/* Decorative Circles */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-30px',
+            right: isRtl ? 'auto' : '-30px',
+            left: isRtl ? '-30px' : 'auto',
+            width: '120px',
+            height: '120px',
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.05)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-50px',
+            right: isRtl ? 'auto' : '60px',
+            left: isRtl ? '60px' : 'auto',
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.03)',
+          }}
+        />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px', position: 'relative', zIndex: 1 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span
@@ -951,6 +1086,397 @@ export function BillingPage({ showToast }: BillingPageProps) {
             );
           })}
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          Extra Top-Up Bundles Section
+          ═══════════════════════════════════════════════════════════════ */}
+      {bundles.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          {/* Section Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Package size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '20px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
+                    {isRtl ? 'حزم المعاملات الإضافية' : 'Extra Top-Up Bundles'}
+                  </h3>
+                  <p style={{ fontSize: '12.5px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0' }}>
+                    {isRtl
+                      ? 'وصلت لحد المعاملات قبل انتهاء اشتراكك؟ اشترِ حزمة إضافية فورية بدون تغيير باقتك الحالية.'
+                      : 'Hit your transaction limit before your subscription ends? Buy an instant top-up without changing your plan.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            {bundleHistory.length > 0 && (
+              <button
+                onClick={() => setShowBundleHistory(!showBundleHistory)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  backgroundColor: isDark ? '#1e293b' : 'white',
+                  border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+                  color: isDark ? '#cbd5e1' : '#475569',
+                  borderRadius: '8px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <History size={14} />
+                {isRtl ? 'سجل المشتريات' : 'Purchase History'}
+                <ChevronDown size={14} style={{ transform: showBundleHistory ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+              </button>
+            )}
+          </div>
+
+          {/* Quota Warning Banner (shown when usage > 80%) */}
+          {usagePercent >= 80 && !isExpired && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 18px',
+                marginBottom: '20px',
+                borderRadius: '14px',
+                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#fffbeb',
+                border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
+                color: isDark ? '#fbbf24' : '#92400e',
+                fontSize: '13px',
+              }}
+            >
+              <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+              <span>
+                {usagePercent >= 100
+                  ? isRtl
+                    ? `⚠️ وصلت لحد المعاملات المسموح (${txCount}/${txLimit}). اشترِ حزمة إضافية للاستمرار بقبول المدفوعات فوراً!`
+                    : `⚠️ You've reached your transaction limit (${txCount}/${txLimit}). Purchase a top-up bundle to continue accepting payments instantly!`
+                  : isRtl
+                  ? `تنبيه: استهلكت ${usagePercent}% من حد المعاملات (${txCount}/${txLimit}). فكر بشراء حزمة إضافية لتجنب التوقف.`
+                  : `Warning: ${usagePercent}% of your quota used (${txCount}/${txLimit}). Consider purchasing a top-up bundle to avoid disruption.`}
+              </span>
+            </div>
+          )}
+
+          {/* Bundle Cards Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+            {bundles.map((bundle: any, idx: number) => {
+              const pricePerTx = (bundle.priceEgp / bundle.extraTx).toFixed(2);
+              const isBestValue = idx === 1;
+              const isMega = idx === bundles.length - 1 && bundles.length > 1;
+              const accentColor = idx === 0 ? '#f59e0b' : idx === 1 ? '#10b981' : '#8b5cf6';
+              const gradientBg = idx === 0
+                ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.02))'
+                : idx === 1
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.02))'
+                : 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(139, 92, 246, 0.02))';
+
+              return (
+                <div
+                  key={bundle.id || bundle.name}
+                  style={{
+                    background: isDark ? `linear-gradient(135deg, ${accentColor}10, ${accentColor}05)` : gradientBg,
+                    backgroundColor: isDark ? '#111827' : 'white',
+                    borderRadius: '18px',
+                    border: `2px solid ${isDark ? `${accentColor}40` : `${accentColor}30`}`,
+                    padding: '22px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    boxShadow: `0 6px 20px -4px ${accentColor}20`,
+                  }}
+                >
+                  {/* Best Value Badge */}
+                  {isBestValue && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '-1px',
+                        [isRtl ? 'left' : 'right']: '-1px',
+                        backgroundColor: accentColor,
+                        color: 'white',
+                        padding: '4px 14px 4px 14px',
+                        borderRadius: isRtl ? '0 16px 0 12px' : '16px 0 0 12px',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        letterSpacing: '0.04em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <TrendingUp size={12} />
+                      {isRtl ? 'أفضل قيمة' : 'BEST VALUE'}
+                    </span>
+                  )}
+
+                  {isMega && !isBestValue && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '-1px',
+                        [isRtl ? 'left' : 'right']: '-1px',
+                        backgroundColor: accentColor,
+                        color: 'white',
+                        padding: '4px 14px 4px 14px',
+                        borderRadius: isRtl ? '0 16px 0 12px' : '16px 0 0 12px',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        letterSpacing: '0.04em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Zap size={12} />
+                      {isRtl ? 'أقل سعر للمعاملة' : 'LOWEST RATE'}
+                    </span>
+                  )}
+
+                  <div>
+                    {/* Bundle Name & Extra TX */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '9px',
+                          backgroundColor: `${accentColor}20`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: accentColor,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Package size={17} />
+                      </div>
+                      <div>
+                        <h4 style={{ fontSize: '16px', fontWeight: 800, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
+                          {bundle.displayName || bundle.name}
+                        </h4>
+                      </div>
+                    </div>
+
+                    {/* Extra Transactions Amount */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', margin: '12px 0 4px 0' }}>
+                      <span style={{ fontSize: '14px', color: accentColor, fontWeight: 800 }}>+</span>
+                      <span style={{ fontSize: '30px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', lineHeight: 1 }}>
+                        {bundle.extraTx}
+                      </span>
+                      <span style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
+                        {isRtl ? 'معاملة إضافية' : 'extra transactions'}
+                      </span>
+                    </div>
+
+                    {/* Price */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '22px', fontWeight: 800, color: accentColor }}>
+                        {bundle.priceEgp}
+                      </span>
+                      <span style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b' }}>EGP</span>
+                      <span
+                        style={{
+                          marginInlineStart: '8px',
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: `${accentColor}15`,
+                          color: accentColor,
+                          fontWeight: 700,
+                          border: `1px solid ${accentColor}30`,
+                        }}
+                      >
+                        {pricePerTx} {isRtl ? 'ج.م/معاملة' : 'EGP/tx'}
+                      </span>
+                    </div>
+
+                    {/* Description */}
+                    <p style={{ fontSize: '12px', color: isDark ? '#94a3b8' : '#64748b', margin: '0 0 16px 0', lineHeight: 1.4 }}>
+                      {bundle.description || (isRtl ? 'حزمة معاملات إضافية فورية' : 'Instant extra transaction capacity')}
+                    </p>
+
+                    {/* Features */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '18px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569' }}>
+                        <CheckCircle2 size={14} color={accentColor} />
+                        <span>{isRtl ? 'تفعيل فوري عند الدفع' : 'Instant activation on payment'}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569' }}>
+                        <CheckCircle2 size={14} color={accentColor} />
+                        <span>{isRtl ? 'تُضاف فوق حد باقتك الحالية' : 'Stacks on top of current plan limit'}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569' }}>
+                        <CheckCircle2 size={14} color={accentColor} />
+                        <span>{isRtl ? 'صالحة حتى نهاية اشتراكك' : 'Valid until subscription ends'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Purchase Button */}
+                  <button
+                    onClick={() => handlePurchaseBundle(bundle.name)}
+                    disabled={purchasingBundle === bundle.name || isExpired}
+                    style={{
+                      width: '100%',
+                      padding: '11px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '13.5px',
+                      cursor: isExpired ? 'not-allowed' : 'pointer',
+                      backgroundColor: isExpired ? (isDark ? '#1e293b' : '#f1f5f9') : accentColor,
+                      color: isExpired ? (isDark ? '#64748b' : '#94a3b8') : 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      boxShadow: isExpired ? 'none' : `0 4px 14px ${accentColor}40`,
+                      transition: 'all 0.15s ease',
+                      opacity: purchasingBundle === bundle.name ? 0.7 : 1,
+                    }}
+                  >
+                    {purchasingBundle === bundle.name ? (
+                      <RefreshCw size={15} className="animate-spin" />
+                    ) : isExpired ? (
+                      <>
+                        <AlertTriangle size={14} />
+                        {isRtl ? 'جدد اشتراكك أولاً' : 'Renew plan first'}
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart size={15} />
+                        {isRtl ? `شراء عبر إنستاباي — ${bundle.priceEgp} ج.م` : `Buy via InstaPay — ${bundle.priceEgp} EGP`}
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Purchase History Accordion */}
+          {showBundleHistory && bundleHistory.length > 0 && (
+            <div
+              style={{
+                backgroundColor: isDark ? '#111827' : 'white',
+                borderRadius: '16px',
+                border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  padding: '14px 18px',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : '#f8fafc',
+                  borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  color: isDark ? '#f8fafc' : '#1e293b',
+                }}
+              >
+                <History size={15} color="#8b5cf6" />
+                {isRtl ? 'سجل شراء الحزم الإضافية' : 'Bundle Purchase History'}
+                <span style={{ fontSize: '11px', fontWeight: 500, color: isDark ? '#94a3b8' : '#64748b', marginInlineStart: '4px' }}>
+                  ({bundleHistory.length} {isRtl ? 'عملية' : 'purchases'})
+                </span>
+              </div>
+              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {bundleHistory.map((purchase: any) => (
+                  <div
+                    key={purchase.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '12px 18px',
+                      borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.3)' : '1px solid #f1f5f9',
+                      fontSize: '13px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '8px',
+                          backgroundColor: purchase.status === 'CONFIRMED'
+                            ? 'rgba(16, 185, 129, 0.15)'
+                            : purchase.status === 'PENDING'
+                            ? 'rgba(245, 158, 11, 0.15)'
+                            : 'rgba(239, 68, 68, 0.15)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: purchase.status === 'CONFIRMED' ? '#10b981' : purchase.status === 'PENDING' ? '#f59e0b' : '#ef4444',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {purchase.status === 'CONFIRMED' ? <Check size={14} /> : purchase.status === 'PENDING' ? <Clock size={14} /> : <X size={14} />}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
+                          {purchase.bundle?.displayName || purchase.bundleId}
+                        </div>
+                        <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                          +{purchase.extraTx} {isRtl ? 'معاملة' : 'tx'} • {purchase.priceEgp} EGP •{' '}
+                          {new Date(purchase.createdAt).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        backgroundColor: purchase.status === 'CONFIRMED'
+                          ? isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5'
+                          : purchase.status === 'PENDING'
+                          ? isDark ? 'rgba(245, 158, 11, 0.15)' : '#fffbeb'
+                          : isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2',
+                        color: purchase.status === 'CONFIRMED' ? '#10b981' : purchase.status === 'PENDING' ? '#f59e0b' : '#ef4444',
+                        border: `1px solid ${purchase.status === 'CONFIRMED' ? '#10b98130' : purchase.status === 'PENDING' ? '#f59e0b30' : '#ef444430'}`,
+                      }}
+                    >
+                      {purchase.status === 'CONFIRMED'
+                        ? isRtl ? 'مفعّل' : 'Activated'
+                        : purchase.status === 'PENDING'
+                        ? isRtl ? 'قيد الانتظار' : 'Pending'
+                        : isRtl ? 'منتهية' : 'Expired'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Subscription Payment Modal */}
       {checkoutModal && (

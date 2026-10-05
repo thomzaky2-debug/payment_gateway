@@ -397,58 +397,109 @@ export async function processInstaPayNotification(
     where: { id: match.id },
   })
 
-  // 10. Handle Subscription Renewal if this was a subscription payment
+  // 10. Handle Subscription Renewal or Bundle Top-Up if this was a subscription/bundle payment
   if (updatedTx.purpose === 'SUBSCRIPTION' && updatedTx.subscriptionPlanName) {
-    const plan = await db.plan.findUnique({
-      where: { name: updatedTx.subscriptionPlanName },
-    })
-    if (plan) {
-      // Re-fetch fresh client state to obtain current subscription ends date
-      const freshClient = await db.client.findUnique({ where: { id: client.id } })
-      const nowMs = Date.now()
-      const currentEndMs = freshClient?.subscriptionEndsAt ? new Date(freshClient.subscriptionEndsAt).getTime() : 0
-      const trialPlan = await db.plan.findUnique({ where: { name: 'FREE_TRIAL' } })
-      const remainingTrialMs = Math.max(0, currentEndMs - nowMs)
-      let bonusDays = Math.ceil(remainingTrialMs / (24 * 60 * 60 * 1000))
-      if (trialPlan?.periodDays && bonusDays > trialPlan.periodDays) {
-        bonusDays = trialPlan.periodDays
+    // ─── Handle Top-Up Bundle Purchase ─────────────────────────────
+    if (updatedTx.subscriptionPlanName.startsWith('BUNDLE:')) {
+      const bundleName = updatedTx.subscriptionPlanName.replace('BUNDLE:', '')
+      try {
+        // Find and confirm the bundle purchase record
+        const bundlePurchase = await (db as any).bundlePurchase.findFirst({
+          where: { sessionId: updatedTx.sessionId, clientId: client.id, status: 'PENDING' },
+          include: { bundle: true },
+        })
+
+        if (bundlePurchase) {
+          const extraTx = bundlePurchase.extraTx || bundlePurchase.bundle?.extraTx || 0
+
+          // Increment merchant's txLimit by the bundle's extra transactions
+          await db.client.update({
+            where: { id: client.id },
+            data: { txLimit: { increment: extraTx } },
+          })
+
+          // Mark the bundle purchase as confirmed
+          await (db as any).bundlePurchase.update({
+            where: { id: bundlePurchase.id },
+            data: { status: 'CONFIRMED' },
+          })
+
+          await db.auditLog.create({
+            data: {
+              action: 'BUNDLE_PURCHASED',
+              details: `Merchant ${client.businessName} purchased ${bundlePurchase.bundle?.displayName || bundleName} bundle (+${extraTx} tx, ${bundlePurchase.priceEgp} EGP) via session ${updatedTx.sessionId}`,
+            },
+          }).catch(() => {})
+
+          await db.merchantNotification.create({
+            data: {
+              clientId: client.id,
+              title: 'Extra Bundle Activated! 🎉',
+              message: `Your ${bundlePurchase.bundle?.displayName || bundleName} top-up has been applied! +${extraTx} extra transactions added to your quota.`,
+              severity: 'SUCCESS',
+            },
+          }).catch(() => {})
+
+          console.log(`[matcher] Bundle ${bundleName} activated for merchant ${client.businessName}: +${extraTx} tx`)
+        } else {
+          console.warn(`[matcher] Bundle purchase record not found for session ${updatedTx.sessionId}`)
+        }
+      } catch (bundleErr) {
+        console.error('[matcher] Failed to process bundle purchase:', bundleErr)
       }
-      const basePeriodDays = plan.periodDays || 30
-      const totalPeriodDays = basePeriodDays + bonusDays
-      const newEndsAt = new Date(nowMs + totalPeriodDays * 24 * 60 * 60 * 1000)
-
-      await db.client.update({
-        where: { id: client.id },
-        data: {
-          subscriptionPlan: plan.name,
-          subscriptionEndsAt: newEndsAt,
-          isFreeTrial: false,
-          txLimit: plan.maxTransactions,
-          txCount: 0,
-        },
+    } else {
+      // ─── Handle Normal Subscription Plan Activation ──────────────
+      const plan = await db.plan.findUnique({
+        where: { name: updatedTx.subscriptionPlanName },
       })
-      await db.auditLog
-        .create({
-          data: {
-            action: 'SUBSCRIPTION_ACTIVATED',
-            details: `Activated ${plan.name} for merchant ${client.businessName} (Total: ${totalPeriodDays} days: ${basePeriodDays} plan + ${bonusDays} trial rollover, Limit: ${plan.maxTransactions} txs) via session ${updatedTx.sessionId}`,
-          },
-        })
-        .catch(() => {})
+      if (plan) {
+        // Re-fetch fresh client state to obtain current subscription ends date
+        const freshClient = await db.client.findUnique({ where: { id: client.id } })
+        const nowMs = Date.now()
+        const currentEndMs = freshClient?.subscriptionEndsAt ? new Date(freshClient.subscriptionEndsAt).getTime() : 0
+        const trialPlan = await db.plan.findUnique({ where: { name: 'FREE_TRIAL' } })
+        const remainingTrialMs = Math.max(0, currentEndMs - nowMs)
+        let bonusDays = Math.ceil(remainingTrialMs / (24 * 60 * 60 * 1000))
+        if (trialPlan?.periodDays && bonusDays > trialPlan.periodDays) {
+          bonusDays = trialPlan.periodDays
+        }
+        const basePeriodDays = plan.periodDays || 30
+        const totalPeriodDays = basePeriodDays + bonusDays
+        const newEndsAt = new Date(nowMs + totalPeriodDays * 24 * 60 * 60 * 1000)
 
-      await db.merchantNotification
-        .create({
+        await db.client.update({
+          where: { id: client.id },
           data: {
-            clientId: client.id,
-            title: 'Plan Activated Successfully',
-            message:
-              bonusDays > 0
-                ? `Your ${plan.name} plan is now active for ${totalPeriodDays} days (${basePeriodDays} days + ${bonusDays} rollover days from your trial)! Quota refreshed to ${plan.maxTransactions} transactions.`
-                : `Your ${plan.name} plan is now active for ${totalPeriodDays} days! Quota refreshed to ${plan.maxTransactions} transactions.`,
-            severity: 'SUCCESS',
+            subscriptionPlan: plan.name,
+            subscriptionEndsAt: newEndsAt,
+            isFreeTrial: false,
+            txLimit: plan.maxTransactions,
+            txCount: 0,
           },
         })
-        .catch(() => {})
+        await db.auditLog
+          .create({
+            data: {
+              action: 'SUBSCRIPTION_ACTIVATED',
+              details: `Activated ${plan.name} for merchant ${client.businessName} (Total: ${totalPeriodDays} days: ${basePeriodDays} plan + ${bonusDays} trial rollover, Limit: ${plan.maxTransactions} txs) via session ${updatedTx.sessionId}`,
+            },
+          })
+          .catch(() => {})
+
+        await db.merchantNotification
+          .create({
+            data: {
+              clientId: client.id,
+              title: 'Plan Activated Successfully',
+              message:
+                bonusDays > 0
+                  ? `Your ${plan.name} plan is now active for ${totalPeriodDays} days (${basePeriodDays} days + ${bonusDays} rollover days from your trial)! Quota refreshed to ${plan.maxTransactions} transactions.`
+                  : `Your ${plan.name} plan is now active for ${totalPeriodDays} days! Quota refreshed to ${plan.maxTransactions} transactions.`,
+              severity: 'SUCCESS',
+            },
+          })
+          .catch(() => {})
+      }
     }
   } else {
     // Increment normal checkout transaction quota

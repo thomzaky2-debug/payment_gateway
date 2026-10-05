@@ -78,19 +78,36 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
       if (!cleanPaymentUrl.startsWith('https://') && !cleanPaymentUrl.startsWith('http://')) {
         return res.status(400).json({ ok: false, error: 'InstaPay payment URL must start with https://' })
       }
-      const match = cleanPaymentUrl.match(/\/S\/([^\/\?#]+)\/([^\/\?#]+)/i)
-      if (match) {
-        derivedHandle = `${match[1]}@${match[2]}`
+      const match = cleanPaymentUrl.match(/ipn\.eg\/S\/([^\/\s?#]+)/i) || cleanPaymentUrl.match(/\/S\/([^\/\?#]+)/i)
+      if (match && match[1]) {
+        derivedHandle = `${match[1].toLowerCase()}@instapay`
       }
     }
 
-    const cleanHandle = instapayHandle !== undefined ? instapayHandle?.trim() || undefined : derivedHandle
+    let cleanHandle: string | undefined = undefined
+    if (instapayHandle !== undefined && instapayHandle !== null && String(instapayHandle).trim()) {
+      const rawHandle = String(instapayHandle).trim()
+      if (rawHandle.startsWith('http://') || rawHandle.startsWith('https://') || rawHandle.includes('ipn.eg')) {
+        const match = rawHandle.match(/ipn\.eg\/S\/([^\/\s?#]+)/i) || rawHandle.match(/\/S\/([^\/\?#]+)/i)
+        if (match && match[1]) {
+          cleanHandle = `${match[1].toLowerCase()}@instapay`
+        } else {
+          const fallback = rawHandle.replace(/^https?:\/\//i, '').replace(/[^a-z0-9_.-]/gi, '')
+          cleanHandle = `${fallback}@instapay`
+        }
+      } else {
+        const clean = rawHandle.replace(/^@/, '').split('@')[0].trim().toLowerCase()
+        cleanHandle = `${clean}@instapay`
+      }
+    } else if (derivedHandle) {
+      cleanHandle = derivedHandle
+    }
 
     const updated = await db.client.update({
       where: { id: client.id },
       data: {
         instapayPaymentUrl: cleanPaymentUrl,
-        instapayHandle: cleanHandle || undefined,
+        instapayHandle: cleanHandle !== undefined ? cleanHandle : undefined,
         webhookUrl: cleanWebhookUrl,
         checkoutTtlMin: checkoutTtlMin ? Math.max(1, Math.min(60, Number(checkoutTtlMin))) : undefined,
         businessName: businessName?.trim() || undefined,

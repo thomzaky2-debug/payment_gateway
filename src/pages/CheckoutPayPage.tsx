@@ -50,6 +50,7 @@ interface CheckoutData {
   note?: string | null;
   purpose?: string | null;
   subscriptionPlanName?: string | null;
+  bundleInfo?: { name: string; displayName: string; extraTx: number; priceEgp: number } | null;
   basePeriodDays?: number | null;
   bonusDays?: number | null;
   periodDays?: number | null;
@@ -457,6 +458,14 @@ export function CheckoutPayPage() {
     checkout.recipientHandle
   )}`;
 
+  const isBundle =
+    checkout.purpose === 'SUBSCRIPTION' &&
+    (Boolean(checkout.bundleInfo) || (checkout.subscriptionPlanName?.startsWith('BUNDLE:') ?? false));
+  const bundleDisplayName =
+    checkout.bundleInfo?.displayName ||
+    (checkout.subscriptionPlanName ? checkout.subscriptionPlanName.replace('BUNDLE:', '') : 'Top-Up Bundle');
+  const bundleExtraTx = checkout.bundleInfo?.extraTx;
+
   return (
     <div
       dir={isRtl ? 'rtl' : 'ltr'}
@@ -719,12 +728,24 @@ export function CheckoutPayPage() {
               {checkout.purpose === 'SUBSCRIPTION' ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                    <span style={{ color: textSecondary }}>{isRtl ? 'الخطة المفعلة:' : 'Activated Plan:'}</span>
-                    <span style={{ fontWeight: 700, color: '#6366f1' }}>
-                      {checkout.subscriptionPlanName || 'Subscription'} ({checkout.periodDays || 30} {isRtl ? 'يوم' : 'Days'})
+                    <span style={{ color: textSecondary }}>
+                      {isRtl ? (isBundle ? 'الحزمة المفعلة:' : 'الخطة المفعلة:') : (isBundle ? 'Activated Bundle:' : 'Activated Plan:')}
+                    </span>
+                    <span style={{ fontWeight: 700, color: isBundle ? '#f59e0b' : '#6366f1' }}>
+                      {isBundle
+                        ? `${bundleDisplayName}${bundleExtraTx ? ` (+${bundleExtraTx} ${isRtl ? 'معاملة إضافية' : 'extra tx'})` : ''}`
+                        : `${checkout.subscriptionPlanName || 'Subscription'} (${checkout.periodDays || 30} ${isRtl ? 'يوم' : 'Days'})`}
                     </span>
                   </div>
-                  {checkout.bonusDays && checkout.bonusDays > 0 && (
+                  {isBundle && bundleExtraTx && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                      <span style={{ color: textSecondary }}>{isRtl ? 'المعاملات المضافة فوراً:' : 'Quota Added Instantly:'}</span>
+                      <span style={{ fontWeight: 700, color: '#10b981' }}>
+                        +{bundleExtraTx} {isRtl ? 'معاملة' : 'extra transactions'}
+                      </span>
+                    </div>
+                  )}
+                  {checkout.bonusDays && checkout.bonusDays > 0 && !isBundle && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                       <span style={{ color: textSecondary }}>{isRtl ? 'أيام التجربة المضافة:' : 'Trial Rollover Days:'}</span>
                       <span style={{ fontWeight: 700, color: '#10b981' }}>
@@ -732,7 +753,7 @@ export function CheckoutPayPage() {
                       </span>
                     </div>
                   )}
-                  {checkout.endDate && (
+                  {checkout.endDate && !isBundle && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                       <span style={{ color: textSecondary }}>{isRtl ? 'تاريخ الانتهاء:' : 'Valid Until:'}</span>
                       <span style={{ fontFamily: 'monospace', color: textPrimary, fontWeight: 600 }}>
@@ -985,10 +1006,12 @@ export function CheckoutPayPage() {
                       textTransform: 'uppercase',
                       fontWeight: 700,
                       letterSpacing: '0.04em',
-                      color: isDark ? '#38bdf8' : '#0284c7',
+                      color: isBundle ? '#f59e0b' : (isDark ? '#38bdf8' : '#0284c7'),
                     }}
                   >
-                    {checkout.purpose === 'SUBSCRIPTION'
+                    {isBundle
+                      ? (isRtl ? 'حزمة معاملات إضافية' : 'EXTRA TOP-UP BUNDLE')
+                      : checkout.purpose === 'SUBSCRIPTION'
                       ? (isRtl ? 'اشتراك باقة المنصة' : 'SUBSCRIPTION PLAN')
                       : (isRtl ? 'الدفع لصالح' : 'PAYING TO')}
                   </span>
@@ -1012,30 +1035,51 @@ export function CheckoutPayPage() {
                   </span>
                 </div>
                 <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, color: textPrimary }}>
-                  {checkout.purpose === 'SUBSCRIPTION' && checkout.subscriptionPlanName
+                  {isBundle
+                    ? bundleDisplayName
+                    : checkout.purpose === 'SUBSCRIPTION' && checkout.subscriptionPlanName
                     ? `${checkout.subscriptionPlanName} Plan`
                     : checkout.businessName}
                 </h2>
                 {checkout.purpose === 'SUBSCRIPTION' && (
                   <>
                     <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '3px 9px',
-                          borderRadius: '6px',
-                          backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.1)',
-                          color: isDark ? '#a5b4fc' : '#4f46e5',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                        }}
-                      >
-                        <Sparkles size={12} />
-                        {checkout.periodDays || 30} {isRtl ? 'يوم صلاحية' : 'Days Validity'}
-                      </span>
-                      {checkout.bonusDays && checkout.bonusDays > 0 ? (
+                      {isBundle ? (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '3px 9px',
+                            borderRadius: '6px',
+                            backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.1)',
+                            color: isDark ? '#fbbf24' : '#d97706',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                          }}
+                        >
+                          <Sparkles size={12} />
+                          +{bundleExtraTx || ''} {isRtl ? 'معاملة إضافية فورية' : 'Extra Transactions Stacked'}
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '3px 9px',
+                            borderRadius: '6px',
+                            backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.1)',
+                            color: isDark ? '#a5b4fc' : '#4f46e5',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                          }}
+                        >
+                          <Sparkles size={12} />
+                          {checkout.periodDays || 30} {isRtl ? 'يوم صلاحية' : 'Days Validity'}
+                        </span>
+                      )}
+                      {checkout.bonusDays && checkout.bonusDays > 0 && !isBundle ? (
                         <span
                           style={{
                             display: 'inline-flex',

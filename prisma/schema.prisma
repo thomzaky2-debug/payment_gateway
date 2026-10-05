@@ -92,6 +92,7 @@ model Client {
   mismatchedPayments MismatchedPayment[]
   detectorDevices    DetectorDevice[]
   notifications      MerchantNotification[]
+  bundlePurchases    BundlePurchase[]
 
   @@index([instapayHandle])
   @@index([instapayPaymentUrl])
@@ -99,6 +100,38 @@ model Client {
   @@index([detectToken])
   @@index([apiKeyHash])
   @@index([detectTokenHash])
+}
+
+// ─── Top-Up Bundles (Extra Transaction Packs) ───────────────────────
+model TopUpBundle {
+  id              String  @id @default(cuid())
+  name            String  @unique // e.g. "STARTER_PACK", "GROWTH_PACK", "MEGA_PACK"
+  displayName     String           // e.g. "Starter Pack", "Growth Pack"
+  priceEgp        Float
+  extraTx         Int              // Number of extra transactions granted
+  description     String?
+  isActive        Boolean @default(true)
+  sortOrder       Int     @default(0)
+
+  purchases BundlePurchase[]
+}
+
+// ─── Bundle Purchase Records ────────────────────────────────────────
+model BundlePurchase {
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  bundleId   String
+  bundle     TopUpBundle @relation(fields: [bundleId], references: [id])
+  sessionId  String?  // Links to the Transaction used for payment
+  extraTx    Int      // Snapshot of how many tx were granted
+  priceEgp   Float    // Snapshot of the price paid
+  status     String   @default("PENDING") // PENDING | CONFIRMED | EXPIRED
+  createdAt  DateTime @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([sessionId])
+  @@index([status])
 }
 
 model MerchantNotification {

@@ -13,6 +13,13 @@ import {
   Check,
   Printer,
   FileText,
+  Activity,
+  Wifi,
+  WifiOff,
+  Zap,
+  Shield,
+  ArrowRight,
+  ExternalLink,
 } from 'lucide-react';
 import { transactionsApi, settingsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -171,26 +178,73 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
   const checklistCompleted = [hasPaymentUrl, hasDetector, hasWebhook, hasApiKey].filter(Boolean).length;
   const checklistPercent = Math.round((checklistCompleted / checklistTotal) * 100);
 
+  /* ──────────────── Shared "Detector Companion" Theme Styles ──────────────── */
+  const card = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#111827' : '#ffffff',
+    borderRadius: '20px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+    boxShadow: isDark
+      ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
+      : '0 4px 16px rgba(0,0,0,0.06)',
+    transition: 'all 0.3s ease',
+    ...extra,
+  });
+
+  const subcard = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#162033' : '#f8fafc',
+    borderRadius: '14px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+    ...extra,
+  });
+
+  const textPrimary = isDark ? '#f8fafc' : '#1e293b';
+  const textSecondary = isDark ? '#94a3b8' : '#64748b';
+  const accent = '#38bdf8';
+
+  const latestDevice = devices.length > 0 ? devices[0] : null;
+  const isDetectorOnline = latestDevice && (Date.now() - new Date(latestDevice.lastSeenAt).getTime()) < 10 * 60 * 1000;
+  const timeSinceLastSeen = latestDevice
+    ? Math.floor((Date.now() - new Date(latestDevice.lastSeenAt).getTime()) / 1000)
+    : null;
+
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
-      {/* Page Title & Live Sync Controls */}
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+      {/* ─── Page Header (Detector Companion Style) ─── */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '24px',
+          marginBottom: '26px',
           flexWrap: 'wrap',
           gap: '16px',
         }}
       >
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
-            {isRtl ? 'لوحة التحكم الرئيسية' : 'Dashboard Overview'}
-          </h2>
-          <p style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
-            {isRtl ? 'متابعة بوابة الدفع والعمليات المباشرة عبر إنستاباي' : 'Monitor your live InstaPay payment gateway'}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(14, 165, 233, 0.35)',
+              }}
+            >
+              <TrendingUp size={22} color="white" />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
+                {isRtl ? 'لوحة التحكم الرئيسية' : 'Dashboard Overview'}
+              </h2>
+              <p style={{ fontSize: '13px', color: textSecondary, margin: '2px 0 0 0' }}>
+                {isRtl ? 'مراقبة ومتابعة عمليات الدفع اللحظية وخدمة كاشف إنستاباي' : 'Real-time overview of InstaPay payments and active detector companion'}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -200,7 +254,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 14px',
+              padding: '8px 16px',
               borderRadius: '9999px',
               fontSize: '12px',
               fontWeight: 600,
@@ -237,16 +291,17 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '9px 16px',
+              padding: '10px 18px',
               backgroundColor: isDark ? '#1e293b' : 'white',
               border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
-              color: isDark ? '#f8fafc' : '#334155',
+              color: textPrimary,
               fontSize: '13px',
               fontWeight: 600,
               borderRadius: '12px',
               cursor: refreshing ? 'not-allowed' : 'pointer',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-              transition: 'all 0.15s ease',
+              boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
+              transition: 'all 0.2s ease',
+              opacity: refreshing ? 0.7 : 1,
             }}
           >
             <RefreshCw
@@ -260,6 +315,172 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
         </div>
       </div>
 
+      {/* ─── Hero Status Banner (Detector Companion Signature) ─── */}
+      <div
+        style={{
+          ...card(),
+          background: isDetectorOnline
+            ? (isDark
+              ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(6,182,212,0.1))'
+              : 'linear-gradient(135deg, #10b981, #06b6d4)')
+            : (isDark
+              ? 'linear-gradient(135deg, rgba(100,116,139,0.15), rgba(51,65,85,0.2))'
+              : 'linear-gradient(135deg, #64748b, #475569)'),
+          border: isDetectorOnline
+            ? (isDark ? '1px solid rgba(16,185,129,0.35)' : 'none')
+            : (isDark ? '1px solid rgba(100,116,139,0.3)' : 'none'),
+          padding: '24px 28px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '20px',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+        {/* Decorative Circles */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-30px',
+            right: isRtl ? 'auto' : '-30px',
+            left: isRtl ? '-30px' : 'auto',
+            width: '120px',
+            height: '120px',
+            borderRadius: '50%',
+            background: isDetectorOnline ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-50px',
+            right: isRtl ? 'auto' : '60px',
+            left: isRtl ? '60px' : 'auto',
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            background: isDetectorOnline ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)',
+          }}
+        />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '18px', position: 'relative', zIndex: 1 }}>
+          <div
+            style={{
+              width: '58px',
+              height: '58px',
+              borderRadius: '16px',
+              background: isDetectorOnline
+                ? (isDark ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.2)')
+                : (isDark ? 'rgba(100,116,139,0.25)' : 'rgba(255,255,255,0.15)'),
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: isDark ? '1px solid rgba(255,255,255,0.1)' : 'none',
+              flexShrink: 0,
+            }}
+          >
+            {isDetectorOnline ? (
+              <Wifi size={28} color={isDark ? '#34d399' : 'white'} />
+            ) : (
+              <WifiOff size={28} color={isDark ? '#94a3b8' : 'rgba(255,255,255,0.8)'} />
+            )}
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h3
+                style={{
+                  fontSize: '19px',
+                  fontWeight: 800,
+                  margin: 0,
+                  color: isDetectorOnline ? (isDark ? '#34d399' : 'white') : (isDark ? '#94a3b8' : 'white'),
+                }}
+              >
+                {isDetectorOnline
+                  ? (isRtl ? 'بوابة الكشف متصلة وتعمل بنجاح' : 'Payment Gateway & Detector Live')
+                  : (isRtl ? 'تطبيق الكاشف غير متصل حالياً' : 'Detector Phone Offline')}
+              </h3>
+              {isDetectorOnline && (
+                <div
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    backgroundColor: isDark ? '#34d399' : 'white',
+                    boxShadow: isDark ? '0 0 10px rgba(52,211,153,0.5)' : '0 0 10px rgba(255,255,255,0.6)',
+                  }}
+                />
+              )}
+            </div>
+            <p
+              style={{
+                fontSize: '12.5px',
+                color: isDetectorOnline
+                  ? (isDark ? 'rgba(52,211,153,0.85)' : 'rgba(255,255,255,0.92)')
+                  : (isDark ? '#94a3b8' : 'rgba(255,255,255,0.75)'),
+                margin: '4px 0 0 0',
+              }}
+            >
+              {isDetectorOnline ? (
+                <>
+                  {isRtl ? 'المستلم: ' : 'Receiver: '}
+                  <strong>{settings?.instapayHandle || 'InstaPay'}</strong>
+                  {latestDevice && ` • ${latestDevice.deviceId}`}
+                  {timeSinceLastSeen !== null && ` (${timeSinceLastSeen}s heartbeat)`}
+                </>
+              ) : (
+                isRtl
+                  ? 'قم بتشغيل تطبيق الكاشف على هاتف الاستقبال لبدء المطابقة الآلية لإيصالات إنستاباي.'
+                  : 'Start the Detector Companion app on your receiving phone for instant automatic matching.'
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Hero Glass Status Metrics */}
+        <div style={{ display: 'flex', gap: '12px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
+          <div
+            style={{
+              padding: '10px 18px',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.18)',
+              borderRadius: '12px',
+              backdropFilter: 'blur(10px)',
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.25)',
+              textAlign: 'center',
+              minWidth: '100px',
+            }}
+          >
+            <div style={{ fontSize: '10.5px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              {isRtl ? 'إيراد اليوم' : "Today's Vol"}
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: isDark ? '#34d399' : 'white', marginTop: '2px' }}>
+              {stats?.today?.totalEgp != null ? `${Number(stats.today.totalEgp).toFixed(0)} EGP` : '0 EGP'}
+            </div>
+          </div>
+          <div
+            style={{
+              padding: '10px 18px',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.18)',
+              borderRadius: '12px',
+              backdropFilter: 'blur(10px)',
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.25)',
+              textAlign: 'center',
+              minWidth: '100px',
+            }}
+          >
+            <div style={{ fontSize: '10.5px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              {isRtl ? 'بانتظار الدفع' : 'Pending'}
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 800, color: isDark ? '#fbbf24' : 'white', marginTop: '2px' }}>
+              {stats?.pending?.count ?? 0}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <StatCard
@@ -268,42 +489,41 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
           subtitle={stats?.today?.count != null ? (isRtl ? `${stats.today.count} معاملة اليوم` : `${stats.today.count} transactions today`) : 'Loading...'}
           trend="+100%"
           trendUp={true}
-          icon={<TrendingUp className="w-5 h-5" />}
+          icon={<TrendingUp size={20} />}
           color="#3b82f6"
+          isDark={isDark}
         />
         <StatCard
           title={isRtl ? 'إيرادات 7 أيام' : '7-Day Revenue'}
           value={stats?.sevenDays?.totalEgp != null ? `${Number(stats.sevenDays.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
           subtitle={stats?.sevenDays?.count != null ? (isRtl ? `${stats.sevenDays.count} معاملة مؤكدة` : `${stats.sevenDays.count} confirmed orders`) : 'Loading...'}
-          icon={<CreditCard className="w-5 h-5" />}
+          icon={<CreditCard size={20} />}
           color="#10b981"
+          isDark={isDark}
         />
         <StatCard
           title={isRtl ? 'في انتظار التحويل' : 'Pending Checkouts'}
           value={stats?.pending?.count != null ? `${stats.pending.count}` : '0'}
           subtitle={isRtl ? 'بانتظار دفع العميل' : 'Awaiting transfer'}
-          icon={<AlertCircle className="w-5 h-5" />}
+          icon={<AlertCircle size={20} />}
           color="#f59e0b"
+          isDark={isDark}
         />
         <StatCard
           title={isRtl ? 'الباقة والحد الشهري' : 'Monthly Plan Quota'}
           value={stats?.quota?.limit != null ? `${stats.quota.count ?? 0} / ${stats.quota.limit}` : 'Trial Plan'}
           subtitle={stats?.quota?.plan || (isRtl ? 'اشتراك نشط' : 'Active Subscription')}
-          icon={<Smartphone className="w-5 h-5" />}
+          icon={<Smartphone size={20} />}
           color="#06b6d4"
-          isOnline
+          isOnline={isDetectorOnline}
+          isDark={isDark}
         />
       </div>
 
       {/* Merchant Setup Checklist Card */}
       <div
         style={{
-          backgroundColor: isDark ? '#111827' : 'white',
-          borderRadius: '20px',
-          border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
-          padding: '24px',
-          marginBottom: '24px',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+          ...card({ padding: '24px', marginBottom: '24px' }),
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
@@ -456,12 +676,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
       {/* Recent Transactions */}
       <div
         style={{
-          backgroundColor: isDark ? '#111827' : 'white',
-          borderRadius: '16px',
-          border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
-          padding: '24px',
-          marginBottom: '24px',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+          ...card({ padding: '24px', marginBottom: '24px' }),
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
@@ -999,6 +1214,7 @@ function StatCard({
   icon,
   color,
   isOnline,
+  isDark,
 }: {
   title: string;
   value: string;
@@ -1008,46 +1224,62 @@ function StatCard({
   icon: React.ReactNode;
   color: string;
   isOnline?: boolean;
+  isDark?: boolean;
 }) {
   return (
     <div
       style={{
-        backgroundColor: 'white',
-        borderRadius: '16px',
-        border: '1px solid #e2e8f0',
-        padding: '20px',
-        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+        backgroundColor: isDark ? '#111827' : '#ffffff',
+        borderRadius: '20px',
+        border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+        padding: '22px',
+        boxShadow: isDark
+          ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
+          : '0 4px 16px rgba(0,0,0,0.06)',
+        transition: 'all 0.3s ease',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div
           style={{
-            width: '40px',
-            height: '40px',
+            width: '42px',
+            height: '42px',
             borderRadius: '12px',
-            backgroundColor: `${color}15`,
+            backgroundColor: isDark ? `${color}20` : `${color}15`,
             color: color,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            border: isDark ? `1px solid ${color}35` : `1px solid ${color}25`,
+            boxShadow: `0 4px 12px ${color}20`,
           }}
         >
           {icon}
         </div>
         {isOnline && (
-          <div
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: '#10b981',
-              boxShadow: '0 0 0 4px rgba(16,185,129,0.2)',
-            }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#10b981' }}>Live</span>
+            <div
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: '#10b981',
+                boxShadow: '0 0 0 4px rgba(16,185,129,0.2)',
+              }}
+            />
+          </div>
         )}
       </div>
-      <p style={{ fontSize: '22px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>{value}</p>
-      <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0 0' }}>{subtitle}</p>
+      <div>
+        <p style={{ fontSize: '24px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', margin: 0, letterSpacing: '-0.3px' }}>{value}</p>
+        <p style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '5px 0 0 0', fontWeight: 500 }}>{subtitle}</p>
+      </div>
     </div>
   );
 }

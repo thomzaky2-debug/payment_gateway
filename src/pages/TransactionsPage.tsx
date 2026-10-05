@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+  CreditCard,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -230,36 +231,83 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
     { key: 'EXPIRED', label: isRtl ? 'منتهية' : 'Expired' },
   ];
 
+  /* ──────────────── Shared "Detector Companion" Theme Styles ──────────────── */
+  const card = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#111827' : '#ffffff',
+    borderRadius: '20px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+    boxShadow: isDark
+      ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
+      : '0 4px 16px rgba(0,0,0,0.06)',
+    transition: 'all 0.3s ease',
+    ...extra,
+  });
+
+  const subcard = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#162033' : '#f8fafc',
+    borderRadius: '14px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+    ...extra,
+  });
+
+  const textPrimary = isDark ? '#f8fafc' : '#1e293b';
+  const textSecondary = isDark ? '#94a3b8' : '#64748b';
+  const accent = '#38bdf8';
+
+  const totalCount = transactions.length;
+  const confirmedCount = transactions.filter((t) => t.status === 'CONFIRMED' || t.status === 'PAID').length;
+  const confirmedVolume = transactions
+    .filter((t) => t.status === 'CONFIRMED' || t.status === 'PAID')
+    .reduce((acc, t) => acc + (t.amountEgp || 0), 0);
+
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
-      {/* Page Header */}
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+      {/* ─── Page Header (Detector Companion Style) ─── */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '24px',
+          marginBottom: '26px',
           flexWrap: 'wrap',
           gap: '16px',
         }}
       >
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
-            {isRtl ? 'سجل كافة المعاملات' : 'All Transactions'}
-          </h2>
-          <p style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
-            {isRtl ? 'متابعة وإدارة كافة عمليات الدفع وجلسات العملاء' : 'Manage and monitor all payment checkouts'}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #0284c7, #6366f1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+              }}
+            >
+              <CreditCard size={22} color="white" />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
+                {isRtl ? 'سجل كافة المعاملات' : 'All Transactions'}
+              </h2>
+              <p style={{ fontSize: '13px', color: textSecondary, margin: '2px 0 0 0' }}>
+                {isRtl ? 'متابعة وإدارة كافة عمليات الدفع وجلسات العملاء اللحظية' : 'Manage and monitor all payment checkouts in real time'}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {/* Live Sync Status Badge */}
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '6px 14px',
+              padding: '8px 16px',
               borderRadius: '9999px',
               fontSize: '12px',
               fontWeight: 600,
@@ -294,21 +342,21 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '9px 16px',
+              gap: '8px',
+              padding: '10px 18px',
               backgroundColor: isDark ? '#1e293b' : 'white',
               border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
-              color: isDark ? '#f8fafc' : '#334155',
+              color: textPrimary,
               fontSize: '13px',
               fontWeight: 600,
               borderRadius: '12px',
               cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              transition: 'all 0.2s ease',
+              boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
             }}
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            <span>{loading ? (isRtl ? 'جارِ التحديث...' : 'Refreshing...') : (isRtl ? 'تحديث' : 'Refresh')}</span>
+            <span>{loading ? (isRtl ? 'جارِ التحديث...' : 'Refreshing...') : (isRtl ? 'تحديث البيانات' : 'Refresh')}</span>
           </button>
 
           <button
@@ -320,12 +368,13 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
               padding: '10px 20px',
               backgroundColor: '#10b981',
               color: 'white',
-              fontSize: '14px',
+              fontSize: '13.5px',
               fontWeight: 700,
-              borderRadius: '10px',
+              borderRadius: '12px',
               border: 'none',
               cursor: 'pointer',
-              boxShadow: '0 8px 15px -3px rgba(16,185,129,0.3)',
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+              transition: 'all 0.2s ease',
             }}
           >
             <Download size={15} />
@@ -334,19 +383,157 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
         </div>
       </div>
 
-      {/* Filters and Search Bar */}
+      {/* ─── Hero Live Transactions Banner (Detector Companion Style) ─── */}
       <div
         style={{
-          backgroundColor: isDark ? '#111827' : 'white',
-          borderRadius: '16px',
-          border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
-          padding: '16px',
-          marginBottom: '24px',
+          ...card(),
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(2, 132, 199, 0.15), rgba(99, 102, 241, 0.12))'
+            : 'linear-gradient(135deg, #0284c7, #6366f1)',
+          border: isDark ? '1px solid rgba(56, 189, 248, 0.35)' : 'none',
+          padding: '26px 30px',
+          marginBottom: '22px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '20px',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+        {/* Decorative circles */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-30px',
+            right: isRtl ? 'auto' : '-30px',
+            left: isRtl ? '-30px' : 'auto',
+            width: '120px',
+            height: '120px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.08)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-50px',
+            right: isRtl ? 'auto' : '60px',
+            left: 'auto',
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.05)',
+          }}
+        />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', zIndex: 1 }}>
+          <div
+            style={{
+              width: '62px',
+              height: '62px',
+              borderRadius: '18px',
+              background: isDark ? 'rgba(2, 132, 199, 0.25)' : 'rgba(255, 255, 255, 0.2)',
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
+              flexShrink: 0,
+            }}
+          >
+            <CreditCard size={30} color={isDark ? '#38bdf8' : 'white'} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h3
+                style={{
+                  fontSize: '20px',
+                  fontWeight: 800,
+                  margin: 0,
+                  color: isDark ? '#38bdf8' : 'white',
+                }}
+              >
+                {isRtl ? 'سجل العمليات المباشر' : 'Live Gateway Stream'}
+              </h3>
+              <div
+                style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: isDark ? '#38bdf8' : 'white',
+                  animation: 'pulseGreen 2s ease-in-out infinite',
+                  boxShadow: isDark
+                    ? '0 0 10px rgba(56,189,248,0.6)'
+                    : '0 0 10px rgba(255,255,255,0.6)',
+                }}
+              />
+            </div>
+            <p
+              style={{
+                fontSize: '13.5px',
+                margin: '4px 0 0 0',
+                color: isDark ? '#94a3b8' : 'rgba(255, 255, 255, 0.9)',
+                fontWeight: 500,
+              }}
+            >
+              {isRtl
+                ? 'مراقبة فورية لكافة جلسات الدفع وإشعارات إنستاباي الواردة من تطبيق الرفيق'
+                : 'Instant real-time tracking for InstaPay receipts matched via companion service'}
+            </p>
+          </div>
+        </div>
+
+        {/* Frosted Metric Pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+          <div
+            style={{
+              padding: '10px 18px',
+              borderRadius: '12px',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.2)',
+              backdropFilter: 'blur(10px)',
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.3)',
+              textAlign: isRtl ? 'right' : 'left',
+            }}
+          >
+            <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.8)', fontWeight: 600 }}>
+              {isRtl ? 'إجمالي المقبوضات' : 'Verified Volume'}
+            </div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: isDark ? '#34d399' : 'white', fontFamily: 'monospace' }}>
+              {confirmedVolume.toFixed(2)} <span style={{ fontSize: '12px', fontWeight: 600 }}>EGP</span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: '10px 18px',
+              borderRadius: '12px',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.2)',
+              backdropFilter: 'blur(10px)',
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.3)',
+              textAlign: isRtl ? 'right' : 'left',
+            }}
+          >
+            <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.8)', fontWeight: 600 }}>
+              {isRtl ? 'المعاملات المؤكدة' : 'Confirmed Orders'}
+            </div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: isDark ? '#f8fafc' : 'white', fontFamily: 'monospace' }}>
+              {confirmedCount} / {totalCount}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters and Search Bar (Detector Subcard Style) */}
+      <div
+        style={{
+          ...subcard({ padding: '16px 20px', marginBottom: '22px' }),
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '12px',
+          gap: '14px',
         }}
       >
         {/* Status Filters */}
@@ -358,21 +545,22 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                 key={f.key}
                 onClick={() => handleFilterClick(f.key)}
                 style={{
-                  padding: '7px 14px',
-                  fontSize: '12px',
+                  padding: '8px 16px',
+                  fontSize: '12.5px',
                   fontWeight: 700,
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   border: isActive
-                    ? (isDark ? '1px solid #38bdf8' : '1px solid #2563eb')
-                    : (isDark ? '1px solid #334155' : '1px solid transparent'),
+                    ? (isDark ? '1px solid #38bdf8' : '1px solid #0284c7')
+                    : (isDark ? '1px solid #334155' : '1px solid #e2e8f0'),
                   cursor: 'pointer',
                   backgroundColor: isActive
-                    ? (isDark ? 'rgba(56, 189, 248, 0.15)' : '#0f172a')
-                    : (isDark ? '#1e293b' : '#f1f5f9'),
+                    ? (isDark ? 'rgba(56, 189, 248, 0.18)' : '#0284c7')
+                    : (isDark ? '#1e293b' : '#ffffff'),
                   color: isActive
-                    ? (isDark ? '#38bdf8' : 'white')
+                    ? (isDark ? '#38bdf8' : '#ffffff')
                     : (isDark ? '#94a3b8' : '#475569'),
-                  transition: 'all 0.15s',
+                  boxShadow: isActive ? (isDark ? '0 0 12px rgba(56, 189, 248, 0.25)' : '0 4px 10px rgba(2, 132, 199, 0.3)') : 'none',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 {f.label}
@@ -385,11 +573,11 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
         <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px' }}>
           <div style={{ position: 'relative' }}>
             <Search
-              size={14}
+              size={15}
               style={{
                 position: 'absolute',
-                left: isRtl ? 'auto' : '10px',
-                right: isRtl ? '10px' : 'auto',
+                left: isRtl ? 'auto' : '12px',
+                right: isRtl ? '12px' : 'auto',
                 top: '50%',
                 transform: 'translateY(-50%)',
                 color: isDark ? '#64748b' : '#94a3b8',
@@ -401,28 +589,30 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                padding: isRtl ? '7px 32px 7px 12px' : '7px 12px 7px 32px',
+                padding: isRtl ? '8px 36px 8px 14px' : '8px 14px 8px 36px',
                 fontSize: '13px',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
-                backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                backgroundColor: isDark ? '#111827' : '#ffffff',
                 color: isDark ? '#f8fafc' : '#0f172a',
                 outline: 'none',
-                width: '230px',
+                width: '240px',
+                transition: 'border-color 0.2s',
               }}
             />
           </div>
           <button
             type="submit"
             style={{
-              padding: '7px 16px',
-              backgroundColor: isDark ? '#2563eb' : '#0f172a',
+              padding: '8px 18px',
+              backgroundColor: isDark ? '#0284c7' : '#0f172a',
               color: 'white',
               border: 'none',
-              borderRadius: '8px',
-              fontSize: '12px',
-              fontWeight: 600,
+              borderRadius: '10px',
+              fontSize: '12.5px',
+              fontWeight: 700,
               cursor: 'pointer',
+              boxShadow: isDark ? '0 2px 8px rgba(2, 132, 199, 0.3)' : '0 2px 6px rgba(0,0,0,0.1)',
             }}
           >
             {isRtl ? 'بحث' : 'Search'}
@@ -430,14 +620,10 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
         </form>
       </div>
 
-      {/* Table */}
+      {/* Table Container (Detector Companion Style) */}
       <div
         style={{
-          backgroundColor: isDark ? '#111827' : 'white',
-          borderRadius: '16px',
-          border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-          overflow: 'hidden',
+          ...card({ padding: 0, overflow: 'hidden', borderRadius: '20px' }),
           display: 'flex',
           flexDirection: 'column',
           maxHeight: 'calc(100vh - 220px)',
@@ -445,13 +631,19 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
         }}
       >
         {loading ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
-            <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px auto', color: '#10b981' }} />
-            {isRtl ? 'جاري تحميل المعاملات من البوابة...' : 'Loading transactions from gateway...'}
+          <div style={{ padding: '64px', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
+            <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 12px auto', color: '#0284c7' }} />
+            <div style={{ fontSize: '13.5px', fontWeight: 600 }}>{isRtl ? 'جاري تحميل المعاملات من البوابة...' : 'Loading transactions from gateway...'}</div>
           </div>
         ) : transactions.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
-            {isRtl ? 'لا توجد معاملات مطابقة لمعايير البحث.' : 'No transactions found matching your criteria.'}
+          <div style={{ padding: '64px', textAlign: 'center', color: isDark ? '#94a3b8' : '#64748b' }}>
+            <CreditCard size={48} style={{ margin: '0 auto 16px auto', color: isDark ? '#334155' : '#cbd5e1' }} />
+            <div style={{ fontSize: '15px', fontWeight: 700, color: textPrimary, marginBottom: '6px' }}>
+              {isRtl ? 'لا توجد معاملات مطابقة' : 'No transactions found'}
+            </div>
+            <div style={{ fontSize: '13px' }}>
+              {isRtl ? 'لا توجد معاملات مطابقة لمعايير البحث الحالية.' : 'No transactions found matching your current filter criteria.'}
+            </div>
           </div>
         ) : (
           <div style={{ overflowY: 'auto', overflowX: 'auto', flex: 1 }}>
@@ -803,7 +995,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
         )}
       </div>
 
-      {/* ─── Transaction Receipt & Details Modal ─── */}
+      {/* ─── Transaction Receipt & Details Modal (Detector Companion Style) ─── */}
       {selectedTx && (
         <div
           style={{
@@ -815,21 +1007,21 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
             justifyContent: 'center',
             padding: '16px',
             backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(6px)',
+            backdropFilter: 'blur(8px)',
           }}
           onClick={() => setSelectedTx(null)}
         >
           <div
             style={{
-              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-              borderRadius: '20px',
-              border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              backgroundColor: isDark ? '#111827' : '#ffffff',
+              borderRadius: '24px',
+              border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
               width: '100%',
               maxWidth: '520px',
               maxHeight: '90vh',
               overflowY: 'auto',
-              padding: '24px',
+              padding: '26px',
               color: isDark ? '#f8fafc' : '#0f172a',
               position: 'relative',
               textAlign: isRtl ? 'right' : 'left',
@@ -837,29 +1029,32 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div
                   style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '10px',
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
                     backgroundColor: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID'
-                      ? 'rgba(16, 185, 129, 0.15)'
-                      : 'rgba(245, 158, 11, 0.15)',
+                      ? (isDark ? 'rgba(16, 185, 129, 0.2)' : '#d1fae5')
+                      : (isDark ? 'rgba(245, 158, 11, 0.2)' : '#fef3c7'),
                     color: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID' ? '#10b981' : '#f59e0b',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    border: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID'
+                      ? (isDark ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid #a7f3d0')
+                      : (isDark ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid #fde68a'),
                   }}
                 >
-                  <FileText size={18} />
+                  <FileText size={20} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>
+                  <h3 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: textPrimary, letterSpacing: '-0.2px' }}>
                     {isRtl ? 'إيصال وتفاصيل المعاملة' : 'Transaction Receipt & Details'}
                   </h3>
-                  <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0' }}>
+                  <p style={{ fontSize: '11.5px', color: textSecondary, margin: '2px 0 0 0' }}>
                     {isRtl ? 'بيانات العملية المسجلة في بوابة الدفع' : 'Gateway recorded transaction details'}
                   </p>
                 </div>
@@ -868,65 +1063,65 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
               <button
                 onClick={() => setSelectedTx(null)}
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '10px',
                   border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
                   backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-                  color: isDark ? '#94a3b8' : '#64748b',
+                  color: textSecondary,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Hero Amount & Status Box */}
+            {/* Hero Amount & Status Box (Detector Subcard Style) */}
             <div
               style={{
-                backgroundColor: isDark ? '#1e293b' : '#f8fafc',
-                border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
-                borderRadius: '16px',
-                padding: '16px',
-                textAlign: 'center',
-                marginBottom: '20px',
+                ...subcard({ padding: '18px', textAlign: 'center', marginBottom: '20px', borderRadius: '16px' }),
               }}
             >
               <span
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '3px 10px',
-                  borderRadius: '20px',
+                  gap: '5px',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
                   fontSize: '11px',
-                  fontWeight: 700,
-                  marginBottom: '8px',
+                  fontWeight: 800,
+                  marginBottom: '10px',
                   backgroundColor: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID'
-                    ? 'rgba(16, 185, 129, 0.15)'
-                    : 'rgba(245, 158, 11, 0.15)',
+                    ? (isDark ? 'rgba(16, 185, 129, 0.2)' : '#d1fae5')
+                    : (isDark ? 'rgba(245, 158, 11, 0.2)' : '#fef3c7'),
                   color: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID' ? '#10b981' : '#f59e0b',
+                  border: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID'
+                    ? (isDark ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid #a7f3d0')
+                    : (isDark ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid #fde68a'),
                 }}
               >
-                {(selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID') && <CheckCircle2 size={12} />}
+                {(selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID') && <CheckCircle2 size={13} />}
                 {selectedTx.status}
               </span>
 
               <div
                 style={{
-                  fontSize: '28px',
+                  fontSize: '30px',
                   fontWeight: 900,
-                  color: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID' ? '#10b981' : (isDark ? '#f8fafc' : '#0f172a'),
+                  color: selectedTx.status === 'CONFIRMED' || selectedTx.status === 'PAID' ? '#10b981' : textPrimary,
                   fontFamily: 'monospace',
+                  letterSpacing: '-0.5px',
                 }}
               >
-                {selectedTx.amountEgp.toFixed(2)} <span style={{ fontSize: '16px', fontWeight: 700 }}>EGP</span>
+                {selectedTx.amountEgp.toFixed(2)} <span style={{ fontSize: '17px', fontWeight: 700 }}>EGP</span>
               </div>
 
-              <p style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
+              <p style={{ fontSize: '13px', color: textSecondary, margin: '6px 0 0 0', fontWeight: 500 }}>
                 {getPurchaseTypeInfo(selectedTx, isRtl).label}
               </p>
             </div>
@@ -934,17 +1129,17 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
             {/* Detailed Key-Value Rows */}
             <div
               style={{
+                ...subcard({ padding: '16px 18px', marginBottom: '20px', borderRadius: '16px' }),
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '10px',
+                gap: '12px',
                 fontSize: '13px',
-                marginBottom: '20px',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'معرف الجلسة:' : 'Session ID:'}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0' }}>
+                <span style={{ color: textSecondary }}>{isRtl ? 'معرف الجلسة:' : 'Session ID:'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <code style={{ fontFamily: 'monospace', fontSize: '12px', color: isDark ? '#38bdf8' : '#0284c7' }}>
+                  <code style={{ fontFamily: 'monospace', fontSize: '12px', color: '#38bdf8', fontWeight: 700 }}>
                     {selectedTx.sessionId}
                   </code>
                   <button
@@ -956,65 +1151,65 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                       setTimeout(() => setCopiedSessionId(false), 2000);
                     }}
                     title="Copy Session ID"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: isDark ? '#94a3b8' : '#64748b', display: 'inline-flex', alignItems: 'center' }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: textSecondary, display: 'inline-flex', alignItems: 'center' }}
                   >
-                    {copiedSessionId ? <Check size={13} style={{ color: '#10b981' }} /> : <Copy size={13} />}
+                    {copiedSessionId ? <Check size={14} style={{ color: '#10b981' }} /> : <Copy size={14} />}
                   </button>
                 </div>
               </div>
 
               {selectedTx.detectedRef && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                  <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'رقم الإشعار المرجعي:' : 'InstaPay Ref ID:'}</span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#10b981' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0' }}>
+                  <span style={{ color: textSecondary }}>{isRtl ? 'رقم الإشعار المرجعي:' : 'InstaPay Ref ID:'}</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#10b981' }}>
                     {selectedTx.detectedRef}
                   </span>
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'حساب العميل الراسل:' : 'Sender InstaPay Handle:'}</span>
-                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0' }}>
+                <span style={{ color: textSecondary }}>{isRtl ? 'حساب العميل الراسل:' : 'Sender InstaPay Handle:'}</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: textPrimary }}>
                   {selectedTx.senderHandle || '—'}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'حساب المتجر المستلم:' : 'Merchant Recipient IPA:'}</span>
-                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0' }}>
+                <span style={{ color: textSecondary }}>{isRtl ? 'حساب المتجر المستلم:' : 'Merchant Recipient IPA:'}</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: textPrimary }}>
                   {selectedTx.recipientHandle || 'platform@instapay'}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'تصنيف المعاملة:' : 'Purchase Category:'}</span>
-                <span style={{ fontWeight: 600 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0' }}>
+                <span style={{ color: textSecondary }}>{isRtl ? 'تصنيف المعاملة:' : 'Purchase Category:'}</span>
+                <span style={{ fontWeight: 700, color: textPrimary }}>
                   {getPurchaseTypeInfo(selectedTx, isRtl).category}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'توقيت الإنشاء:' : 'Created Time:'}</span>
-                <span>{formatTxDate(selectedTx.createdAt, isRtl)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0' }}>
+                <span style={{ color: textSecondary }}>{isRtl ? 'توقيت الإنشاء:' : 'Created Time:'}</span>
+                <span style={{ color: textPrimary, fontWeight: 500 }}>{formatTxDate(selectedTx.createdAt, isRtl)}</span>
               </div>
 
               {selectedTx.detectedAt && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                  <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'توقيت التأكيد:' : 'Verified Time:'}</span>
-                  <span style={{ color: '#10b981', fontWeight: 600 }}>{formatTxDate(selectedTx.detectedAt, isRtl)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0' }}>
+                  <span style={{ color: textSecondary }}>{isRtl ? 'توقيت التأكيد:' : 'Verified Time:'}</span>
+                  <span style={{ color: '#10b981', fontWeight: 700 }}>{formatTxDate(selectedTx.detectedAt || undefined, isRtl)}</span>
                 </div>
               )}
 
               {selectedTx.note && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                  <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'ملاحظة الطلب:' : 'Order Note:'}</span>
-                  <span>{selectedTx.note}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: textSecondary }}>{isRtl ? 'ملاحظة الطلب:' : 'Order Note:'}</span>
+                  <span style={{ color: textPrimary, fontWeight: 500 }}>{selectedTx.note}</span>
                 </div>
               )}
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '12px' }}>
               <button
                 onClick={() => window.print()}
                 style={{
@@ -1022,18 +1217,19 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
-                  padding: '10px',
-                  borderRadius: '10px',
+                  gap: '8px',
+                  padding: '11px',
+                  borderRadius: '12px',
                   backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
                   border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
-                  color: isDark ? '#f8fafc' : '#334155',
-                  fontWeight: 600,
+                  color: textPrimary,
+                  fontWeight: 700,
                   fontSize: '13px',
                   cursor: 'pointer',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                <Printer size={15} />
+                <Printer size={16} />
                 <span>{isRtl ? 'طباعة الإيصال' : 'Print Receipt'}</span>
               </button>
 
@@ -1041,15 +1237,16 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                 onClick={() => setSelectedTx(null)}
                 style={{
                   flex: 1,
-                  padding: '10px',
-                  borderRadius: '10px',
-                  backgroundColor: '#2563eb',
+                  padding: '11px',
+                  borderRadius: '12px',
+                  backgroundColor: '#0284c7',
                   border: 'none',
                   color: 'white',
                   fontWeight: 700,
                   fontSize: '13px',
                   cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+                  transition: 'all 0.15s ease',
                 }}
               >
                 {isRtl ? 'إغلاق' : 'Close'}

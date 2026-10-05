@@ -19,6 +19,7 @@ import { transactionRouter } from './routes/transactionRoutes.js'
 import { adminRouter } from './routes/adminRoutes.js'
 import { settingsRouter } from './routes/settingsRoutes.js'
 import { planRouter } from './routes/planRoutes.js'
+import { bundleRouter } from './routes/bundleRoutes.js'
 import { notificationRouter } from './routes/notificationRoutes.js'
 import { apkRouter } from './routes/apkRoutes.js'
 
@@ -117,6 +118,7 @@ app.use('/api/admin', adminRouter)
 app.use('/api/settings', generalApiLimiter, settingsRouter)
 app.use('/api/plans', generalApiLimiter, planRouter)
 app.use('/api/subscription', generalApiLimiter, planRouter)
+app.use('/api/bundles', generalApiLimiter, bundleRouter)
 app.use('/api/notifications', generalApiLimiter, notificationRouter)
 app.use('/api/apks', generalApiLimiter, apkRouter)
 

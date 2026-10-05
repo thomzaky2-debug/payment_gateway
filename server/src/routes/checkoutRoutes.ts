@@ -54,21 +54,36 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
     let basePeriodDays = 30
     let bonusDays = 0
     let periodDays = 30
+    let bundleInfo: { name: string; displayName: string; extraTx: number; priceEgp: number } | null = null
+
     if (tx.subscriptionPlanName) {
-      const plan = await (db.plan as any).findUnique({ where: { name: tx.subscriptionPlanName } })
-      if (plan?.periodDays) {
-        basePeriodDays = plan.periodDays
-        periodDays = plan.periodDays
-      }
-      const clientObj = tx.client as any
-      if (clientObj && (clientObj.isFreeTrial || clientObj.subscriptionPlan === 'FREE_TRIAL') && clientObj.subscriptionEndsAt) {
-        const remainingTrialMs = Math.max(0, new Date(clientObj.subscriptionEndsAt).getTime() - (tx.createdAt ? new Date(tx.createdAt).getTime() : Date.now()))
-        bonusDays = Math.ceil(remainingTrialMs / (24 * 60 * 60 * 1000))
-        const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
-        if (trialPlan?.periodDays && bonusDays > trialPlan.periodDays) {
-          bonusDays = trialPlan.periodDays
+      if (tx.subscriptionPlanName.startsWith('BUNDLE:')) {
+        const bundleName = tx.subscriptionPlanName.replace('BUNDLE:', '')
+        const bundle = await (db as any).topUpBundle.findUnique({ where: { name: bundleName } })
+        if (bundle) {
+          bundleInfo = {
+            name: bundle.name,
+            displayName: bundle.displayName,
+            extraTx: bundle.extraTx,
+            priceEgp: bundle.priceEgp,
+          }
         }
-        periodDays = basePeriodDays + bonusDays
+      } else {
+        const plan = await (db.plan as any).findUnique({ where: { name: tx.subscriptionPlanName } })
+        if (plan?.periodDays) {
+          basePeriodDays = plan.periodDays
+          periodDays = plan.periodDays
+        }
+        const clientObj = tx.client as any
+        if (clientObj && (clientObj.isFreeTrial || clientObj.subscriptionPlan === 'FREE_TRIAL') && clientObj.subscriptionEndsAt) {
+          const remainingTrialMs = Math.max(0, new Date(clientObj.subscriptionEndsAt).getTime() - (tx.createdAt ? new Date(tx.createdAt).getTime() : Date.now()))
+          bonusDays = Math.ceil(remainingTrialMs / (24 * 60 * 60 * 1000))
+          const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
+          if (trialPlan?.periodDays && bonusDays > trialPlan.periodDays) {
+            bonusDays = trialPlan.periodDays
+          }
+          periodDays = basePeriodDays + bonusDays
+        }
       }
     }
     const startDate = tx.createdAt ? tx.createdAt.toISOString() : new Date().toISOString()
@@ -99,6 +114,7 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
         note: tx.note,
         purpose: tx.purpose,
         subscriptionPlanName: tx.subscriptionPlanName,
+        bundleInfo,
         basePeriodDays,
         bonusDays,
         periodDays,

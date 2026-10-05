@@ -358,12 +358,14 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
       <div
         key={item.id}
         style={{
-          backgroundColor: isDark ? '#111827' : 'white',
-          borderRadius: '16px',
+          backgroundColor: isDark ? '#111827' : '#ffffff',
+          borderRadius: '18px',
           border: isDark ? `1px solid ${cfg.badgeBorderDark}` : `1px solid ${cfg.badgeBorderLight}`,
           overflow: 'hidden',
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-          transition: 'all 0.2s',
+          boxShadow: isDark
+            ? '0 6px 18px -4px rgba(0,0,0,0.35)'
+            : '0 4px 14px rgba(0,0,0,0.05)',
+          transition: 'all 0.25s ease',
         }}
       >
         <div
@@ -371,19 +373,20 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: '18px 20px',
+            padding: '16px 20px',
             flexWrap: 'wrap',
-            gap: '16px',
+            gap: '14px',
+            borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.3)' : '1px solid #f1f5f9',
           }}
         >
           {/* Left Info with Counter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', flex: 1, minWidth: '280px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1, minWidth: '280px' }}>
             {/* Counter Badge */}
             <div
               style={{
-                minWidth: '28px',
-                height: '28px',
-                borderRadius: '8px',
+                minWidth: '30px',
+                height: '30px',
+                borderRadius: '9px',
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
                 color: isDark ? '#94a3b8' : '#64748b',
                 fontSize: '11px',
@@ -399,17 +402,18 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
               #{index + 1}
             </div>
 
-            {/* Case Icon Circle */}
+            {/* Case Icon Squircle */}
             <div
               style={{
-                width: '42px',
-                height: '42px',
+                width: '40px',
+                height: '40px',
                 borderRadius: '12px',
                 backgroundColor: isDark ? cfg.badgeBgDark : cfg.badgeBgLight,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
+                border: isDark ? `1px solid ${cfg.badgeBorderDark}` : `1px solid ${cfg.badgeBorderLight}`,
               }}
             >
               {cfg.icon}
@@ -417,101 +421,38 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
 
             <div style={{ flex: 1, minWidth: '220px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <h4
+                <span
                   style={{
-                    fontSize: '14px',
+                    fontSize: '13.5px',
                     fontWeight: 700,
                     fontFamily: 'monospace',
                     color: isDark ? '#38bdf8' : '#0284c7',
-                    margin: 0,
+                    letterSpacing: '0.02em',
                   }}
                 >
                   {item.sessionId}
-                </h4>
+                </span>
 
                 <span
                   style={{
                     padding: '2px 8px',
                     backgroundColor: isDark ? cfg.badgeBgDark : cfg.badgeBgLight,
                     color: cfg.badgeColor,
-                    fontSize: '11px',
-                    fontWeight: 700,
+                    fontSize: '10.5px',
+                    fontWeight: 800,
                     borderRadius: '6px',
                     border: isDark ? `1px solid ${cfg.badgeBorderDark}` : `1px solid ${cfg.badgeBorderLight}`,
+                    letterSpacing: '0.03em',
                   }}
                 >
                   {cfg.badgeText}
                 </span>
 
                 {item.note && (
-                  <span style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                  <span style={{ fontSize: '11.5px', color: isDark ? '#94a3b8' : '#64748b' }}>
                     ({item.note})
                   </span>
                 )}
-              </div>
-
-              {/* Details Row */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '12px',
-                  color: isDark ? '#cbd5e1' : '#475569',
-                  marginTop: '4px',
-                  flexWrap: 'wrap',
-                }}
-              >
-                <span>
-                  <strong>{isRtl ? 'المرسل:' : 'Sender:'}</strong>{' '}
-                  <span style={{ fontFamily: 'monospace' }}>{item.senderHandle || '—'}</span>
-                </span>
-                <span>•</span>
-                <span>
-                  {isRtl ? 'المطلوب: ' : 'Expected: '}
-                  <strong style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>{expected.toFixed(2)} EGP</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  {isRtl ? 'المحول: ' : 'Transferred: '}
-                  <strong style={{ color: '#10b981' }}>{detected.toFixed(2)} EGP</strong>
-                </span>
-
-                {/* Diff Tag */}
-                {diff < 0 && (
-                  <>
-                    <span>•</span>
-                    <span style={{ color: '#ef4444', fontWeight: 600 }}>
-                      ({isRtl ? `عجز ${Math.abs(diff).toFixed(2)} EGP` : `Short by ${Math.abs(diff).toFixed(2)} EGP`})
-                    </span>
-                  </>
-                )}
-                {diff > 0 && (
-                  <>
-                    <span>•</span>
-                    <span style={{ color: '#10b981', fontWeight: 600 }}>
-                      ({isRtl ? `زيادة +${diff.toFixed(2)} EGP` : `Excess +${diff.toFixed(2)} EGP`})
-                    </span>
-                  </>
-                )}
-
-                {item.detectedRef && (
-                  <>
-                    <span>•</span>
-                    <span>
-                      {isRtl ? 'المرجع:' : 'Ref:'}{' '}
-                      <span style={{ fontFamily: 'monospace', color: '#10b981', fontWeight: 600 }}>
-                        {item.detectedRef}
-                      </span>
-                    </span>
-                  </>
-                )}
-
-                <span>•</span>
-                <span style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#94a3b8' }}>
-                  <Clock size={11} style={{ display: 'inline', marginInlineEnd: '3px' }} />
-                  {formatReviewDate(item.createdAt, isRtl)}
-                </span>
               </div>
             </div>
           </div>
@@ -525,15 +466,15 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                 backgroundColor: '#10b981',
                 color: 'white',
                 border: 'none',
-                borderRadius: '9px',
+                borderRadius: '10px',
                 fontSize: '12px',
                 fontWeight: 700,
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)',
-                transition: 'all 0.15s',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.15s ease',
               }}
             >
               {cfg.actionIcon}
@@ -543,18 +484,18 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
             <button
               onClick={() => handleRejectSession(item)}
               style={{
-                padding: '8px 12px',
+                padding: '8px 14px',
                 backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
                 color: isDark ? '#94a3b8' : '#64748b',
                 border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
-                borderRadius: '9px',
+                borderRadius: '10px',
                 fontSize: '12px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '4px',
-                transition: 'all 0.15s',
+                transition: 'all 0.15s ease',
               }}
             >
               <X size={13} />
@@ -562,74 +503,209 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
             </button>
           </div>
         </div>
+
+        {/* Details Subcard Block */}
+        <div
+          style={{
+            backgroundColor: isDark ? '#162033' : '#f8fafc',
+            padding: '12px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            fontSize: '12.5px',
+            color: isDark ? '#cbd5e1' : '#475569',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'المرسل:' : 'Sender:'}</span>
+            <strong style={{ fontFamily: 'monospace', color: isDark ? '#f8fafc' : '#0f172a' }}>{item.senderHandle || '—'}</strong>
+          </span>
+
+          <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'المطلوب:' : 'Expected:'}</span>
+            <strong style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>{expected.toFixed(2)} EGP</strong>
+          </span>
+
+          <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'المحول:' : 'Transferred:'}</span>
+            <strong style={{ color: '#10b981' }}>{detected.toFixed(2)} EGP</strong>
+          </span>
+
+          {/* Diff Tag */}
+          {diff < 0 && (
+            <>
+              <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '2px 7px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2',
+                  color: '#ef4444',
+                  border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid #fca5a5',
+                }}
+              >
+                {isRtl ? `عجز ${Math.abs(diff).toFixed(2)} EGP` : `Short by ${Math.abs(diff).toFixed(2)} EGP`}
+              </span>
+            </>
+          )}
+          {diff > 0 && (
+            <>
+              <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '2px 7px',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5',
+                  color: '#10b981',
+                  border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #a7f3d0',
+                }}
+              >
+                {isRtl ? `زيادة +${diff.toFixed(2)} EGP` : `Excess +${diff.toFixed(2)} EGP`}
+              </span>
+            </>
+          )}
+
+          {item.detectedRef && (
+            <>
+              <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'المرجع:' : 'Ref:'}</span>
+                <span style={{ fontFamily: 'monospace', color: '#10b981', fontWeight: 700 }}>
+                  {item.detectedRef}
+                </span>
+              </span>
+            </>
+          )}
+
+          <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+
+          <span style={{ fontSize: '11.5px', color: isDark ? '#94a3b8' : '#64748b', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <Clock size={12} />
+            {formatReviewDate(item.createdAt, isRtl)}
+          </span>
+        </div>
       </div>
     );
   };
 
+  /* ──────────────── Shared "Detector Companion" Theme Styles ──────────────── */
+  const card = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#111827' : '#ffffff',
+    borderRadius: '20px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+    boxShadow: isDark
+      ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
+      : '0 4px 16px rgba(0,0,0,0.06)',
+    transition: 'all 0.3s ease',
+    ...extra,
+  });
+
+  const subcard = (extra?: React.CSSProperties): React.CSSProperties => ({
+    backgroundColor: isDark ? '#162033' : '#f8fafc',
+    borderRadius: '14px',
+    border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+    ...extra,
+  });
+
+  const textPrimary = isDark ? '#f8fafc' : '#1e293b';
+  const textSecondary = isDark ? '#94a3b8' : '#64748b';
+  const accent = '#38bdf8';
+
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px' }}>
-      {/* Header */}
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+      {/* ─── Page Header (Detector Companion Style) ─── */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '20px',
+          marginBottom: '26px',
           flexWrap: 'wrap',
           gap: '16px',
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
-              {isRtl ? 'قائمة المراجعة اليدوية (جميع الحالات)' : 'Manual Review Queue (All Cases)'}
-            </h2>
-            <span
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+            <div
               style={{
-                display: 'inline-flex',
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                padding: '3px 10px',
-                backgroundColor:
-                  totalPending > 0
-                    ? isDark
-                      ? 'rgba(234, 88, 12, 0.18)'
-                      : '#fed7aa'
-                    : isDark
-                    ? 'rgba(16, 185, 129, 0.18)'
-                    : '#d1fae5',
-                color: totalPending > 0 ? '#ea580c' : '#10b981',
-                fontSize: '12px',
-                fontWeight: 700,
-                borderRadius: '8px',
-                border:
-                  totalPending > 0
-                    ? isDark
-                      ? '1px solid rgba(234, 88, 12, 0.3)'
-                      : '1px solid #fdba74'
-                    : isDark
-                    ? '1px solid rgba(16, 185, 129, 0.3)'
-                    : '1px solid #a7f3d0',
+                justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35)',
               }}
             >
-              {totalPending > 0 ? (
-                <>
-                  <AlertCircle size={13} />
-                  <span>{isRtl ? `${totalPending} حالات معلقة تتطلب تدخلك` : `${totalPending} Pending Cases`}</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 size={13} />
-                  <span>{isRtl ? 'كل المعاملات معتمدة' : 'All Clear'}</span>
-                </>
-              )}
-            </span>
+              <ShieldAlert size={22} color="white" />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
+                  {isRtl ? 'قائمة المراجعة اليدوية (جميع الحالات)' : 'Manual Review Queue (All Cases)'}
+                </h2>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 10px',
+                    backgroundColor:
+                      totalPending > 0
+                        ? isDark
+                          ? 'rgba(234, 88, 12, 0.18)'
+                          : '#fed7aa'
+                        : isDark
+                        ? 'rgba(16, 185, 129, 0.18)'
+                        : '#d1fae5',
+                    color: totalPending > 0 ? '#ea580c' : '#10b981',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    border:
+                      totalPending > 0
+                        ? isDark
+                          ? '1px solid rgba(234, 88, 12, 0.3)'
+                          : '1px solid #fdba74'
+                        : isDark
+                        ? '1px solid rgba(16, 185, 129, 0.3)'
+                        : '1px solid #a7f3d0',
+                  }}
+                >
+                  {totalPending > 0 ? (
+                    <>
+                      <AlertCircle size={13} />
+                      <span>{isRtl ? `${totalPending} حالات معلقة تتطلب تدخلك` : `${totalPending} Pending Cases`}</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={13} />
+                      <span>{isRtl ? 'كل المعاملات معتمدة' : 'All Clear'}</span>
+                    </>
+                  )}
+                </span>
+              </div>
+              <p style={{ fontSize: '13px', color: textSecondary, margin: '2px 0 0 0' }}>
+                {isRtl
+                  ? 'مراجعة كافة حالات المدفوعات غير القياسية: مبالغ ناقصة، مبالغ زائدة، دفع متأخر، اختلاف اسم المرسل، اشتباه التكرار، والتحويلات اليتيمة.'
+                  : 'Review all payment anomaly cases: underpaid, overpaid, late expired, sender mismatch, suspected duplicate, risk review, and unmatched transfers.'}
+              </p>
+            </div>
           </div>
-          <p style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
-            {isRtl
-              ? 'مراجعة كافة حالات المدفوعات غير القياسية: مبالغ ناقصة، مبالغ زائدة، دفع متأخر، اختلاف اسم المرسل، اشتباه التكرار، والتحويلات اليتيمة.'
-              : 'Review all payment anomaly cases: underpaid, overpaid, late expired, sender mismatch, suspected duplicate, risk review, and unmatched transfers.'}
-          </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -638,42 +714,205 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '9px 16px',
+              gap: '8px',
+              padding: '10px 18px',
               backgroundColor: isDark ? '#1e293b' : 'white',
               border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
-              color: isDark ? '#f8fafc' : '#334155',
-              borderRadius: '10px',
+              color: textPrimary,
+              borderRadius: '12px',
               fontSize: '13px',
               fontWeight: 600,
               cursor: 'pointer',
-              transition: 'all 0.15s',
+              transition: 'all 0.2s ease',
+              boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
             }}
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            {isRtl ? 'تحديث' : 'Refresh'}
+            {isRtl ? 'تحديث البيانات' : 'Refresh Queue'}
           </button>
         </div>
       </div>
 
-      {/* Tolerance & Auto-Acceptance Guidance Banner */}
+      {/* ─── Hero Review Status Banner (Detector Companion Style) ─── */}
       <div
         style={{
+          ...card(),
+          background: totalPending > 0
+            ? (isDark
+              ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.12))'
+              : 'linear-gradient(135deg, #f59e0b, #ef4444)')
+            : (isDark
+              ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.1))'
+              : 'linear-gradient(135deg, #10b981, #06b6d4)'),
+          border: totalPending > 0
+            ? (isDark ? '1px solid rgba(245, 158, 11, 0.35)' : 'none')
+            : (isDark ? '1px solid rgba(16, 185, 129, 0.35)' : 'none'),
+          padding: '26px 30px',
+          marginBottom: '22px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 18px',
-          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.08)' : '#f0fdf4',
-          border: isDark ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid #bbf7d0',
-          borderRadius: '12px',
-          marginBottom: '20px',
           flexWrap: 'wrap',
-          gap: '12px',
+          gap: '20px',
+          overflow: 'hidden',
+          position: 'relative',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '18px' }}>💡</span>
-          <span style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#1e293b' }}>
+        {/* Decorative circles */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '-30px',
+            right: isRtl ? 'auto' : '-30px',
+            left: isRtl ? '-30px' : 'auto',
+            width: '120px',
+            height: '120px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.08)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-50px',
+            right: isRtl ? 'auto' : '60px',
+            left: 'auto',
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            background: 'rgba(255, 255, 255, 0.05)',
+          }}
+        />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', zIndex: 1 }}>
+          <div
+            style={{
+              width: '62px',
+              height: '62px',
+              borderRadius: '18px',
+              background: totalPending > 0
+                ? (isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(255, 255, 255, 0.2)')
+                : (isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.2)'),
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
+              flexShrink: 0,
+            }}
+          >
+            {totalPending > 0 ? (
+              <ShieldAlert size={30} color={isDark ? '#fbbf24' : 'white'} />
+            ) : (
+              <CheckCircle2 size={30} color={isDark ? '#34d399' : 'white'} />
+            )}
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h3
+                style={{
+                  fontSize: '20px',
+                  fontWeight: 800,
+                  margin: 0,
+                  color: totalPending > 0
+                    ? (isDark ? '#fbbf24' : 'white')
+                    : (isDark ? '#34d399' : 'white'),
+                }}
+              >
+                {totalPending > 0
+                  ? (isRtl ? `${totalPending} معاملات بحاجة للمراجعة اليدوية` : `${totalPending} Anomalies Awaiting Review`)
+                  : (isRtl ? 'جميع المعاملات والمدفوعات سليمة ومعتمدة' : 'All Anomaly Cases Resolved & Clear')}
+              </h3>
+              <div
+                style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: totalPending > 0
+                    ? (isDark ? '#fbbf24' : 'white')
+                    : (isDark ? '#34d399' : 'white'),
+                  animation: 'pulseGreen 2s ease-in-out infinite',
+                  boxShadow: isDark
+                    ? (totalPending > 0 ? '0 0 10px rgba(251,191,36,0.6)' : '0 0 10px rgba(52,211,153,0.5)')
+                    : '0 0 10px rgba(255,255,255,0.6)',
+                }}
+              />
+            </div>
+            <p
+              style={{
+                fontSize: '13.5px',
+                margin: '4px 0 0 0',
+                color: isDark ? '#94a3b8' : 'rgba(255, 255, 255, 0.9)',
+                fontWeight: 500,
+              }}
+            >
+              {totalPending > 0
+                ? (isRtl
+                  ? 'تم رصد مبالغ غير متطابقة أو دفع متأخر من خدمة NotificationListenerService'
+                  : 'Action needed on detected amounts, late checkouts, or sender discrepancies')
+                : (isRtl
+                  ? 'الكاشف الآلي يقوم بمطابقة التحويلات الواردة فورياً بدقة 100%'
+                  : 'Automated companion is live and matching incoming transfers in real time')}
+            </p>
+          </div>
+        </div>
+
+        {/* Frosted Metric Pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+          <div
+            style={{
+              padding: '10px 18px',
+              borderRadius: '12px',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.2)',
+              backdropFilter: 'blur(10px)',
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.3)',
+              textAlign: isRtl ? 'right' : 'left',
+            }}
+          >
+            <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.8)', fontWeight: 600 }}>
+              {isRtl ? 'إجمالي الحالات' : 'Pending Cases'}
+            </div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: isDark ? '#f8fafc' : 'white', fontFamily: 'monospace' }}>
+              {totalPending}
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: '10px 18px',
+              borderRadius: '12px',
+              backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.2)',
+              backdropFilter: 'blur(10px)',
+              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.3)',
+              textAlign: isRtl ? 'right' : 'left',
+            }}
+          >
+            <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.8)', fontWeight: 600 }}>
+              {isRtl ? 'حالة المطابقة' : 'Auto Matching'}
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: 800, color: isDark ? '#34d399' : 'white' }}>
+              {isRtl ? 'نشط ولحظي' : 'Active & Live'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tolerance & Auto-Acceptance Guidance Subcard */}
+      <div
+        style={{
+          ...subcard({ padding: '14px 20px', marginBottom: '22px' }),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #bbf7d0',
+          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.06)' : '#f0fdf4',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '20px' }}>💡</span>
+          <span style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#1e293b', fontWeight: 500 }}>
             {isRtl
               ? 'يمكنك ضبط القبول التلقائي للمبالغ الزائدة وتحديد هامش دقة مسموح به للعجز في الدفع من صفحة الإعدادات لتجنب تعليق الطلبات.'
               : 'You can control automatic acceptance of overpaid transfers and configure agreed underpaid precision tolerances in Settings.'}
@@ -683,16 +922,17 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
           <button
             onClick={() => onNavigate('settings', 'Precision')}
             style={{
-              padding: '7px 14px',
+              padding: '8px 16px',
               backgroundColor: '#10b981',
               color: 'white',
               border: 'none',
-              borderRadius: '8px',
+              borderRadius: '10px',
               fontSize: '12px',
               fontWeight: 700,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
-              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
+              transition: 'all 0.15s ease',
             }}
           >
             {isRtl ? '⚙️ ضبط قواعد السماحية' : '⚙️ Configure Precision Rules'}
@@ -704,7 +944,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
       <div
         style={{
           display: 'flex',
-          gap: '8px',
+          gap: '10px',
           overflowX: 'auto',
           paddingBottom: '8px',
           marginBottom: '24px',
@@ -722,8 +962,8 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '8px 14px',
-                borderRadius: '10px',
+                padding: '9px 16px',
+                borderRadius: '12px',
                 fontSize: '13px',
                 fontWeight: isActive ? 700 : 500,
                 cursor: 'pointer',
@@ -731,25 +971,25 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                   ? cat.color
                   : isDark
                   ? '#1e293b'
-                  : 'white',
+                  : '#ffffff',
                 color: isActive ? 'white' : isDark ? '#cbd5e1' : '#475569',
                 border: isActive
                   ? `1px solid ${cat.color}`
                   : isDark
                   ? '1px solid #334155'
                   : '1px solid #e2e8f0',
-                transition: 'all 0.15s',
-                boxShadow: isActive ? `0 4px 10px ${cat.color}33` : 'none',
+                transition: 'all 0.2s ease',
+                boxShadow: isActive ? `0 4px 12px ${cat.color}40` : (isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.04)'),
               }}
             >
               <Icon size={14} />
               <span>{isRtl ? cat.labelAr : cat.labelEn}</span>
               <span
                 style={{
-                  padding: '1px 6px',
-                  borderRadius: '6px',
+                  padding: '2px 7px',
+                  borderRadius: '8px',
                   fontSize: '11px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   backgroundColor: isActive
                     ? 'rgba(255, 255, 255, 0.25)'
                     : isDark
@@ -1074,12 +1314,14 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                   <div
                     key={item.id}
                     style={{
-                      backgroundColor: isDark ? '#111827' : 'white',
-                      borderRadius: '16px',
-                      border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid #e2e8f0',
+                      backgroundColor: isDark ? '#111827' : '#ffffff',
+                      borderRadius: '18px',
+                      border: isDark ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid #fecaca',
                       overflow: 'hidden',
-                      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-                      transition: 'all 0.2s',
+                      boxShadow: isDark
+                        ? '0 6px 18px -4px rgba(0,0,0,0.35)'
+                        : '0 4px 14px rgba(0,0,0,0.05)',
+                      transition: 'all 0.25s ease',
                     }}
                   >
                     <div
@@ -1087,19 +1329,20 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        padding: '18px 20px',
+                        padding: '16px 20px',
                         flexWrap: 'wrap',
-                        gap: '16px',
+                        gap: '14px',
+                        borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.3)' : '1px solid #f1f5f9',
                       }}
                     >
                       {/* Left Info with Counter */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', flex: 1, minWidth: '280px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1, minWidth: '280px' }}>
                         {/* Counter Badge */}
                         <div
                           style={{
-                            minWidth: '28px',
-                            height: '28px',
-                            borderRadius: '8px',
+                            minWidth: '30px',
+                            height: '30px',
+                            borderRadius: '9px',
                             backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
                             color: isDark ? '#94a3b8' : '#64748b',
                             fontSize: '11px',
@@ -1117,14 +1360,15 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
 
                         <div
                           style={{
-                            width: '42px',
-                            height: '42px',
+                            width: '40px',
+                            height: '40px',
                             borderRadius: '12px',
                             backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fee2e2',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             flexShrink: 0,
+                            border: isDark ? '1px solid rgba(239, 68, 68, 0.35)' : '1px solid #fca5a5',
                           }}
                         >
                           <XCircle size={22} style={{ color: '#dc2626' }} />
@@ -1132,57 +1376,22 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
 
                         <div style={{ flex: 1, minWidth: '220px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <h4 style={{ fontSize: '14px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
+                            <span style={{ fontSize: '13.5px', fontWeight: 800, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
                               {isRtl ? 'تحويل بنكي يتيم' : 'Orphaned Bank Transfer'}
-                            </h4>
+                            </span>
                             <span
                               style={{
                                 padding: '2px 8px',
                                 backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2',
                                 color: '#b91c1c',
-                                fontSize: '11px',
-                                fontWeight: 700,
+                                fontSize: '10.5px',
+                                fontWeight: 800,
                                 borderRadius: '6px',
                                 border: isDark ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid #fecaca',
+                                letterSpacing: '0.03em',
                               }}
                             >
                               UNMATCHED
-                            </span>
-                          </div>
-
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              fontSize: '12px',
-                              color: isDark ? '#cbd5e1' : '#475569',
-                              marginTop: '4px',
-                              flexWrap: 'wrap',
-                            }}
-                          >
-                            <span>
-                              <strong>{isRtl ? 'من حساب:' : 'From:'}</strong>{' '}
-                              <span style={{ fontFamily: 'monospace' }}>{item.senderHandle}</span>
-                            </span>
-                            <span>•</span>
-                            <span>
-                              {isRtl ? 'المبلغ المحول:' : 'Amount:'}{' '}
-                              <strong style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>
-                                {Number(item.amountEgp).toFixed(2)} EGP
-                              </strong>
-                            </span>
-                            <span>•</span>
-                            <span>
-                              {isRtl ? 'المرجع البنكي:' : 'Ref:'}{' '}
-                              <span style={{ fontFamily: 'monospace', color: '#10b981', fontWeight: 600 }}>
-                                {item.reference || '—'}
-                              </span>
-                            </span>
-                            <span>•</span>
-                            <span style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#94a3b8' }}>
-                              <Clock size={11} style={{ display: 'inline', marginInlineEnd: '3px' }} />
-                              {formatReviewDate(item.createdAt, isRtl)}
                             </span>
                           </div>
                         </div>
@@ -1209,16 +1418,65 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                             backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
                             color: isDark ? '#cbd5e1' : '#475569',
                             border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
-                            borderRadius: '9px',
+                            borderRadius: '10px',
                             fontSize: '12px',
                             fontWeight: 600,
                             cursor: 'pointer',
-                            transition: 'all 0.15s',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s ease',
                           }}
                         >
-                          {isRtl ? 'تجاهل السجل' : 'Dismiss Record'}
+                          <X size={13} />
+                          <span>{isRtl ? 'تجاهل السجل' : 'Dismiss Record'}</span>
                         </button>
                       </div>
+                    </div>
+
+                    {/* Details Subcard Block */}
+                    <div
+                      style={{
+                        backgroundColor: isDark ? '#162033' : '#f8fafc',
+                        padding: '12px 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        fontSize: '12.5px',
+                        color: isDark ? '#cbd5e1' : '#475569',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'من حساب:' : 'From:'}</span>
+                        <strong style={{ fontFamily: 'monospace', color: isDark ? '#f8fafc' : '#0f172a' }}>{item.senderHandle || '—'}</strong>
+                      </span>
+
+                      <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'المبلغ المحول:' : 'Amount:'}</span>
+                        <strong style={{ color: '#10b981' }}>{Number(item.amountEgp).toFixed(2)} EGP</strong>
+                      </span>
+
+                      {item.reference && (
+                        <>
+                          <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'المرجع البنكي:' : 'Ref:'}</span>
+                            <span style={{ fontFamily: 'monospace', color: '#10b981', fontWeight: 700 }}>
+                              {item.reference}
+                            </span>
+                          </span>
+                        </>
+                      )}
+
+                      <span style={{ color: isDark ? '#475569' : '#cbd5e1' }}>•</span>
+
+                      <span style={{ fontSize: '11.5px', color: isDark ? '#94a3b8' : '#64748b', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <Clock size={12} />
+                        {formatReviewDate(item.createdAt, isRtl)}
+                      </span>
                     </div>
                   </div>
                 ))}
