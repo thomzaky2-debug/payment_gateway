@@ -91,9 +91,9 @@ export function AdminSidebar({
           top: mobileOpen ? 0 : undefined,
           bottom: mobileOpen ? 0 : undefined,
           left: mobileOpen ? 0 : undefined,
-          width: mobileOpen ? 'min(280px, 85vw)' : collapsed ? '76px' : '264px',
-          minWidth: mobileOpen ? 'min(280px, 85vw)' : collapsed ? '76px' : '264px',
-          maxWidth: mobileOpen ? 'min(280px, 85vw)' : collapsed ? '76px' : '264px',
+          width: mobileOpen ? 'min(240px, 80vw)' : collapsed ? '62px' : '208px',
+          minWidth: mobileOpen ? 'min(240px, 80vw)' : collapsed ? '62px' : '208px',
+          maxWidth: mobileOpen ? 'min(240px, 80vw)' : collapsed ? '62px' : '208px',
           height: mobileOpen ? '100dvh' : '100%',
           maxHeight: mobileOpen ? '100dvh' : '100%',
           display: 'flex',
@@ -112,8 +112,8 @@ export function AdminSidebar({
         <div
           className="admin-sidebar-brand"
           style={{
-            height: '68px',
-            padding: collapsed && !mobileOpen ? '12px' : '14px',
+            height: '54px',
+            padding: collapsed && !mobileOpen ? '8px' : '10px 12px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: collapsed && !mobileOpen ? 'center' : 'space-between',
@@ -124,42 +124,42 @@ export function AdminSidebar({
         >
           {mobileOpen ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                 <div
                   style={{
-                    width: '38px',
-                    height: '38px',
-                    padding: '4px',
-                    borderRadius: '10px',
+                    width: '32px',
+                    height: '32px',
+                    padding: '3px',
+                    borderRadius: '8px',
                     backgroundColor: '#512772',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
+                    boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
                     flexShrink: 0,
                   }}
                 >
-                  <img src="/Logo.png" alt="InstaPay" style={{ width: '30px', height: 'auto', objectFit: 'contain' }} />
+                  <img src="/Logo.png" alt="InstaPay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <strong style={{ fontSize: '16px', color: text }}>InstaPay</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <strong style={{ fontSize: '14px', color: text }}>InstaPay</strong>
                     <span
                       style={{
-                        padding: '2px 6px',
+                        padding: '1px 5px',
                         borderRadius: '4px',
                         backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
                         border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
                         color: isDark ? '#38bdf8' : '#0284c7',
-                        fontSize: '9px',
+                        fontSize: '8.5px',
                         fontWeight: 800,
-                        letterSpacing: '0.05em',
+                        letterSpacing: '0.04em',
                       }}
                     >
                       ADMIN
                     </span>
                   </div>
-                  <p style={{ margin: 0, color: muted, fontSize: '11px' }}>Control Center</p>
+                  <p style={{ margin: 0, color: muted, fontSize: '10px' }}>Control Center</p>
                 </div>
               </div>
               <button
@@ -167,9 +167,9 @@ export function AdminSidebar({
                 onClick={onCloseMobile}
                 aria-label="Close admin navigation menu"
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '7px',
                   border: `1px solid ${border}`,
                   backgroundColor: isDark ? '#111827' : '#f8fafc',
                   color: muted,
@@ -179,47 +179,47 @@ export function AdminSidebar({
                   cursor: 'pointer',
                 }}
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </>
           ) : !collapsed ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                 <div
                   style={{
-                    width: '38px',
-                    height: '38px',
-                    padding: '4px',
-                    borderRadius: '10px',
+                    width: '32px',
+                    height: '32px',
+                    padding: '3px',
+                    borderRadius: '8px',
                     backgroundColor: '#512772',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
+                    boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
                     flexShrink: 0,
                   }}
                 >
-                  <img src="/Logo.png" alt="InstaPay" style={{ width: '30px', height: 'auto', objectFit: 'contain' }} />
+                  <img src="/Logo.png" alt="InstaPay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <strong style={{ fontSize: '16px', color: text }}>InstaPay</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <strong style={{ fontSize: '14px', color: text }}>InstaPay</strong>
                     <span
                       style={{
-                        padding: '2px 6px',
+                        padding: '1px 5px',
                         borderRadius: '4px',
                         backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
                         border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
                         color: isDark ? '#38bdf8' : '#0284c7',
-                        fontSize: '9px',
+                        fontSize: '8.5px',
                         fontWeight: 800,
-                        letterSpacing: '0.05em',
+                        letterSpacing: '0.04em',
                       }}
                     >
                       ADMIN
                     </span>
                   </div>
-                  <p style={{ margin: 0, color: muted, fontSize: '11px' }}>Control Center</p>
+                  <p style={{ margin: 0, color: muted, fontSize: '10px' }}>Control Center</p>
                 </div>
               </div>
               <button
@@ -228,9 +228,9 @@ export function AdminSidebar({
                 aria-label="Collapse admin navigation"
                 title="Collapse navigation"
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '7px',
                   border: `1px solid ${border}`,
                   backgroundColor: isDark ? '#111827' : '#f8fafc',
                   color: muted,
@@ -240,7 +240,7 @@ export function AdminSidebar({
                   cursor: 'pointer',
                 }}
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={15} />
               </button>
             </>
           ) : (
@@ -250,20 +250,20 @@ export function AdminSidebar({
             aria-label="Expand admin navigation"
             title="Expand navigation"
             style={{
-              width: '48px',
-              height: '38px',
-              padding: '4px 6px',
+              width: '40px',
+              height: '34px',
+              padding: '3px 4px',
               border: 'none',
-              borderRadius: '10px',
+              borderRadius: '8px',
               backgroundColor: '#512772',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
+              boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
               cursor: 'pointer',
             }}
           >
-            <img src="/Logo.png" alt="InstaPay" style={{ width: '30px', height: 'auto', objectFit: 'contain' }} />
+            <img src="/Logo.png" alt="InstaPay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
           </button>
         )}
       </div>
@@ -273,11 +273,11 @@ export function AdminSidebar({
         aria-label="Admin navigation"
         style={{
           flex: 1,
-          padding: collapsed ? '16px 8px' : '16px 12px',
+          padding: collapsed ? '10px 5px' : '10px 8px',
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '4px',
+          gap: '2px',
         }}
       >
         {navigation.map(({ tab, label, emoji }) => {
@@ -293,38 +293,38 @@ export function AdminSidebar({
               title={collapsed && !mobileOpen ? label : undefined}
               aria-current={active ? 'page' : undefined}
               style={{
-                width: collapsed && !mobileOpen ? '48px' : '100%',
-                height: collapsed && !mobileOpen ? '46px' : 'auto',
+                width: collapsed && !mobileOpen ? '42px' : '100%',
+                height: collapsed && !mobileOpen ? '40px' : 'auto',
                 margin: collapsed && !mobileOpen ? '0 auto' : 0,
-                padding: collapsed && !mobileOpen ? 0 : '11px 14px',
+                padding: collapsed && !mobileOpen ? 0 : '7px 10px',
                 border: 'none',
-                borderRadius: '12px',
+                borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: collapsed && !mobileOpen ? 'center' : 'flex-start',
-                gap: '12px',
+                gap: '9px',
                 position: 'relative',
                 overflow: 'hidden',
                 backgroundColor: active ? '#2563eb' : 'transparent',
                 color: active ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
-                boxShadow: active ? '0 4px 14px rgba(37, 99, 235, 0.35)' : 'none',
-                fontSize: '14px',
+                boxShadow: active ? '0 3px 10px rgba(37, 99, 235, 0.35)' : 'none',
+                fontSize: '12.5px',
                 fontWeight: active ? 700 : 500,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
+                transition: 'all 0.18s ease',
               }}
             >
-              <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '18px', lineHeight: 1 }}>{emoji}</span>
+              <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '15px', lineHeight: 1 }}>{emoji}</span>
               {(!collapsed || mobileOpen) && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
               {(!collapsed || mobileOpen) && tab === 'merchants' && pendingCount > 0 && (
                 <span
                   style={{
                     marginLeft: 'auto',
-                    padding: '1px 7px',
+                    padding: '1px 6px',
                     borderRadius: '999px',
                     backgroundColor: '#f59e0b',
                     color: '#111827',
-                    fontSize: '10px',
+                    fontSize: '9.5px',
                     fontWeight: 800,
                   }}
                 >
@@ -336,10 +336,10 @@ export function AdminSidebar({
                   style={{
                     position: 'absolute',
                     left: 0,
-                    top: '8px',
-                    bottom: '8px',
-                    width: '4px',
-                    borderRadius: '0 4px 4px 0',
+                    top: '6px',
+                    bottom: '6px',
+                    width: '3.5px',
+                    borderRadius: '0 3px 3px 0',
                     backgroundColor: '#60a5fa',
                   }}
                 />
@@ -352,11 +352,11 @@ export function AdminSidebar({
       <div
         className="admin-sidebar-footer"
         style={{
-          padding: collapsed && !mobileOpen ? '12px 8px' : '14px 16px',
+          padding: collapsed && !mobileOpen ? '10px 5px' : '10px 10px',
           borderTop: `1px solid ${isDark ? 'rgba(51, 65, 85, 0.5)' : '#f1f5f9'}`,
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
+          gap: '8px',
           flexShrink: 0,
         }}
       >
@@ -364,92 +364,91 @@ export function AdminSidebar({
           <>
             <div
               style={{
-                padding: '10px 12px',
-                borderRadius: '10px',
+                padding: '7px 9px',
+                borderRadius: '8px',
                 backgroundColor: isDark ? '#111827' : '#f8fafc',
                 border: `1px solid ${isDark ? 'rgba(51, 65, 85, 0.5)' : '#e2e8f0'}`,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span
                   style={{
-                    width: '8px',
-                    height: '8px',
+                    width: '7px',
+                    height: '7px',
                     borderRadius: '50%',
                     backgroundColor: '#22c55e',
-                    boxShadow: '0 0 8px #22c55e',
+                    boxShadow: '0 0 6px #22c55e',
                     animation: 'pulseGreen 2s ease-in-out infinite',
                   }}
                 />
-                <span style={{ color: isDark ? '#4ade80' : '#16a34a', fontSize: '12px', fontWeight: 700 }}>
+                <span style={{ color: isDark ? '#4ade80' : '#16a34a', fontSize: '11px', fontWeight: 700 }}>
                   Platform online
                 </span>
               </div>
-              <p style={{ margin: '2px 0 0 16px', color: muted, fontSize: '11px' }}>Admin services operational</p>
+              <p style={{ margin: '1px 0 0 13px', color: muted, fontSize: '9.5px' }}>Admin services operational</p>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
               <a
                 href="/api/apks/admin"
                 download="InstaPay-Admin.apk"
                 style={{
                   flex: 1,
-                  padding: '7px 8px',
-                  borderRadius: '8px',
+                  padding: '5px 6px',
+                  borderRadius: '7px',
                   border: isDark ? '1px solid rgba(124, 58, 237, 0.4)' : '1px solid #ddd6fe',
                   backgroundColor: isDark ? 'rgba(124, 58, 237, 0.16)' : '#f5f3ff',
                   color: isDark ? '#c084fc' : '#6d28d9',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '5px',
-                  fontSize: '11px',
+                  gap: '4px',
+                  fontSize: '10.5px',
                   fontWeight: 700,
                   textDecoration: 'none',
                 }}
               >
-                <Download size={13} /> Admin APK
+                <Download size={11} /> Admin APK
               </a>
               <a
                 href="/"
                 style={{
                   flex: 1,
-                  padding: '7px 8px',
-                  borderRadius: '8px',
+                  padding: '5px 6px',
+                  borderRadius: '7px',
                   border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
                   backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0f9ff',
-                  color: isDark ? '#38bdf8' : '#0369a1',
+                  color: isDark ? '#38bdf8' : '#0284c7',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '5px',
-                  fontSize: '11px',
+                  gap: '4px',
+                  fontSize: '10.5px',
                   fontWeight: 700,
                   textDecoration: 'none',
                 }}
               >
-                Merchant <ExternalLink size={12} />
+                Merchant <ExternalLink size={10} />
               </a>
             </div>
             <button
               type="button"
               onClick={toggleTheme}
               style={{
-                padding: '8px 10px',
-                borderRadius: '8px',
+                padding: '6px 8px',
+                borderRadius: '7px',
                 border: `1px solid ${border}`,
                 backgroundColor: isDark ? '#111827' : '#f8fafc',
                 color: text,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '7px',
-                fontSize: '12px',
+                gap: '6px',
+                fontSize: '11px',
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
             >
-              {isDark ? <Sun size={14} color="#fbbf24" /> : <Moon size={14} color="#6366f1" />}
-              {isDark ? 'Light theme' : 'Dark theme'}
+              {isDark ? <Sun size={13} color="#fbbf24" /> : <Moon size={13} color="#6366f1" />}
             </button>
           </>
         ) : (

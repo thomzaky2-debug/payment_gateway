@@ -32,17 +32,17 @@ export function AdminTopbar({ activeTab, loading, onRefresh, onLogout, onOpenMob
     <header
       className="admin-topbar"
       style={{
-        minHeight: '58px',
-        paddingTop: 'max(10px, env(safe-area-inset-top, 0px))',
-        paddingBottom: '10px',
-        paddingLeft: 'max(12px, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(12px, env(safe-area-inset-right, 0px))',
+        minHeight: '52px',
+        paddingTop: 'max(8px, env(safe-area-inset-top, 0px))',
+        paddingBottom: '8px',
+        paddingLeft: 'max(10px, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(10px, env(safe-area-inset-right, 0px))',
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
         borderBottom: `1px solid ${isDark ? 'rgba(51, 65, 85, 0.6)' : '#e2e8f0'}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '10px',
+        gap: '8px',
         flexWrap: 'nowrap',
         flexShrink: 0,
         position: 'relative',
@@ -50,7 +50,7 @@ export function AdminTopbar({ activeTab, loading, onRefresh, onLogout, onOpenMob
         zIndex: 10,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
         {/* Mobile Hamburger Menu Button */}
         <button
           type="button"
@@ -59,9 +59,9 @@ export function AdminTopbar({ activeTab, loading, onRefresh, onLogout, onOpenMob
           style={{
             alignItems: 'center',
             justifyContent: 'center',
-            width: '36px',
-            height: '36px',
-            borderRadius: '9px',
+            width: '32px',
+            height: '32px',
+            borderRadius: '7px',
             backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
             border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
             color: isDark ? '#f8fafc' : '#1e293b',
@@ -71,58 +71,58 @@ export function AdminTopbar({ activeTab, loading, onRefresh, onLogout, onOpenMob
           title="Open Navigation Menu"
           aria-label="Open Navigation Menu"
         >
-          <Menu size={18} />
+          <Menu size={16} />
         </button>
 
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-            <h1 style={{ margin: 0, color: text, fontSize: 'clamp(15px, 4vw, 19px)', fontWeight: 800, letterSpacing: '-0.25px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <h1 style={{ margin: 0, color: text, fontSize: 'clamp(14px, 3vw, 16px)', fontWeight: 800, letterSpacing: '-0.25px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {page.title}
             </h1>
             <span
               className="admin-superadmin-badge"
               style={{
-                padding: '2px 6px',
-                borderRadius: '5px',
+                padding: '1px 5px',
+                borderRadius: '4px',
                 backgroundColor: isDark ? 'rgba(124, 58, 237, 0.18)' : '#f3e8ff',
                 border: isDark ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid #e9d5ff',
                 color: isDark ? '#c084fc' : '#7e22ce',
-                fontSize: '9px',
+                fontSize: '8.5px',
                 fontWeight: 800,
-                letterSpacing: '0.05em',
+                letterSpacing: '0.04em',
                 flexShrink: 0,
               }}
             >
-              SUPERADMIN
+              ADMIN
             </span>
           </div>
-          <p className="admin-topbar-subtitle" style={{ margin: '2px 0 0', color: muted, fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p className="admin-topbar-subtitle" style={{ margin: '1px 0 0', color: muted, fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {page.subtitle}
           </p>
         </div>
       </div>
 
-      <div className="admin-topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, flexWrap: 'nowrap' }}>
+      <div className="admin-topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0, flexWrap: 'nowrap' }}>
         <button
           type="button"
           onClick={toggleTheme}
           style={{
-            padding: '7px 10px',
-            borderRadius: '8px',
+            padding: '5px 8px',
+            borderRadius: '7px',
             border: `1px solid ${border}`,
             backgroundColor: buttonBackground,
             color: text,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '6px',
-            fontSize: '12px',
+            gap: '5px',
+            fontSize: '11px',
             fontWeight: 600,
             cursor: 'pointer',
           }}
           title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
         >
-          {isDark ? <Sun size={14} color="#fbbf24" /> : <Moon size={14} color="#6366f1" />}
+          {isDark ? <Sun size={13} color="#fbbf24" /> : <Moon size={13} color="#6366f1" />}
           <span className="admin-btn-label">{isDark ? 'Light' : 'Dark'}</span>
         </button>
 
@@ -131,23 +131,23 @@ export function AdminTopbar({ activeTab, loading, onRefresh, onLogout, onOpenMob
           onClick={onRefresh}
           disabled={loading}
           style={{
-            padding: '7px 10px',
-            borderRadius: '8px',
+            padding: '5px 8px',
+            borderRadius: '7px',
             border: `1px solid ${border}`,
             backgroundColor: buttonBackground,
             color: text,
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '6px',
-            fontSize: '12px',
+            gap: '5px',
+            fontSize: '11px',
             fontWeight: 600,
             cursor: loading ? 'not-allowed' : 'pointer',
             opacity: loading ? 0.7 : 1,
           }}
           title="Refresh Data"
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
           <span className="admin-btn-label">Refresh</span>
         </button>
 
@@ -156,63 +156,63 @@ export function AdminTopbar({ activeTab, loading, onRefresh, onLogout, onOpenMob
           href="/api/apks/admin"
           download="InstaPay-Admin.apk"
           style={{
-            padding: '7px 10px',
-            borderRadius: '8px',
+            padding: '5px 8px',
+            borderRadius: '7px',
             border: isDark ? '1px solid rgba(124, 58, 237, 0.4)' : '1px solid #ddd6fe',
             backgroundColor: isDark ? 'rgba(124, 58, 237, 0.16)' : '#f5f3ff',
             color: isDark ? '#c084fc' : '#6d28d9',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            fontSize: '12px',
+            gap: '5px',
+            fontSize: '11px',
             fontWeight: 700,
             textDecoration: 'none',
           }}
         >
-          <Download size={14} /> Admin APK
+          <Download size={13} /> Admin APK
         </a>
 
         <a
           className="admin-topbar-secondary-link topbar-desktop-only"
           href="/"
           style={{
-            padding: '7px 10px',
-            borderRadius: '8px',
+            padding: '5px 8px',
+            borderRadius: '7px',
             border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
             backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0f9ff',
             color: isDark ? '#38bdf8' : '#0369a1',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            fontSize: '12px',
+            gap: '5px',
+            fontSize: '11px',
             fontWeight: 700,
             textDecoration: 'none',
           }}
         >
-          Merchant Portal <ExternalLink size={13} />
+          Merchant Portal <ExternalLink size={12} />
         </a>
 
         <button
           type="button"
           onClick={onLogout}
           style={{
-            padding: '7px 10px',
-            borderRadius: '8px',
+            padding: '5px 8px',
+            borderRadius: '7px',
             border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid #fecaca',
             backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
             color: isDark ? '#f87171' : '#991b1b',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '6px',
-            fontSize: '12px',
+            gap: '5px',
+            fontSize: '11px',
             fontWeight: 600,
             cursor: 'pointer',
           }}
           title="Logout"
           aria-label="Logout"
         >
-          <LogOut size={14} />
+          <LogOut size={13} />
           <span className="admin-btn-label">Logout</span>
         </button>
 

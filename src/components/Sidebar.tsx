@@ -94,9 +94,9 @@ export function Sidebar({
           top: mobileOpen ? 0 : undefined,
           bottom: mobileOpen ? 0 : undefined,
           [isRtl ? 'right' : 'left']: mobileOpen ? 0 : undefined,
-          width: mobileOpen ? '280px' : isCollapsed ? '76px' : '264px',
-          minWidth: mobileOpen ? '280px' : isCollapsed ? '76px' : '264px',
-          maxWidth: mobileOpen ? '280px' : isCollapsed ? '76px' : '264px',
+          width: mobileOpen ? 'min(240px, 80vw)' : isCollapsed ? '62px' : '208px',
+          minWidth: mobileOpen ? 'min(240px, 80vw)' : isCollapsed ? '62px' : '208px',
+          maxWidth: mobileOpen ? 'min(240px, 80vw)' : isCollapsed ? '62px' : '208px',
           height: mobileOpen ? '100dvh' : '100%',
           maxHeight: mobileOpen ? '100dvh' : '100%',
           backgroundColor: isDark ? '#0b101e' : '#ffffff',
@@ -113,8 +113,8 @@ export function Sidebar({
         {/* Sidebar Header with Brand & Collapse Toggle */}
         <div
           style={{
-            height: '68px',
-            padding: isCollapsed && !mobileOpen ? '12px' : '14px 14px',
+            height: '54px',
+            padding: isCollapsed && !mobileOpen ? '8px' : '10px 12px',
             borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #f1f5f9',
             display: 'flex',
             alignItems: 'center',
@@ -125,26 +125,26 @@ export function Sidebar({
         >
           {(!isCollapsed || mobileOpen) ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1, overflow: 'visible' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, overflow: 'visible' }}>
                 <div
                   style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '10px',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
                     backgroundColor: '#512772',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
-                    padding: '4px',
+                    boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
+                    padding: '3px',
                   }}
                 >
                   <img
                     src="/Logo.png"
                     alt="InstaPay"
                     style={{
-                      width: '30px',
+                      width: '24px',
                       height: 'auto',
                       maxWidth: '100%',
                       objectFit: 'contain',
@@ -153,15 +153,15 @@ export function Sidebar({
                   />
                 </div>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'visible' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: isDark ? '#ffffff' : '#0f172a' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <h2 style={{ fontSize: '14px', fontWeight: 800, margin: 0, color: isDark ? '#ffffff' : '#0f172a' }}>
                       InstaPay
                     </h2>
                     <span
                       style={{
-                        fontSize: '9px',
+                        fontSize: '8.5px',
                         fontWeight: 700,
-                        padding: '1.5px 6px',
+                        padding: '1px 5px',
                         borderRadius: '4px',
                         backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
                         color: isDark ? '#38bdf8' : '#0284c7',
@@ -174,7 +174,7 @@ export function Sidebar({
                       GATEWAY
                     </span>
                   </div>
-                  <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
+                  <p style={{ fontSize: '10px', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
                     Merchant Portal
                   </p>
                 </div>
@@ -186,9 +186,9 @@ export function Sidebar({
                   type="button"
                   onClick={onCloseMobile}
                   style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '8px',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '7px',
                     border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
                     cursor: 'pointer',
                     backgroundColor: isDark ? '#111827' : '#f8fafc',
@@ -201,15 +201,15 @@ export function Sidebar({
                   title={t('close') || 'Close'}
                   aria-label="Close"
                 >
-                  <X size={18} />
+                  <X size={15} />
                 </button>
               ) : (
                 <button
                   onClick={handleToggleCollapse}
                   style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '7px',
                     border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
                     cursor: 'pointer',
                     backgroundColor: isDark ? '#111827' : '#f8fafc',
@@ -231,24 +231,24 @@ export function Sidebar({
                     e.currentTarget.style.color = isDark ? '#94a3b8' : '#64748b';
                   }}
                 >
-                  <ChevronLeft size={16} className="rtl:rotate-180" />
+                  <ChevronLeft size={15} className="rtl:rotate-180" />
                 </button>
               )}
             </>
           ) : (
           /* Collapsed Header: Centered Logo + Quick Expand Button */
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
             <div
               style={{
-                width: '48px',
-                height: '38px',
-                padding: '4px 6px',
-                borderRadius: '10px',
+                width: '40px',
+                height: '34px',
+                padding: '3px 4px',
+                borderRadius: '8px',
                 backgroundColor: '#512772',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
+                boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
                 cursor: 'pointer',
               }}
               onClick={handleToggleCollapse}
@@ -274,11 +274,11 @@ export function Sidebar({
       <nav
         style={{
           flex: 1,
-          padding: isCollapsed ? '16px 8px' : '16px 12px',
+          padding: isCollapsed ? '10px 5px' : '10px 8px',
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '4px',
+          gap: '2px',
         }}
       >
         {navItems.map((item) => {
@@ -297,20 +297,20 @@ export function Sidebar({
                 title={itemLabel}
                 aria-label={itemLabel}
                 style={{
-                  width: '48px',
-                  height: '46px',
+                  width: '42px',
+                  height: '40px',
                   margin: '0 auto',
-                  borderRadius: '12px',
+                  borderRadius: '8px',
                   border: 'none',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '20px',
+                  fontSize: '17px',
                   backgroundColor: isActive ? '#2563eb' : 'transparent',
                   color: isActive ? '#ffffff' : isDark ? '#94a3b8' : '#64748b',
-                  boxShadow: isActive ? '0 4px 14px rgba(37,99,235,0.4)' : 'none',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.4)' : 'none',
+                  transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
                   position: 'relative',
                 }}
                 onMouseEnter={(e) => {
@@ -335,7 +335,7 @@ export function Sidebar({
                       top: '50%',
                       transform: 'translateY(-50%)',
                       width: '3px',
-                      height: '18px',
+                      height: '16px',
                       backgroundColor: '#60a5fa',
                       borderRadius: '2px',
                     }}
@@ -357,18 +357,18 @@ export function Sidebar({
                 width: '100%',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
-                padding: '11px 14px',
-                borderRadius: '12px',
-                fontSize: '14px',
+                gap: '9px',
+                padding: '7px 10px',
+                borderRadius: '8px',
+                fontSize: '12.5px',
                 fontWeight: isActive ? 600 : 500,
                 border: 'none',
                 cursor: 'pointer',
                 backgroundColor: isActive ? '#2563eb' : 'transparent',
                 color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
-                boxShadow: isActive ? '0 4px 14px rgba(37,99,235,0.35)' : 'none',
+                boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.35)' : 'none',
                 textAlign: isRtl ? 'right' : 'left',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
                 position: 'relative',
                 overflow: 'hidden',
               }}
@@ -385,7 +385,7 @@ export function Sidebar({
                 }
               }}
             >
-              <span style={{ fontSize: '18px', flexShrink: 0 }}>{item.emoji}</span>
+              <span style={{ fontSize: '15px', flexShrink: 0 }}>{item.emoji}</span>
               <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {itemLabel}
               </span>
@@ -394,11 +394,11 @@ export function Sidebar({
                   style={{
                     position: 'absolute',
                     [isRtl ? 'right' : 'left']: '0',
-                    top: '8px',
-                    bottom: '8px',
-                    width: '4px',
+                    top: '6px',
+                    bottom: '6px',
+                    width: '3.5px',
                     backgroundColor: '#60a5fa',
-                    borderRadius: isRtl ? '4px 0 0 4px' : '0 4px 4px 0',
+                    borderRadius: isRtl ? '3px 0 0 3px' : '0 3px 3px 0',
                   }}
                 />
               )}
@@ -410,11 +410,11 @@ export function Sidebar({
       {/* Footer Area: System Status & Theme/Language Controls */}
       <div
         style={{
-          padding: isCollapsed ? '12px 8px' : '14px 16px',
+          padding: isCollapsed ? '10px 5px' : '10px 10px',
           borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #f1f5f9',
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
+          gap: '8px',
           flexShrink: 0,
         }}
       >
@@ -425,26 +425,26 @@ export function Sidebar({
               style={{
                 backgroundColor: isDark ? '#111827' : '#f8fafc',
                 border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
-                borderRadius: '10px',
-                padding: '10px 12px',
+                borderRadius: '8px',
+                padding: '7px 9px',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
                 <div
                   style={{
-                    width: '8px',
-                    height: '8px',
+                    width: '7px',
+                    height: '7px',
                     borderRadius: '50%',
                     backgroundColor: '#22c55e',
-                    boxShadow: '0 0 8px #22c55e',
+                    boxShadow: '0 0 6px #22c55e',
                     animation: 'pulseGreen 2s ease-in-out infinite',
                   }}
                 />
-                <span style={{ fontSize: '12px', fontWeight: 600, color: isDark ? '#4ade80' : '#16a34a' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: isDark ? '#4ade80' : '#16a34a' }}>
                   {t('system_online')}
                 </span>
               </div>
-              <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
+              <p style={{ fontSize: '9.5px', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
                 {t('services_operational')}
               </p>
             </div>
@@ -458,20 +458,20 @@ export function Sidebar({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
-                  padding: '8px 10px',
+                  gap: '5px',
+                  padding: '6px 8px',
                   backgroundColor: isDark ? '#111827' : '#f8fafc',
                   border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
-                  borderRadius: '8px',
+                  borderRadius: '7px',
                   color: isDark ? '#f8fafc' : '#334155',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                 }}
                 title="Toggle Dark / Light Mode"
               >
-                {isDark ? <Sun size={14} style={{ color: '#fbbf24' }} /> : <Moon size={14} style={{ color: '#6366f1' }} />}
+                {isDark ? <Sun size={13} style={{ color: '#fbbf24' }} /> : <Moon size={13} style={{ color: '#6366f1' }} />}
                 <span>{isDark ? (isRtl ? 'النهاري' : 'Light') : (isRtl ? 'الليلي' : 'Dark')}</span>
               </button>
 
@@ -482,20 +482,20 @@ export function Sidebar({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
-                  padding: '8px 10px',
+                  gap: '5px',
+                  padding: '6px 8px',
                   backgroundColor: isDark ? '#111827' : '#f8fafc',
                   border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
-                  borderRadius: '8px',
+                  borderRadius: '7px',
                   color: isDark ? '#f8fafc' : '#334155',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                 }}
                 title="Switch Language"
               >
-                <Globe size={14} style={{ color: '#0ea5e9' }} />
+                <Globe size={13} style={{ color: '#0ea5e9' }} />
                 <span>{lang === 'en' ? 'عربي' : 'English'}</span>
               </button>
             </div>

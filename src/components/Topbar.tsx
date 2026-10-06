@@ -62,19 +62,19 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
     <header
       className="flex items-center justify-between"
       style={{
-        paddingTop: 'max(10px, env(safe-area-inset-top, 0px))',
-        paddingBottom: '10px',
-        paddingLeft: 'max(12px, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(12px, env(safe-area-inset-right, 0px))',
+        paddingTop: 'max(8px, env(safe-area-inset-top, 0px))',
+        paddingBottom: '8px',
+        paddingLeft: 'max(10px, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(10px, env(safe-area-inset-right, 0px))',
         backgroundColor: isDark ? '#0f172a' : 'white',
         borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
         position: 'relative',
         transition: 'background-color 0.25s ease, border-color 0.25s ease',
-        minHeight: '60px',
+        minHeight: '52px',
         gap: '8px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
         {/* Mobile Hamburger Menu Button */}
         <button
           type="button"
@@ -83,9 +83,9 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           style={{
             alignItems: 'center',
             justifyContent: 'center',
-            width: '36px',
-            height: '36px',
-            borderRadius: '9px',
+            width: '32px',
+            height: '32px',
+            borderRadius: '7px',
             backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
             border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
             color: isDark ? '#f8fafc' : '#1e293b',
@@ -95,12 +95,12 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           title="Open Menu / القائمة"
           aria-label="Open Navigation Menu"
         >
-          <Menu size={18} />
+          <Menu size={16} />
         </button>
 
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-            <h1 style={{ fontSize: 'clamp(15px, 4vw, 18px)', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+            <h1 style={{ fontSize: 'clamp(14px, 3vw, 16px)', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {pageTitles[currentPage]?.[lang] || pageTitles[currentPage]?.en}
             </h1>
             {isPending && (
@@ -108,29 +108,29 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '3px',
-                  padding: '2px 6px',
+                  gap: '2px',
+                  padding: '1px 5px',
                   backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7',
                   color: isDark ? '#fbbf24' : '#b45309',
-                  fontSize: '9px',
+                  fontSize: '8.5px',
                   fontWeight: 700,
-                  borderRadius: '5px',
+                  borderRadius: '4px',
                   border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
                   whiteSpace: 'nowrap',
                   flexShrink: 0,
                 }}
               >
-                <AlertTriangle size={10} /> {isRtl ? 'قيد المراجعة' : 'Pending'}
+                <AlertTriangle size={9} /> {isRtl ? 'قيد المراجعة' : 'Pending'}
               </span>
             )}
           </div>
-          <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{ fontSize: '10px', color: isDark ? '#94a3b8' : '#64748b', margin: '1px 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {client?.businessName || 'Merchant Portal'}
           </p>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
         {/* Language Switcher */}
         <button
           onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
