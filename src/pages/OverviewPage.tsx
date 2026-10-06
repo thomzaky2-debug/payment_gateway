@@ -208,62 +208,65 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
     : null;
 
   return (
-    <div className="merchant-page-container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+    <div className="merchant-page-container" style={{ direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ─── Page Header (Detector Companion Style) ─── */}
       <div
+        className="overview-header-row"
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '26px',
+          marginBottom: '22px',
           flexWrap: 'wrap',
-          gap: '16px',
+          gap: '14px',
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
             <div
               style={{
-                width: '42px',
-                height: '42px',
+                width: '40px',
+                height: '40px',
                 borderRadius: '12px',
                 background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: '0 4px 14px rgba(14, 165, 233, 0.35)',
+                flexShrink: 0,
               }}
             >
-              <TrendingUp size={22} color="white" />
+              <TrendingUp size={20} color="white" />
             </div>
             <div>
-              <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
+              <h2 style={{ fontSize: 'clamp(18px, 2.5vw, 22px)', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
                 {isRtl ? 'لوحة التحكم الرئيسية' : 'Dashboard Overview'}
               </h2>
-              <p style={{ fontSize: '13px', color: textSecondary, margin: '2px 0 0 0' }}>
+              <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
                 {isRtl ? 'مراقبة ومتابعة عمليات الدفع اللحظية وخدمة كاشف إنستاباي' : 'Real-time overview of InstaPay payments and active detector companion'}
               </p>
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div className="overview-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {/* Live Sync Status Badge */}
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '8px 16px',
+              padding: '7px 14px',
               borderRadius: '9999px',
-              fontSize: '12px',
+              fontSize: '11.5px',
               fontWeight: 600,
               backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
               color: '#0284c7',
               border: isDark ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid #bae6fd',
+              whiteSpace: 'nowrap',
             }}
           >
-            <Clock size={13} />
+            <Clock size={12} />
             <span>
               {isRtl ? 'آخر مزامنة:' : 'Last Synced:'}{' '}
               {lastRefreshedAt.toLocaleTimeString(isRtl ? 'ar-EG' : 'en-US', {
@@ -274,7 +277,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
             </span>
             <span
               style={{
-                fontSize: '11px',
+                fontSize: '10.5px',
                 opacity: 0.85,
                 fontWeight: 500,
               }}
@@ -290,22 +293,24 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '10px 18px',
+              justifyContent: 'center',
+              gap: '7px',
+              padding: '8px 16px',
               backgroundColor: isDark ? '#1e293b' : 'white',
               border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
               color: textPrimary,
-              fontSize: '13px',
+              fontSize: '12.5px',
               fontWeight: 600,
-              borderRadius: '12px',
+              borderRadius: '11px',
               cursor: refreshing ? 'not-allowed' : 'pointer',
               boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
               transition: 'all 0.2s ease',
               opacity: refreshing ? 0.7 : 1,
+              whiteSpace: 'nowrap',
             }}
           >
             <RefreshCw
-              size={14}
+              size={13}
               style={{
                 animation: refreshing ? 'spin 1s linear infinite' : 'none',
               }}
@@ -317,6 +322,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
 
       {/* ─── Hero Status Banner (Detector Companion Signature) ─── */}
       <div
+        className="overview-hero-card"
         style={{
           ...card(),
           background: isDetectorOnline
@@ -329,13 +335,13 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
           border: isDetectorOnline
             ? (isDark ? '1px solid rgba(16,185,129,0.35)' : 'none')
             : (isDark ? '1px solid rgba(100,116,139,0.3)' : 'none'),
-          padding: '24px 28px',
-          marginBottom: '24px',
+          padding: '22px 26px',
+          marginBottom: '20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: '20px',
+          gap: '16px',
           overflow: 'hidden',
           position: 'relative',
         }}
@@ -366,12 +372,13 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
           }}
         />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '18px', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', position: 'relative', zIndex: 1, minWidth: 0, flex: 1 }}>
           <div
+            className="overview-hero-icon"
             style={{
-              width: '58px',
-              height: '58px',
-              borderRadius: '16px',
+              width: '52px',
+              height: '52px',
+              borderRadius: '14px',
               background: isDetectorOnline
                 ? (isDark ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.2)')
                 : (isDark ? 'rgba(100,116,139,0.25)' : 'rgba(255,255,255,0.15)'),
@@ -384,16 +391,17 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
             }}
           >
             {isDetectorOnline ? (
-              <Wifi size={28} color={isDark ? '#34d399' : 'white'} />
+              <Wifi size={24} color={isDark ? '#34d399' : 'white'} />
             ) : (
-              <WifiOff size={28} color={isDark ? '#94a3b8' : 'rgba(255,255,255,0.8)'} />
+              <WifiOff size={24} color={isDark ? '#94a3b8' : 'rgba(255,255,255,0.8)'} />
             )}
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <h3
+                className="overview-hero-title"
                 style={{
-                  fontSize: '19px',
+                  fontSize: '18px',
                   fontWeight: 800,
                   margin: 0,
                   color: isDetectorOnline ? (isDark ? '#34d399' : 'white') : (isDark ? '#94a3b8' : 'white'),
@@ -406,8 +414,8 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
               {isDetectorOnline && (
                 <div
                   style={{
-                    width: '10px',
-                    height: '10px',
+                    width: '9px',
+                    height: '9px',
                     borderRadius: '50%',
                     backgroundColor: isDark ? '#34d399' : 'white',
                     boxShadow: isDark ? '0 0 10px rgba(52,211,153,0.5)' : '0 0 10px rgba(255,255,255,0.6)',
@@ -416,12 +424,13 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
               )}
             </div>
             <p
+              className="overview-hero-desc"
               style={{
-                fontSize: '12.5px',
+                fontSize: '12px',
                 color: isDetectorOnline
                   ? (isDark ? 'rgba(52,211,153,0.85)' : 'rgba(255,255,255,0.92)')
                   : (isDark ? '#94a3b8' : 'rgba(255,255,255,0.75)'),
-                margin: '4px 0 0 0',
+                margin: '3px 0 0 0',
               }}
             >
               {isDetectorOnline ? (
@@ -429,7 +438,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                   {isRtl ? 'المستلم: ' : 'Receiver: '}
                   <strong>{settings?.instapayHandle || 'InstaPay'}</strong>
                   {latestDevice && ` • ${latestDevice.deviceId}`}
-                  {timeSinceLastSeen !== null && ` (${timeSinceLastSeen}s heartbeat)`}
+                  {timeSinceLastSeen !== null && ` (${timeSinceLastSeen}s)`}
                 </>
               ) : (
                 isRtl
@@ -441,81 +450,81 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
         </div>
 
         {/* Hero Glass Status Metrics */}
-        <div style={{ display: 'flex', gap: '12px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
+        <div className="overview-hero-metrics" style={{ display: 'flex', gap: '10px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
           <div
-            className="hero-glass-metric"
+            className="overview-hero-metric-pill"
             style={{
-              padding: '10px 18px',
+              padding: '10px 16px',
               backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.18)',
               borderRadius: '12px',
               backdropFilter: 'blur(10px)',
               border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.25)',
               textAlign: 'center',
-              minWidth: '100px',
+              minWidth: '95px',
             }}
           >
-            <div style={{ fontSize: '10.5px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
               {isRtl ? 'إيراد اليوم' : "Today's Vol"}
             </div>
-            <div style={{ fontSize: '15px', fontWeight: 800, color: isDark ? '#34d399' : 'white', marginTop: '2px' }}>
+            <div className="overview-hero-metric-val" style={{ fontSize: '15px', fontWeight: 800, color: isDark ? '#34d399' : 'white', marginTop: '2px' }}>
               {stats?.today?.totalEgp != null ? `${Number(stats.today.totalEgp).toFixed(0)} EGP` : '0 EGP'}
             </div>
           </div>
           <div
-            className="hero-glass-metric"
+            className="overview-hero-metric-pill"
             style={{
-              padding: '10px 18px',
+              padding: '10px 16px',
               backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.18)',
               borderRadius: '12px',
               backdropFilter: 'blur(10px)',
               border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.25)',
               textAlign: 'center',
-              minWidth: '100px',
+              minWidth: '95px',
             }}
           >
-            <div style={{ fontSize: '10.5px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.75)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
               {isRtl ? 'بانتظار الدفع' : 'Pending'}
             </div>
-            <div style={{ fontSize: '15px', fontWeight: 800, color: isDark ? '#fbbf24' : 'white', marginTop: '2px' }}>
+            <div className="overview-hero-metric-val" style={{ fontSize: '15px', fontWeight: 800, color: isDark ? '#fbbf24' : 'white', marginTop: '2px' }}>
               {stats?.pending?.count ?? 0}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px', marginBottom: '24px' }}>
+      {/* Stats Cards (2x2 grid on mobile via .overview-stats-grid) */}
+      <div className="overview-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px', marginBottom: '22px' }}>
         <StatCard
-          title={isRtl ? 'المدفوعات المؤكدة اليوم' : "Today's Confirmed"}
+          title={isRtl ? 'المؤكد اليوم' : "Today's Confirmed"}
           value={stats?.today?.totalEgp != null ? `${Number(stats.today.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
-          subtitle={stats?.today?.count != null ? (isRtl ? `${stats.today.count} معاملة اليوم` : `${stats.today.count} transactions today`) : 'Loading...'}
+          subtitle={stats?.today?.count != null ? (isRtl ? `${stats.today.count} معاملة اليوم` : `${stats.today.count} orders today`) : 'Loading...'}
           trend="+100%"
           trendUp={true}
-          icon={<TrendingUp size={20} />}
+          icon={<TrendingUp size={18} />}
           color="#3b82f6"
           isDark={isDark}
         />
         <StatCard
           title={isRtl ? 'إيرادات 7 أيام' : '7-Day Revenue'}
           value={stats?.sevenDays?.totalEgp != null ? `${Number(stats.sevenDays.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
-          subtitle={stats?.sevenDays?.count != null ? (isRtl ? `${stats.sevenDays.count} معاملة مؤكدة` : `${stats.sevenDays.count} confirmed orders`) : 'Loading...'}
-          icon={<CreditCard size={20} />}
+          subtitle={stats?.sevenDays?.count != null ? (isRtl ? `${stats.sevenDays.count} معاملة` : `${stats.sevenDays.count} confirmed`) : 'Loading...'}
+          icon={<CreditCard size={18} />}
           color="#10b981"
           isDark={isDark}
         />
         <StatCard
-          title={isRtl ? 'في انتظار التحويل' : 'Pending Checkouts'}
+          title={isRtl ? 'بانتظار التحويل' : 'Pending Checkouts'}
           value={stats?.pending?.count != null ? `${stats.pending.count}` : '0'}
-          subtitle={isRtl ? 'بانتظار دفع العميل' : 'Awaiting transfer'}
-          icon={<AlertCircle size={20} />}
+          subtitle={isRtl ? 'بانتظار الدفع' : 'Awaiting transfer'}
+          icon={<AlertCircle size={18} />}
           color="#f59e0b"
           isDark={isDark}
         />
         <StatCard
-          title={isRtl ? 'الباقة والحد الشهري' : 'Monthly Plan Quota'}
+          title={isRtl ? 'الحد الشهري' : 'Plan Quota'}
           value={stats?.quota?.limit != null ? `${stats.quota.count ?? 0} / ${stats.quota.limit}` : 'Trial Plan'}
-          subtitle={stats?.quota?.plan || (isRtl ? 'اشتراك نشط' : 'Active Subscription')}
-          icon={<Smartphone size={20} />}
+          subtitle={stats?.quota?.plan || (isRtl ? 'اشتراك نشط' : 'Active Plan')}
+          icon={<Smartphone size={18} />}
           color="#06b6d4"
           isOnline={isDetectorOnline}
           isDark={isDark}
@@ -524,30 +533,31 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
 
       {/* Merchant Setup Checklist Card */}
       <div
+        className="overview-checklist-card"
         style={{
-          ...card({ padding: '24px', marginBottom: '24px' }),
+          ...card({ padding: '22px', marginBottom: '22px' }),
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h3 style={{ fontSize: '17px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
               📋 {isRtl ? 'قائمة إعداد وتفعيل المتجر' : 'Merchant Go-Live Checklist'}
             </h3>
-            <p style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '4px 0 0 0' }}>
+            <p style={{ fontSize: '12px', color: isDark ? '#94a3b8' : '#64748b', margin: '3px 0 0 0' }}>
               {isRtl
                 ? `أكملت ${checklistCompleted} من أصل ${checklistTotal} خطوات لتشغيل المدفوعات التلقائية بكفاءة`
                 : `Completed ${checklistCompleted} of ${checklistTotal} tasks to enable fully automated payment detection`}
             </p>
           </div>
           <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: checklistCompleted === 4 ? '#10b981' : '#2563eb' }}>
+            <span style={{ fontSize: '13.5px', fontWeight: 800, color: checklistCompleted === 4 ? '#10b981' : '#2563eb' }}>
               {checklistPercent}%
             </span>
           </div>
         </div>
 
         {/* Progress bar */}
-        <div style={{ height: '6px', backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderRadius: '9999px', overflow: 'hidden', marginBottom: '16px' }}>
+        <div style={{ height: '6px', backgroundColor: isDark ? '#1e293b' : '#f1f5f9', borderRadius: '9999px', overflow: 'hidden', marginBottom: '14px' }}>
           <div
             style={{
               height: '100%',
@@ -559,11 +569,12 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
           />
         </div>
 
-        {/* Checklist Steps Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '12px' }}>
+        {/* Checklist Steps Grid (2x2 on mobile) */}
+        <div className="overview-checklist-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '10px' }}>
           <div
+            className="overview-checklist-item"
             style={{
-              padding: '14px 16px',
+              padding: '12px 14px',
               borderRadius: '12px',
               backgroundColor: hasPaymentUrl
                 ? (isDark ? 'rgba(16, 185, 129, 0.12)' : '#f0fdf4')
@@ -573,23 +584,24 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                 : (isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0'),
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: '10px',
             }}
           >
-            <CheckCircle2 size={20} color={hasPaymentUrl ? '#16a34a' : '#94a3b8'} />
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
-                {isRtl ? '1. رابط إنستاباي الثابت' : '1. Static Payment URL'}
+            <CheckCircle2 size={18} color={hasPaymentUrl ? '#16a34a' : '#94a3b8'} style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div className="overview-checklist-title" style={{ fontSize: '12.5px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {isRtl ? '1. رابط إنستاباي' : '1. Static Payment URL'}
               </div>
-              <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
-                {hasPaymentUrl ? (isRtl ? 'تم الضبط بنجاح' : 'Configured') : (isRtl ? 'اضبطه في الإعدادات' : 'Configure in Settings')}
+              <div className="overview-checklist-sub" style={{ fontSize: '10.5px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                {hasPaymentUrl ? (isRtl ? 'تم الضبط' : 'Configured') : (isRtl ? 'اضبطه في الإعدادات' : 'Configure')}
               </div>
             </div>
           </div>
 
           <div
+            className="overview-checklist-item"
             style={{
-              padding: '14px 16px',
+              padding: '12px 14px',
               borderRadius: '12px',
               backgroundColor: hasDetector
                 ? (isDark ? 'rgba(16, 185, 129, 0.12)' : '#f0fdf4')
@@ -599,23 +611,24 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                 : (isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0'),
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: '10px',
             }}
           >
-            <CheckCircle2 size={20} color={hasDetector ? '#16a34a' : '#94a3b8'} />
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
-                {isRtl ? '2. ربط تطبيق الكاشف' : '2. Detector APK Connected'}
+            <CheckCircle2 size={18} color={hasDetector ? '#16a34a' : '#94a3b8'} style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div className="overview-checklist-title" style={{ fontSize: '12.5px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {isRtl ? '2. ربط الكاشف' : '2. Detector Connected'}
               </div>
-              <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
-                {hasDetector ? (isRtl ? 'جهاز نشط متصل' : 'Device listening') : (isRtl ? 'حمل وثبت التطبيق' : 'Install companion APK')}
+              <div className="overview-checklist-sub" style={{ fontSize: '10.5px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                {hasDetector ? (isRtl ? 'متصل' : 'Active') : (isRtl ? 'ثبت التطبيق' : 'Install APK')}
               </div>
             </div>
           </div>
 
           <div
+            className="overview-checklist-item"
             style={{
-              padding: '14px 16px',
+              padding: '12px 14px',
               borderRadius: '12px',
               backgroundColor: hasWebhook
                 ? (isDark ? 'rgba(16, 185, 129, 0.12)' : '#f0fdf4')
@@ -625,27 +638,27 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                 : (isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0'),
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: '10px',
               cursor: onNavigate ? 'pointer' : 'default',
-              transition: 'transform 0.15s ease',
             }}
             onClick={() => onNavigate?.('settings', 'Webhooks')}
             title={isRtl ? 'إعدادات الويب هوك' : 'Go to Webhooks Settings'}
           >
-            <CheckCircle2 size={20} color={hasWebhook ? '#16a34a' : '#94a3b8'} />
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
-                {isRtl ? '3. رابط الويب هوك (Webhook)' : '3. Webhook Endpoint'}
+            <CheckCircle2 size={18} color={hasWebhook ? '#16a34a' : '#94a3b8'} style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div className="overview-checklist-title" style={{ fontSize: '12.5px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {isRtl ? '3. رابط الويب هوك' : '3. Webhook Endpoint'}
               </div>
-              <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
-                {hasWebhook ? (isRtl ? 'مفعل وجاهز للاستقبال' : 'Ready for callbacks') : (isRtl ? 'اختياري للتكامل البرمجي' : 'Optional for auto-fulfill')}
+              <div className="overview-checklist-sub" style={{ fontSize: '10.5px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                {hasWebhook ? (isRtl ? 'مفعل' : 'Ready') : (isRtl ? 'اختياري' : 'Optional')}
               </div>
             </div>
           </div>
 
           <div
+            className="overview-checklist-item"
             style={{
-              padding: '14px 16px',
+              padding: '12px 14px',
               borderRadius: '12px',
               backgroundColor: hasApiKey
                 ? (isDark ? 'rgba(16, 185, 129, 0.12)' : '#f0fdf4')
@@ -655,20 +668,19 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                 : (isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0'),
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: '10px',
               cursor: onNavigate ? 'pointer' : 'default',
-              transition: 'transform 0.15s ease',
             }}
             onClick={() => onNavigate?.('developers')}
             title={isRtl ? 'بوابة المطورين ومفاتيح API' : 'Go to Developers Portal'}
           >
-            <CheckCircle2 size={20} color={hasApiKey ? '#16a34a' : '#94a3b8'} />
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b' }}>
-                {isRtl ? '4. مفاتيح API والمحاكي' : '4. API Keys & Simulator'}
+            <CheckCircle2 size={18} color={hasApiKey ? '#16a34a' : '#94a3b8'} style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div className="overview-checklist-title" style={{ fontSize: '12.5px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {isRtl ? '4. مفاتيح API' : '4. API Keys'}
               </div>
-              <div style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
-                {hasApiKey ? (isRtl ? 'مفاتيح الربط جاهزة' : 'Keys active') : (isRtl ? 'في انتظار الاعتماد' : 'Awaiting approval')}
+              <div className="overview-checklist-sub" style={{ fontSize: '10.5px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                {hasApiKey ? (isRtl ? 'نشط' : 'Active') : (isRtl ? 'بانتظار الاعتماد' : 'Pending')}
               </div>
             </div>
           </div>
@@ -677,13 +689,14 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
 
       {/* Recent Transactions */}
       <div
+        className="overview-activity-card"
         style={{
-          ...card({ padding: '24px', marginBottom: '24px' }),
+          ...card({ padding: '22px', marginBottom: '22px' }),
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h3 style={{ fontSize: '18px', fontWeight: '700', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '700', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
               {t('recent_activity') || 'Recent Activity'}
             </h3>
             <p style={{ fontSize: '12px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0' }}>
@@ -697,9 +710,9 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '6px 14px',
+                padding: '6px 13px',
                 borderRadius: '8px',
-                fontSize: '12px',
+                fontSize: '11.5px',
                 fontWeight: 600,
                 backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#eff6ff',
                 color: isDark ? '#38bdf8' : '#2563eb',
@@ -708,7 +721,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                 transition: 'all 0.15s ease',
               }}
             >
-              {isRtl ? 'عرض كافة المعاملات' : 'View All Transactions'} →
+              {isRtl ? 'عرض كافة المعاملات' : 'View All'} →
             </button>
           )}
         </div>
@@ -738,213 +751,222 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                 return (
                   <div
                     key={tx.id}
+                    className="overview-tx-item"
                     style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '14px 18px',
                       borderRadius: '12px',
                       backgroundColor: isDark ? '#162033' : '#f8fafc',
                       border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #f1f5f9',
-                      gap: '16px',
-                      flexWrap: 'wrap',
+                      padding: '14px 16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
                       transition: 'all 0.2s',
                     }}
                   >
-                    {/* Left: Counter, Status icon & Transaction Details */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
-                      {/* Counter Badge (#1, #2, ...) */}
-                      <div
-                        style={{
-                          minWidth: '28px',
-                          height: '28px',
-                          borderRadius: '8px',
-                          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
-                          color: isDark ? '#94a3b8' : '#64748b',
-                          fontSize: '11px',
-                          fontWeight: 800,
-                          fontFamily: 'monospace',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          border: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid #e2e8f0',
-                        }}
-                        title={isRtl ? `معاملة رقم ${index + 1}` : `Transaction #${index + 1}`}
-                      >
-                        #{index + 1}
-                      </div>
+                    {/* Row 1: Session ID + Counter & Status Icon + Amount */}
+                    <div
+                      className="overview-tx-row-top"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '10px',
+                        width: '100%',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            minWidth: '26px',
+                            height: '26px',
+                            borderRadius: '7px',
+                            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : '#f1f5f9',
+                            color: isDark ? '#94a3b8' : '#64748b',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            fontFamily: 'monospace',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            border: isDark ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid #e2e8f0',
+                          }}
+                        >
+                          #{index + 1}
+                        </div>
 
-                      <div
-                        style={{
-                          width: '42px',
-                          height: '42px',
-                          borderRadius: '12px',
-                          backgroundColor: isConfirmed
-                            ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5')
-                            : (isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7'),
-                          border: isConfirmed
-                            ? (isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #a7f3d0')
-                            : (isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a'),
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                      {isConfirmed ? (
-                        <CheckCircle2 size={20} style={{ color: '#10b981' }} />
-                      ) : (
-                        <Clock size={20} style={{ color: '#f59e0b' }} />
-                      )}
-                    </div>
+                        <div
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '8px',
+                            backgroundColor: isConfirmed
+                              ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5')
+                              : (isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7'),
+                            border: isConfirmed
+                              ? (isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #a7f3d0')
+                              : (isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a'),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {isConfirmed ? (
+                            <CheckCircle2 size={16} style={{ color: '#10b981' }} />
+                          ) : (
+                            <Clock size={16} style={{ color: '#f59e0b' }} />
+                          )}
+                        </div>
 
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      {/* Line 1: Session ID + Purchase Type Badge */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                         <span
                           style={{
                             fontFamily: 'monospace',
                             fontSize: '13px',
                             fontWeight: 700,
                             color: isDark ? '#f8fafc' : '#0f172a',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           {tx.sessionId}
                         </span>
-
-                        {/* Client Purchase Type Badge */}
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            padding: '2px 9px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            backgroundColor: tx.purpose === 'SUBSCRIPTION'
-                              ? (isDark ? 'rgba(168, 85, 247, 0.15)' : '#f3e8ff')
-                              : (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff'),
-                            color: tx.purpose === 'SUBSCRIPTION'
-                              ? (isDark ? '#c084fc' : '#7e22ce')
-                              : (isDark ? '#60a5fa' : '#1d4ed8'),
-                            border: tx.purpose === 'SUBSCRIPTION'
-                              ? (isDark ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid #e9d5ff')
-                              : (isDark ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid #dbeafe'),
-                          }}
-                          title={isRtl ? `نوع المشتريات: ${purchaseInfo.category}` : `Purchase Type: ${purchaseInfo.category}`}
-                        >
-                          <span>{purchaseInfo.icon}</span>
-                          <span>{purchaseInfo.label}</span>
-                        </span>
                       </div>
 
-                      {/* Line 2: Sender Handle + Timestamp */}
                       <div
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '12px',
-                          color: isDark ? '#94a3b8' : '#64748b',
-                          flexWrap: 'wrap',
+                          fontSize: '15px',
+                          fontWeight: 800,
+                          color: isDark ? '#f8fafc' : '#0f172a',
+                          textAlign: isRtl ? 'left' : 'right',
+                          flexShrink: 0,
                         }}
                       >
-                        <span>
-                          <strong style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
-                            {isRtl ? 'العميل: ' : 'From: '}
-                          </strong>
-                          {tx.senderHandle || 'customer@instapay'}
-                        </span>
-
-                        <span>•</span>
-
-                        {/* Timestamp with Clock Icon */}
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            color: isDark ? '#94a3b8' : '#475569',
-                          }}
-                          title={formattedDate}
-                        >
-                          <Clock size={12} style={{ color: '#0ea5e9' }} />
-                          <span style={{ fontWeight: 500 }}>{formattedDate}</span>
-                          {relativeTime && (
-                            <span style={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: '11px' }}>
-                              ({relativeTime})
-                            </span>
-                          )}
-                        </span>
+                        {tx.amountEgp.toFixed(2)} EGP
                       </div>
                     </div>
-                  </div>
 
-                  {/* Right: Amount & Status Badge & Checkout link */}
-                  <div style={{ textAlign: isRtl ? 'left' : 'right', flexShrink: 0 }}>
+                    {/* Row 2: Customer Handle & Category Badge */}
                     <div
+                      className="overview-tx-row-mid"
                       style={{
-                        fontSize: '15px',
-                        fontWeight: 800,
-                        color: isDark ? '#f8fafc' : '#0f172a',
-                        marginBottom: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        width: '100%',
                       }}
                     >
-                      {tx.amountEgp.toFixed(2)} EGP
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: isRtl ? 'flex-start' : 'flex-end' }}>
                       <span
                         style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          borderRadius: '6px',
-                          letterSpacing: '0.02em',
-                          backgroundColor: isConfirmed
-                            ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5')
-                            : (isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7'),
-                          color: isConfirmed ? '#10b981' : '#f59e0b',
-                          border: isConfirmed
-                            ? (isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #a7f3d0')
-                            : (isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a'),
-                        }}
-                      >
-                        {tx.status}
-                      </span>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedTx(tx);
-                        }}
-                        style={{
-                          padding: '5px 10px',
-                          borderRadius: '8px',
-                          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#f0f9ff',
-                          border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
-                          color: isDark ? '#38bdf8' : '#0284c7',
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '5px',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
                           fontSize: '11px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
+                          fontWeight: 600,
+                          backgroundColor: tx.purpose === 'SUBSCRIPTION'
+                            ? (isDark ? 'rgba(168, 85, 247, 0.15)' : '#f3e8ff')
+                            : (isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff'),
+                          color: tx.purpose === 'SUBSCRIPTION'
+                            ? (isDark ? '#c084fc' : '#7e22ce')
+                            : (isDark ? '#60a5fa' : '#1d4ed8'),
+                          border: tx.purpose === 'SUBSCRIPTION'
+                            ? (isDark ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid #e9d5ff')
+                            : (isDark ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid #dbeafe'),
                         }}
-                        title={isRtl ? 'عرض إيصال وتفاصيل المعاملة' : 'View Transaction Receipt & Details'}
                       >
-                        <Eye size={13} />
-                        <span>{isRtl ? 'الإيصال' : 'Receipt'}</span>
-                      </button>
+                        <span>{purchaseInfo.icon}</span>
+                        <span>{purchaseInfo.label}</span>
+                      </span>
+
+                      <span style={{ fontSize: '11.5px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                        <span style={{ opacity: 0.8 }}>{isRtl ? 'من: ' : 'From: '}</span>
+                        <strong style={{ color: isDark ? '#cbd5e1' : '#475569' }}>
+                          {tx.senderHandle || 'customer@instapay'}
+                        </strong>
+                      </span>
+                    </div>
+
+                    {/* Row 3: Timestamp + Status Pill + Receipt Button */}
+                    <div
+                      className="overview-tx-row-bottom"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                        width: '100%',
+                        paddingTop: '6px',
+                        borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.3)' : '1px solid #edf2f7',
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          color: isDark ? '#94a3b8' : '#64748b',
+                          fontSize: '11px',
+                        }}
+                      >
+                        <Clock size={11} style={{ color: '#0ea5e9', flexShrink: 0 }} />
+                        <span>{relativeTime || formattedDate}</span>
+                      </span>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            borderRadius: '6px',
+                            letterSpacing: '0.02em',
+                            backgroundColor: isConfirmed
+                              ? (isDark ? 'rgba(16, 185, 129, 0.15)' : '#d1fae5')
+                              : (isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7'),
+                            color: isConfirmed ? '#10b981' : '#f59e0b',
+                            border: isConfirmed
+                              ? (isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #a7f3d0')
+                              : (isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a'),
+                          }}
+                        >
+                          {tx.status}
+                        </span>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTx(tx);
+                          }}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '7px',
+                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#f0f9ff',
+                            border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                            color: isDark ? '#38bdf8' : '#0284c7',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            minHeight: '28px',
+                          }}
+                          title={isRtl ? 'عرض إيصال وتفاصيل المعاملة' : 'View Transaction Receipt & Details'}
+                        >
+                          <Eye size={12} />
+                          <span>{isRtl ? 'الإيصال' : 'Receipt'}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         )}
       </div>
@@ -966,6 +988,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
           onClick={() => setSelectedTx(null)}
         >
           <div
+            className="overview-modal-content"
             style={{
               backgroundColor: isDark ? '#0f172a' : '#ffffff',
               borderRadius: '20px',
@@ -1230,6 +1253,7 @@ function StatCard({
 }) {
   return (
     <div
+      className="overview-stat-card"
       style={{
         backgroundColor: isDark ? '#111827' : '#ffffff',
         borderRadius: '20px',
@@ -1248,6 +1272,7 @@ function StatCard({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div
+          className="overview-stat-icon"
           style={{
             width: '42px',
             height: '42px',
@@ -1279,8 +1304,8 @@ function StatCard({
         )}
       </div>
       <div>
-        <p style={{ fontSize: '24px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', margin: 0, letterSpacing: '-0.3px' }}>{value}</p>
-        <p style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '5px 0 0 0', fontWeight: 500 }}>{subtitle}</p>
+        <p className="overview-stat-value" style={{ fontSize: '24px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', margin: 0, letterSpacing: '-0.3px' }}>{value}</p>
+        <p className="overview-stat-subtitle" style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '5px 0 0 0', fontWeight: 500 }}>{subtitle}</p>
       </div>
     </div>
   );

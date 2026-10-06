@@ -1248,3 +1248,359 @@ th, td {
   }
 }
 
+/* =====================================================================
+   📱 ANDROID / MOBILE RESPONSIVE ENHANCEMENTS FOR OVERVIEW & REVIEW
+   ===================================================================== */
+
+.merchant-page-container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .merchant-page-container {
+    padding: 10px 8px !important;
+  }
+
+  .merchant-main-scroll {
+    padding: 8px 6px !important;
+  }
+
+  /* ─── Overview Page Mobile Layout ─── */
+  .overview-header-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .overview-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .overview-header-actions > * {
+    flex: 1 1 auto !important;
+  }
+
+  .overview-hero-card {
+    padding: 16px 14px !important;
+    border-radius: 16px !important;
+    margin-bottom: 16px !important;
+    gap: 14px !important;
+  }
+
+  .overview-hero-icon {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 12px !important;
+  }
+
+  .overview-hero-icon svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .overview-hero-title {
+    font-size: 16px !important;
+  }
+
+  .overview-hero-desc {
+    font-size: 11.5px !important;
+    line-height: 1.4 !important;
+  }
+
+  .overview-hero-metrics {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .overview-hero-metric-pill {
+    padding: 8px 10px !important;
+    min-width: 0 !important;
+    border-radius: 10px !important;
+  }
+
+  .overview-hero-metric-val {
+    font-size: 14px !important;
+  }
+
+  /* 2x2 Grid for Stat Cards on Android */
+  .overview-stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .overview-stat-card {
+    padding: 12px 10px !important;
+    border-radius: 14px !important;
+  }
+
+  .overview-stat-icon {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 9px !important;
+  }
+
+  .overview-stat-icon svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .overview-stat-value {
+    font-size: 16px !important;
+    letter-spacing: -0.3px !important;
+  }
+
+  .overview-stat-subtitle {
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    margin-top: 3px !important;
+  }
+
+  /* Checklist Mobile Grid (2x2) */
+  .overview-checklist-card {
+    padding: 16px 14px !important;
+    border-radius: 16px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .overview-checklist-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .overview-checklist-item {
+    padding: 10px 10px !important;
+    border-radius: 10px !important;
+    gap: 8px !important;
+  }
+
+  .overview-checklist-title {
+    font-size: 11.5px !important;
+  }
+
+  .overview-checklist-sub {
+    font-size: 10px !important;
+  }
+
+  /* Recent Activity Mobile Cards */
+  .overview-activity-card {
+    padding: 16px 14px !important;
+    border-radius: 16px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .overview-tx-item {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+    gap: 8px !important;
+  }
+
+  .overview-tx-row-top {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .overview-tx-row-mid {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    width: 100% !important;
+  }
+
+  .overview-tx-row-bottom {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+    padding-top: 6px !important;
+    border-top: 1px dashed rgba(100, 116, 139, 0.2) !important;
+  }
+
+  /* Modal Mobile Sheet */
+  .overview-modal-content {
+    width: calc(100vw - 20px) !important;
+    max-height: 88vh !important;
+    padding: 16px !important;
+    border-radius: 18px !important;
+  }
+
+  /* ─── Review Page Mobile Layout ─── */
+  .review-header-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .review-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .review-header-actions button {
+    flex: 1 !important;
+    justify-content: center !important;
+  }
+
+  .review-hero-card {
+    padding: 16px 14px !important;
+    border-radius: 16px !important;
+    margin-bottom: 16px !important;
+    gap: 14px !important;
+  }
+
+  .review-hero-icon {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 12px !important;
+  }
+
+  .review-hero-icon svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .review-hero-title {
+    font-size: 16px !important;
+  }
+
+  .review-hero-desc {
+    font-size: 11.5px !important;
+    line-height: 1.4 !important;
+  }
+
+  .review-hero-metrics {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .review-hero-metric-pill {
+    padding: 8px 10px !important;
+    min-width: 0 !important;
+    border-radius: 10px !important;
+  }
+
+  .review-guidance-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .review-guidance-btn {
+    width: 100% !important;
+    text-align: center !important;
+    justify-content: center !important;
+  }
+
+  /* Review Category Filter Touch Tabs */
+  .review-categories-scroll {
+    display: flex !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 4px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .review-categories-scroll::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .review-category-btn {
+    padding: 7px 11px !important;
+    font-size: 11.5px !important;
+    border-radius: 10px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Review Transaction Card Android Redesign */
+  .review-tx-card {
+    border-radius: 16px !important;
+  }
+
+  .review-card-header {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 12px 14px !important;
+    gap: 10px !important;
+  }
+
+  .review-card-identity {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .review-card-amounts-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    padding: 10px 12px !important;
+    background-color: rgba(0, 0, 0, 0.15) !important;
+    border-radius: 10px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .review-card-meta-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    padding: 8px 14px !important;
+    font-size: 11px !important;
+  }
+
+  .review-card-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 10px 14px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .review-btn-confirm {
+    flex: 2 !important;
+    min-height: 42px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    justify-content: center !important;
+  }
+
+  .review-btn-reject {
+    flex: 1 !important;
+    min-height: 42px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    justify-content: center !important;
+  }
+}
+
