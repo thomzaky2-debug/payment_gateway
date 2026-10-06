@@ -655,7 +655,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
               TAB 1: STORE & CREDENTIALS
              ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'general' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
               {/* Card 1: Store Profile & Identity */}
               <div style={{ ...card({ padding: '24px' }) }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
@@ -913,7 +913,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
              ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'precision' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
                 {/* Rule Card 1: Overpaid Acceptance */}
                 <div style={{ ...card({ padding: '24px' }) }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
@@ -1090,7 +1090,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
              ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'webhooks' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
                 {/* Webhook Configuration Card */}
                 <div style={{ ...card({ padding: '24px' }) }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>

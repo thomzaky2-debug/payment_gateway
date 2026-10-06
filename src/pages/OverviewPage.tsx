@@ -482,7 +482,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
       </div>
 
       {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px', marginBottom: '24px' }}>
         <StatCard
           title={isRtl ? 'المدفوعات المؤكدة اليوم' : "Today's Confirmed"}
           value={stats?.today?.totalEgp != null ? `${Number(stats.today.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
@@ -558,7 +558,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
         </div>
 
         {/* Checklist Steps Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '12px' }}>
           <div
             style={{
               padding: '14px 16px',

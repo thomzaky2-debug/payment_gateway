@@ -81,6 +81,7 @@ function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmAction | null>(null);
   const [currentClient, setCurrentClient] = useState<any>(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     authApi
@@ -284,24 +285,37 @@ function App() {
       className="app-main-layout"
       style={{
         display: 'flex',
-        height: '100vh',
-        width: '100vw',
+        height: '100dvh',
+        minHeight: '100vh',
+        width: '100%',
         backgroundColor: isDark ? '#090d16' : '#f1f5f9',
         color: isDark ? '#f8fafc' : '#1e293b',
         overflow: 'hidden',
         transition: 'background-color 0.25s ease, color 0.25s ease',
       }}
     >
-      <Sidebar currentPage={currentPage} onNavigate={navigateTo} />
+      <Sidebar
+        currentPage={currentPage}
+        onNavigate={navigateTo}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+      />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        <Topbar client={currentClient} currentPage={currentPage} onLogout={handleLogout} onNavigate={navigateTo} />
+        <Topbar
+          client={currentClient}
+          currentPage={currentPage}
+          onLogout={handleLogout}
+          onNavigate={navigateTo}
+          onOpenMobileMenu={() => setMobileSidebarOpen(true)}
+        />
 
         <main
           style={{
             flex: 1,
             overflow: 'auto',
-            padding: '24px',
+            WebkitOverflowScrolling: 'touch',
+            padding: 'clamp(12px, 3vw, 24px)',
             backgroundColor: isDark ? '#090d16' : '#f1f5f9',
             transition: 'background-color 0.25s ease',
           }}

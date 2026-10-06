@@ -96,6 +96,7 @@ model Client {
   bundlePurchases    BundlePurchase[]
   authSessions       AuthSession[]
   incomingPayments   IncomingPaymentEvent[]
+  specialOffers      SpecialOffer[]
 
   @@index([instapayHandle])
   @@index([instapayPaymentUrl])
@@ -103,6 +104,26 @@ model Client {
   @@index([detectToken])
   @@index([apiKeyHash])
   @@index([detectTokenHash])
+}
+
+// Merchant-specific commercial proposals for enterprise accounts.
+model SpecialOffer {
+  id              String    @id @default(cuid())
+  clientId        String
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  priceEgp        Float
+  maxTransactions Int
+  periodDays      Int
+  status          String    @default("ACTIVE") // ACTIVE | ACCEPTED | REVOKED
+  validUntil      DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([clientId, status, validUntil])
+  @@index([status, validUntil])
 }
 
 // Immutable ingestion ledger used to reject replayed detector notifications.
@@ -297,11 +318,14 @@ model DetectorDevice {
 
 // ─── Subscription & Pricing Plans ───────────────────────────────────
 model Plan {
-  id              String  @id @default(cuid())
-  name            String  @unique // FREE_TRIAL, BASIC, PRO, ENTERPRISE
+  id              String    @id @default(cuid())
+  name            String    @unique // FREE_TRIAL, BASIC, PRO, ENTERPRISE
   priceEgp        Float
   maxTransactions Int
-  periodDays      Int     @default(30) // Admin controlled duration (e.g. 14 days for trial)
+  periodDays      Int       @default(30) // Admin controlled duration (e.g. 14 days for trial)
   description     String?
-  isActive        Boolean @default(true)
+  isActive        Boolean   @default(true)
+  offerPriceEgp   Float?
+  offerLabel      String?
+  offerEndsAt     DateTime?
 }

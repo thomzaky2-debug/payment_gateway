@@ -19,8 +19,8 @@ android {
         // Android 8.0 (API 26) — matches the "Android 8+" requirement.
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "2.2.5"
+        versionCode = 10
+        versionName = "2.3.0-web-parity"
         resValue("string", "app_name", "InstaPay Detector")
         buildConfigField("String", "GATEWAY_BASE_URL", "\"${gatewayBaseUrl ?: "https://gateway.example.invalid"}\"")
     }
@@ -48,7 +48,7 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            buildConfigField("String", "GATEWAY_BASE_URL", "\"http://10.0.2.2:3001\"")
+            buildConfigField("String", "GATEWAY_BASE_URL", "\"${gatewayBaseUrl ?: "http://10.0.2.2:3001"}\"")
         }
         release {
             isMinifyEnabled = true

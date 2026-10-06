@@ -160,6 +160,22 @@ export const adminApi = {
     const res = await adminHttp.get('/admin/clients')
     return res.data
   },
+  async getClientOverview(id: string) {
+    const res = await adminHttp.get(`/admin/clients/${id}/overview`)
+    return res.data
+  },
+  async setClientAccess(id: string, isActive: boolean) {
+    const res = await adminHttp.patch(`/admin/clients/${id}/access`, { isActive })
+    return res.data
+  },
+  async revokeClientSessions(id: string) {
+    const res = await adminHttp.post(`/admin/clients/${id}/revoke-sessions`, {})
+    return res.data
+  },
+  async rotateClientKeys(id: string) {
+    const res = await adminHttp.post(`/admin/clients/${id}/rotate-keys`, {})
+    return res.data
+  },
   async approveClient(id: string) {
     const res = await adminHttp.post(`/admin/clients/${id}/approve`, {})
     return res.data
@@ -184,7 +200,7 @@ export const adminApi = {
     const res = await adminHttp.get('/admin/plans')
     return res.data
   },
-  async updatePlan(data: { name: string; priceEgp?: number; maxTransactions?: number; periodDays?: number; isActive?: boolean; description?: string }) {
+  async updatePlan(data: { name: string; priceEgp?: number; maxTransactions?: number; periodDays?: number; isActive?: boolean; description?: string; offerPriceEgp?: number | null; offerLabel?: string; offerValidDays?: number; clearOffer?: boolean }) {
     const res = await adminHttp.patch('/admin/plans', data)
     return res.data
   },
@@ -198,6 +214,30 @@ export const adminApi = {
   },
   async assignClientPlan(clientId: string, data: { planName: string; customTxLimit?: number; extendDays?: number }) {
     const res = await adminHttp.post(`/admin/clients/${clientId}/plan`, data)
+    return res.data
+  },
+  async getBundles() {
+    const res = await adminHttp.get('/admin/bundles')
+    return res.data
+  },
+  async createBundle(data: { name: string; displayName: string; priceEgp: number; extraTx: number; description?: string; sortOrder?: number; isActive?: boolean }) {
+    const res = await adminHttp.post('/admin/bundles', data)
+    return res.data
+  },
+  async updateBundle(id: string, data: { displayName?: string; priceEgp?: number; extraTx?: number; description?: string; sortOrder?: number; isActive?: boolean }) {
+    const res = await adminHttp.patch(`/admin/bundles/${id}`, data)
+    return res.data
+  },
+  async getSpecialOffers() {
+    const res = await adminHttp.get('/admin/special-offers')
+    return res.data
+  },
+  async createSpecialOffer(data: { clientId: string; title: string; description?: string; priceEgp: number; maxTransactions: number; periodDays: number; validDays: number }) {
+    const res = await adminHttp.post('/admin/special-offers', data)
+    return res.data
+  },
+  async updateSpecialOffer(id: string, data: { title?: string; description?: string; priceEgp?: number; maxTransactions?: number; periodDays?: number; validDays?: number; status?: 'ACTIVE' | 'REVOKED' }) {
+    const res = await adminHttp.patch(`/admin/special-offers/${id}`, data)
     return res.data
   },
   async sendNotification(data: { target?: string; clientId?: string; title: string; message: string; severity?: string }) {
@@ -216,6 +256,10 @@ export const plansApi = {
 }
 
 export const subscriptionApi = {
+  async getSpecialOffers() {
+    const res = await api.get('/subscription/special-offers')
+    return res.data
+  },
   async checkout(planName: string, senderHandle?: string) {
     const res = await api.post('/subscription/checkout', { planName, senderHandle })
     return res.data

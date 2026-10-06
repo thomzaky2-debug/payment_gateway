@@ -28,13 +28,15 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
     <div
       style={{
         position: 'fixed',
-        top: '20px',
-        right: '20px',
-        zIndex: 9999,
+        top: 'max(16px, env(safe-area-inset-top, 0px))',
+        right: 'clamp(12px, 3vw, 20px)',
+        left: 'clamp(12px, 3vw, auto)',
+        zIndex: 99999,
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
-        maxWidth: '400px',
+        maxWidth: 'calc(100vw - 24px)',
+        pointerEvents: 'none',
       }}
       role="region"
       aria-label="Notifications"
@@ -55,6 +57,7 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
               borderRadius: '12px',
               boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
               animation: 'slideInRight 0.3s ease-out',
+              pointerEvents: 'auto',
             }}
             role="alert"
           >

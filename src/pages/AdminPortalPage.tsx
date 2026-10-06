@@ -11,8 +11,6 @@ import {
   ExternalLink,
   Copy,
   Lock,
-  LogOut,
-  Activity,
   Send,
   Eye,
   EyeOff,
@@ -20,16 +18,21 @@ import {
   DollarSign,
   Smartphone,
   Check,
-  Download,
-  CreditCard,
   Bell,
   Edit2,
   Save,
   Gift,
   Sparkles,
   Sliders,
+  Activity,
+  Power,
+  RotateCcw,
+  Wifi,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
+import { AdminSidebar } from '../components/AdminSidebar';
+import { AdminTopbar } from '../components/AdminTopbar';
+import { useTheme } from '../context/ThemeContext';
 
 interface MerchantClient {
   id: string;
@@ -48,6 +51,7 @@ interface MerchantClient {
   subscriptionPlan: string;
   txLimit: number;
   txCount: number;
+  subscriptionEndsAt?: string | null;
   createdAt: string;
   _count?: {
     transactions: number;
@@ -55,17 +59,48 @@ interface MerchantClient {
   detectorDevices?: any[];
 }
 
+interface MerchantOverview {
+  activeSessions: number;
+  detectorOnlineCount: number;
+  detectorDevices: Array<{
+    id: string;
+    deviceId: string;
+    appVersion?: string | null;
+    androidVersion?: string | null;
+    lastSeenAt: string;
+    lastIp?: string | null;
+  }>;
+  totalTransactions: number;
+  transactionsByStatus: Record<string, number>;
+  confirmedVolumeEgp: number;
+  unmatchedPayments: number;
+  webhookTotal: number;
+  webhookSuccess: number;
+  webhookSuccessRate: number | null;
+  latestWebhook?: { createdAt: string; isSuccess: boolean; statusCode?: number | null; event: string } | null;
+  latestTransaction?: { sessionId: string; status: string; amountEgp: number; createdAt: string } | null;
+  apiKeyLastUsedAt?: string | null;
+  detectTokenLastUsedAt?: string | null;
+  subscriptionEndsAt?: string | null;
+  checkoutTtlMin: number;
+}
+
 interface PlatformStats {
   totalClients: number;
   pendingClients: number;
   approvedClients: number;
+  activeClients: number;
+  suspendedClients: number;
   totalTransactions: number;
   confirmedTransactions: number;
   totalVolumeEgp: number;
   totalDetectors: number;
+  onlineDetectors: number;
+  failedWebhooks: number;
+  unmatchedPayments: number;
 }
 
-export type AdminTab = 'merchants' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications';
+export type AdminTab = 'overview' | 'merchants' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications';
 
 export interface AdminRoute {
   tab: AdminTab;
@@ -76,7 +111,7 @@ export function parseAdminRouteFromHash(hashString?: string): AdminRoute {
   const raw = (hashString !== undefined ? hashString : (typeof window !== 'undefined' ? window.location.hash : '')) || '';
   const clean = raw.replace(/^#\/?/, '').trim();
   if (!clean) {
-    return { tab: 'merchants' };
+    return { tab: 'overview' };
   }
 
   const parts = clean.split('/').filter(Boolean);
@@ -98,6 +133,9 @@ export function parseAdminRouteFromHash(hashString?: string): AdminRoute {
   }
 
   const validTabs: Record<string, AdminTab> = {
+    overview: 'overview',
+    dashboard: 'overview',
+    home: 'overview',
     merchants: 'merchants',
     merchant: 'merchants',
     clients: 'merchants',
@@ -119,7 +157,7 @@ export function parseAdminRouteFromHash(hashString?: string): AdminRoute {
     broadcast: 'notifications',
   };
 
-  const tab = validTabs[rawFirst] || 'merchants';
+  const tab = validTabs[rawFirst] || 'overview';
   return { tab, subPath: subPath || undefined };
 }
 
@@ -131,6 +169,7 @@ export function buildAdminHash(tab: AdminTab, subPath?: string): string {
 }
 
 export function AdminPortalPage() {
+  const { isDark } = useTheme();
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean | null>(null);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -151,6 +190,12 @@ export function AdminPortalPage() {
   const [webhookLogs, setWebhookLogs] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
+  const [bundles, setBundles] = useState<any[]>([]);
+  const [editingBundle, setEditingBundle] = useState<any | null>(null);
+  const [bundleSaving, setBundleSaving] = useState(false);
+  const [specialOffers, setSpecialOffers] = useState<any[]>([]);
+  const [editingOffer, setEditingOffer] = useState<any | null>(null);
+  const [offerSaving, setOfferSaving] = useState(false);
 
   // Admin Trial Control State
   const [trialPeriodDays, setTrialPeriodDays] = useState<number | string>(14);
@@ -167,6 +212,7 @@ export function AdminPortalPage() {
   const [sendingNotif, setSendingNotif] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
   // Filters & Search
   const initialMerchantFilter: 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' = (() => {
@@ -181,6 +227,12 @@ export function AdminPortalPage() {
   const [merchantFilter, setMerchantFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>(initialMerchantFilter);
   const [merchantSearch, setMerchantSearch] = useState('');
   const [selectedMerchant, setSelectedMerchant] = useState<MerchantClient | null>(null);
+  const [merchantOverview, setMerchantOverview] = useState<MerchantOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [merchantAction, setMerchantAction] = useState<string | null>(null);
+  const [merchantPlan, setMerchantPlan] = useState('FREE_TRIAL');
+  const [merchantTxLimit, setMerchantTxLimit] = useState<number | string>(50);
+  const [merchantExtendDays, setMerchantExtendDays] = useState<number | string>(30);
 
   // Navigation and Hash Handlers
   const navigateToTab = (tab: AdminTab, subPath?: string) => {
@@ -319,18 +371,45 @@ export function AdminPortalPage() {
     }
   }, [merchants]);
 
+  useEffect(() => {
+    if (!selectedMerchant) {
+      setMerchantOverview(null);
+      return;
+    }
+
+    let cancelled = false;
+    setMerchantPlan(selectedMerchant.subscriptionPlan || 'FREE_TRIAL');
+    setMerchantTxLimit(selectedMerchant.txLimit || 1);
+    setMerchantExtendDays(30);
+    setMerchantOverview(null);
+    setOverviewLoading(true);
+    adminApi.getClientOverview(selectedMerchant.id)
+      .then((res) => {
+        if (!cancelled && res?.ok) setMerchantOverview(res.overview);
+      })
+      .catch((err: any) => {
+        if (!cancelled) showToast(err.response?.data?.error || 'Failed to load merchant health', 'error');
+      })
+      .finally(() => {
+        if (!cancelled) setOverviewLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedMerchant?.id]);
+
   // Fetch admin portal data
   const fetchData = async () => {
     if (!isAdminAuthenticated) return;
     setLoading(true);
     try {
-      const [statsRes, clientsRes, txRes, auditRes, webhooksRes, plansRes] = await Promise.allSettled([
+      const [statsRes, clientsRes, txRes, auditRes, webhooksRes, plansRes, bundlesRes, offersRes] = await Promise.allSettled([
         adminApi.getStats(),
         adminApi.listClients(),
         adminApi.getTransactions(),
         adminApi.getAuditLogs(),
         adminApi.getWebhooks(),
         adminApi.getPlans(),
+        adminApi.getBundles(),
+        adminApi.getSpecialOffers(),
       ]);
 
       if (statsRes.status === 'fulfilled' && statsRes.value?.ok) {
@@ -359,6 +438,13 @@ export function AdminPortalPage() {
           setTrialDescription(trial.description ?? '14-Day introductory free trial with live InstaPay detection and 50 transactions');
         }
       }
+      if (bundlesRes.status === 'fulfilled' && bundlesRes.value?.ok) {
+        setBundles(bundlesRes.value.bundles || []);
+      }
+      if (offersRes.status === 'fulfilled' && offersRes.value?.ok) {
+        setSpecialOffers(offersRes.value.offers || []);
+      }
+      setLastSyncedAt(new Date());
     } catch {
       showToast('Error syncing admin records', 'error');
     } finally {
@@ -439,6 +525,81 @@ export function AdminPortalPage() {
     }
   };
 
+  const refreshMerchantOverview = async (id: string) => {
+    const res = await adminApi.getClientOverview(id);
+    if (res?.ok) setMerchantOverview(res.overview);
+  };
+
+  const handleMerchantAccess = async () => {
+    if (!selectedMerchant) return;
+    const activating = !selectedMerchant.isActive;
+    if (!activating && !window.confirm(`Suspend ${selectedMerchant.businessName}? Active merchant sessions will be revoked.`)) return;
+    setMerchantAction('access');
+    try {
+      const res = await adminApi.setClientAccess(selectedMerchant.id, activating);
+      if (!res?.ok) throw new Error(res?.error || 'Failed to update merchant access');
+      setSelectedMerchant((current) => current ? { ...current, isActive: activating } : current);
+      showToast(`${selectedMerchant.businessName} ${activating ? 'reactivated' : 'suspended'}`);
+      await Promise.all([fetchData(), refreshMerchantOverview(selectedMerchant.id)]);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || err.message || 'Failed to update merchant access', 'error');
+    } finally {
+      setMerchantAction(null);
+    }
+  };
+
+  const handleRevokeSessions = async () => {
+    if (!selectedMerchant || !window.confirm(`Sign ${selectedMerchant.businessName} out of every device?`)) return;
+    setMerchantAction('sessions');
+    try {
+      const res = await adminApi.revokeClientSessions(selectedMerchant.id);
+      if (!res?.ok) throw new Error(res?.error || 'Failed to revoke sessions');
+      showToast(`${res.revokedSessions} merchant session(s) revoked`);
+      await refreshMerchantOverview(selectedMerchant.id);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || err.message || 'Failed to revoke sessions', 'error');
+    } finally {
+      setMerchantAction(null);
+    }
+  };
+
+  const handleRotateMerchantKeys = async () => {
+    if (!selectedMerchant || !window.confirm('Rotate all integration credentials? Existing API and detector integrations will stop until they use the new keys.')) return;
+    setMerchantAction('keys');
+    try {
+      const res = await adminApi.rotateClientKeys(selectedMerchant.id);
+      if (!res?.ok) throw new Error(res?.error || 'Failed to rotate credentials');
+      setSelectedMerchant((current) => current ? { ...current, ...res.client } : current);
+      showToast('Integration credentials rotated');
+      await Promise.all([fetchData(), refreshMerchantOverview(selectedMerchant.id)]);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || err.message || 'Failed to rotate credentials', 'error');
+    } finally {
+      setMerchantAction(null);
+    }
+  };
+
+  const handleAssignMerchantPlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMerchant) return;
+    setMerchantAction('plan');
+    try {
+      const res = await adminApi.assignClientPlan(selectedMerchant.id, {
+        planName: merchantPlan,
+        customTxLimit: Number(merchantTxLimit),
+        extendDays: Number(merchantExtendDays),
+      });
+      if (!res?.ok) throw new Error(res?.error || 'Failed to update merchant plan');
+      setSelectedMerchant((current) => current ? { ...current, ...res.client } : current);
+      showToast(`${selectedMerchant.businessName} plan and quota updated`);
+      await Promise.all([fetchData(), refreshMerchantOverview(selectedMerchant.id)]);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || err.message || 'Failed to update merchant plan', 'error');
+    } finally {
+      setMerchantAction(null);
+    }
+  };
+
   // Force Confirm Transaction
   const handleForceConfirm = async (sessionId: string) => {
     if (!sessionId.trim()) return;
@@ -460,6 +621,19 @@ export function AdminPortalPage() {
   };
 
   // Plan Management
+  const openEditPlan = (plan: any) => {
+    const offerIsActive = plan.offerPriceEgp !== null && plan.offerEndsAt && new Date(plan.offerEndsAt).getTime() > Date.now();
+    const remainingDays = offerIsActive
+      ? Math.max(1, Math.ceil((new Date(plan.offerEndsAt).getTime() - Date.now()) / 86400000))
+      : 7;
+    setEditingPlan({
+      ...plan,
+      offerPriceEgp: offerIsActive ? plan.offerPriceEgp : '',
+      offerLabel: offerIsActive ? (plan.offerLabel || 'Limited-time offer') : 'Limited-time offer',
+      offerValidDays: remainingDays,
+    });
+  };
+
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPlan) return;
@@ -471,6 +645,12 @@ export function AdminPortalPage() {
         periodDays: Number(editingPlan.periodDays) || 30,
         description: editingPlan.description,
         isActive: editingPlan.isActive !== false,
+        offerPriceEgp: editingPlan.offerPriceEgp === '' || editingPlan.offerPriceEgp === null
+          ? null
+          : Number(editingPlan.offerPriceEgp),
+        offerLabel: String(editingPlan.offerLabel || '').trim(),
+        offerValidDays: Number(editingPlan.offerValidDays) || 7,
+        clearOffer: editingPlan.offerPriceEgp === '' || editingPlan.offerPriceEgp === null,
       });
       if (res.ok) {
         showToast(`Plan ${editingPlan.name} updated successfully!`);
@@ -481,6 +661,110 @@ export function AdminPortalPage() {
       }
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Failed to update plan', 'error');
+    }
+  };
+
+  const openNewBundle = () => {
+    setEditingBundle({
+      name: '',
+      displayName: '',
+      priceEgp: 49,
+      extraTx: 50,
+      description: '',
+      sortOrder: bundles.length + 1,
+      isActive: true,
+    });
+  };
+
+  const handleSaveBundle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBundle) return;
+    if (!editingBundle.displayName?.trim() || !editingBundle.name?.trim()) {
+      showToast('Bundle key and display name are required', 'error');
+      return;
+    }
+    setBundleSaving(true);
+    try {
+      const payload = {
+        name: String(editingBundle.name).trim().toUpperCase(),
+        displayName: String(editingBundle.displayName).trim(),
+        priceEgp: Number(editingBundle.priceEgp),
+        extraTx: Number(editingBundle.extraTx),
+        description: String(editingBundle.description || '').trim(),
+        sortOrder: Number(editingBundle.sortOrder) || 0,
+        isActive: editingBundle.isActive !== false,
+      };
+      const res = editingBundle.id
+        ? await adminApi.updateBundle(editingBundle.id, payload)
+        : await adminApi.createBundle(payload);
+      if (!res?.ok) throw new Error(res?.error || 'Failed to save bundle');
+      showToast(`${payload.displayName} ${editingBundle.id ? 'updated' : 'created'} successfully`);
+      setEditingBundle(null);
+      await fetchData();
+    } catch (err: any) {
+      showToast(err.response?.data?.error || err.message || 'Failed to save bundle', 'error');
+    } finally {
+      setBundleSaving(false);
+    }
+  };
+
+  const handleToggleBundle = async (bundle: any) => {
+    setBundleSaving(true);
+    try {
+      const res = await adminApi.updateBundle(bundle.id, { isActive: !bundle.isActive });
+      if (!res?.ok) throw new Error(res?.error || 'Failed to update bundle availability');
+      showToast(`${bundle.displayName} is now ${bundle.isActive ? 'hidden from' : 'available in'} merchant billing`);
+      await fetchData();
+    } catch (err: any) {
+      showToast(err.response?.data?.error || err.message || 'Failed to update bundle', 'error');
+    } finally {
+      setBundleSaving(false);
+    }
+  };
+
+  const openNewSpecialOffer = () => {
+    setEditingOffer({ clientId: '', title: 'Enterprise Growth Offer', description: '', priceEgp: 999, maxTransactions: 5000, periodDays: 90, validDays: 14 });
+  };
+
+  const handleSaveSpecialOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOffer) return;
+    setOfferSaving(true);
+    try {
+      const payload = {
+        clientId: editingOffer.clientId,
+        title: String(editingOffer.title || '').trim(),
+        description: String(editingOffer.description || '').trim(),
+        priceEgp: Number(editingOffer.priceEgp),
+        maxTransactions: Number(editingOffer.maxTransactions),
+        periodDays: Number(editingOffer.periodDays),
+        validDays: Number(editingOffer.validDays) || 14,
+      };
+      const res = editingOffer.id
+        ? await adminApi.updateSpecialOffer(editingOffer.id, payload)
+        : await adminApi.createSpecialOffer(payload);
+      if (!res?.ok) throw new Error(res?.error || 'Failed to save special offer');
+      showToast(`Special offer ${editingOffer.id ? 'updated' : 'sent to merchant'}`);
+      setEditingOffer(null);
+      await fetchData();
+    } catch (err: any) {
+      showToast(err.response?.data?.error || err.message || 'Failed to save special offer', 'error');
+    } finally {
+      setOfferSaving(false);
+    }
+  };
+
+  const handleOfferStatus = async (offer: any, status: 'ACTIVE' | 'REVOKED') => {
+    setOfferSaving(true);
+    try {
+      const res = await adminApi.updateSpecialOffer(offer.id, { status });
+      if (!res?.ok) throw new Error(res?.error || 'Failed to update special offer');
+      showToast(`Offer ${status === 'ACTIVE' ? 'restored' : 'revoked'}`);
+      await fetchData();
+    } catch (err: any) {
+      showToast(err.response?.data?.error || err.message || 'Failed to update special offer', 'error');
+    } finally {
+      setOfferSaving(false);
     }
   };
 
@@ -569,26 +853,52 @@ export function AdminPortalPage() {
       <div
         style={{
           minHeight: '100vh',
-          backgroundColor: '#090d16',
+          width: '100vw',
+          background: 'linear-gradient(135deg, #070b14 0%, #0f172a 50%, #070b14 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: '20px',
+          position: 'relative',
+          overflow: 'hidden',
           fontFamily: "'Inter', sans-serif",
           color: '#e2e8f0',
         }}
       >
         <div
           style={{
+            position: 'absolute',
+            top: '-30%',
+            left: '-15%',
+            width: '70%',
+            height: '160%',
+            background: 'radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '-30%',
+            right: '-15%',
+            width: '70%',
+            height: '160%',
+            background: 'radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
+        <div
+          style={{
             width: '100%',
-            maxWidth: '440px',
-            backgroundColor: '#111827',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            maxWidth: '460px',
+            backgroundColor: '#0f172a',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '24px',
             padding: '36px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
             position: 'relative',
             overflow: 'hidden',
+            zIndex: 1,
           }}
         >
           {/* Accent glow */}
@@ -799,152 +1109,78 @@ export function AdminPortalPage() {
   }
 
   // ─── ADMIN DASHBOARD ──────────────────────────────────────────────
+  const surface = isDark ? '#111827' : '#ffffff';
+  const surfaceBorder = isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0';
+  const textPrimary = isDark ? '#f8fafc' : '#1e293b';
+  const textSecondary = isDark ? '#94a3b8' : '#64748b';
+  const cardShadow = isDark
+    ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
+    : '0 4px 16px rgba(0,0,0,0.06)';
+  const tabHeading: Record<AdminTab, { title: string; description: string }> = {
+    overview: { title: 'Platform Overview', description: 'Live operational health and activity across the entire payment network' },
+    merchants: { title: 'Merchant Management', description: 'Monitor merchant health, access, subscriptions, and integration readiness' },
+    transactions: { title: 'Platform Transactions', description: 'Track and resolve payment activity across all merchant accounts' },
+    audit: { title: 'Administrative Audit Trail', description: 'Review privileged actions and important platform security events' },
+    webhooks: { title: 'Webhook Delivery Logs', description: 'Monitor callback delivery health and merchant endpoint responses' },
+    plans: { title: 'Plans & Pricing', description: 'Configure subscriptions, free trials, quotas, and merchant allocations' },
+    notifications: { title: 'Merchant Notifications', description: 'Send operational updates to one merchant or the complete network' },
+  };
+  const currentHeading = tabHeading[activeTab];
+  const recentWebhookSuccessRate = webhookLogs.length
+    ? Math.round((webhookLogs.filter((log) => log.isSuccess).length / webhookLogs.length) * 100)
+    : null;
+  const detectorAvailability = stats?.totalDetectors
+    ? Math.round(((stats.onlineDetectors || 0) / stats.totalDetectors) * 100)
+    : 0;
+  const merchantAvailability = stats?.approvedClients
+    ? Math.round(((stats.activeClients || 0) / stats.approvedClients) * 100)
+    : 0;
+
   return (
     <div
+      className="admin-portal-shell app-main-layout"
       style={{
-        minHeight: '100vh',
-        backgroundColor: '#090d16',
-        color: '#e2e8f0',
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        overflow: 'hidden',
+        backgroundColor: isDark ? '#090d16' : '#f1f5f9',
+        color: isDark ? '#e2e8f0' : '#1e293b',
         fontFamily: "'Inter', sans-serif",
+        transition: 'background-color 0.25s ease, color 0.25s ease',
       }}
     >
-      {/* Top Admin Header */}
-      <header
-        style={{
-          backgroundColor: '#0f172a',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          padding: '14px 28px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div
-            style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 6px 16px -2px rgba(124, 58, 237, 0.4)',
-            }}
-          >
-            <Shield size={20} color="#ffffff" />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '17px', fontWeight: 800, color: '#ffffff', margin: 0 }}>
-                Superadmin Control Center
-              </h1>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: '9999px',
-                  backgroundColor: 'rgba(139, 92, 246, 0.2)',
-                  color: '#c084fc',
-                  border: '1px solid rgba(139, 92, 246, 0.3)',
-                }}
-              >
-                LIVE ROOT
-              </span>
-            </div>
-            <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
-              InstaPay Payment Gateway & Detector Fleet
-            </p>
-          </div>
-        </div>
+      <AdminSidebar
+        activeTab={activeTab}
+        pendingCount={stats?.pendingClients ?? 0}
+        onNavigate={(tab) => navigateToTab(tab)}
+      />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button
-            onClick={fetchData}
-            disabled={loading}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              backgroundColor: '#1e293b',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
-              color: '#cbd5e1',
-              fontSize: '13px',
-              cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-
-          <a
-            href="/api/apks/admin"
-            download="InstaPay-Admin.apk"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              backgroundColor: 'rgba(124, 58, 237, 0.2)',
-              border: '1px solid rgba(124, 58, 237, 0.4)',
-              borderRadius: '8px',
-              color: '#c084fc',
-              fontSize: '13px',
-              textDecoration: 'none',
-              fontWeight: 600,
-            }}
-          >
-            <Download size={14} />
-            Admin APK
-          </a>
-
-          <a
-            href="/"
-            style={{
-              padding: '8px 14px',
-              backgroundColor: 'rgba(59, 130, 246, 0.15)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '8px',
-              color: '#60a5fa',
-              fontSize: '13px',
-              textDecoration: 'none',
-              fontWeight: 500,
-            }}
-          >
-            Merchant Portal ↗
-          </a>
-
-          <button
-            onClick={handleAdminLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              backgroundColor: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: '8px',
-              color: '#f87171',
-              fontSize: '13px',
-              cursor: 'pointer',
-            }}
-          >
-            <LogOut size={14} />
-            Logout
-          </button>
-        </div>
-      </header>
+      <div className="admin-portal-workspace" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <AdminTopbar
+        activeTab={activeTab}
+        loading={loading}
+        onRefresh={fetchData}
+        onLogout={handleAdminLogout}
+      />
 
       {/* Main Content Area */}
-      <main style={{ maxWidth: '1440px', margin: '0 auto', padding: '24px' }}>
+      <main
+        className="admin-portal-content"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflow: 'auto',
+          padding: '24px',
+          backgroundColor: isDark ? '#090d16' : '#f1f5f9',
+          transition: 'background-color 0.25s ease',
+        }}
+      >
+        <div className="admin-portal-content-inner" style={{ maxWidth: '1400px', margin: '0 auto', animation: 'fadeIn 0.4s ease-out' }}>
         {/* Toast Notification */}
         {toastMessage && (
           <div
+            className="admin-toast"
             style={{
               position: 'fixed',
               top: '20px',
@@ -968,8 +1204,66 @@ export function AdminPortalPage() {
           </div>
         )}
 
+        <div
+          className="admin-page-heading"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '16px',
+            flexWrap: 'wrap',
+            marginBottom: '26px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(14, 165, 233, 0.35)',
+                flexShrink: 0,
+              }}
+            >
+              <Shield size={22} color="#ffffff" />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, color: textPrimary, fontSize: '22px', fontWeight: 800, letterSpacing: '-0.3px' }}>
+                {currentHeading.title}
+              </h2>
+              <p style={{ margin: '2px 0 0', color: textSecondary, fontSize: '13px' }}>{currentHeading.description}</p>
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '8px 14px',
+              borderRadius: '999px',
+              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
+              border: isDark ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid #bae6fd',
+              color: isDark ? '#38bdf8' : '#0284c7',
+              fontSize: '12px',
+              fontWeight: 600,
+            }}
+          >
+            <Activity size={13} />
+            {loading
+              ? 'Syncing platform data...'
+              : `Last synced ${lastSyncedAt ? lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'}`}
+          </div>
+        </div>
+
+        {activeTab === 'overview' && (
+        <>
         {/* Overview Stats Cards (Clickable Navigation Shortcuts) */}
         <div
+          className="admin-stats-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -980,19 +1274,20 @@ export function AdminPortalPage() {
           <div
             onClick={() => navigateToTab('merchants', 'all')}
             style={{
-              backgroundColor: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '16px',
-              padding: '18px 20px',
+              backgroundColor: surface,
+              border: surfaceBorder,
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: cardShadow,
               cursor: 'pointer',
-              transition: 'border-color 0.15s ease',
+              transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '13px', color: '#94a3b8' }}>Total Merchants</span>
+              <span style={{ fontSize: '13px', color: textSecondary }}>Total Merchants</span>
               <Users size={18} color="#818cf8" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: '#ffffff' }}>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: textPrimary }}>
               {stats?.totalClients ?? merchants.length}
             </div>
             <div style={{ fontSize: '12px', color: '#a78bfa', marginTop: '4px' }}>
@@ -1003,22 +1298,23 @@ export function AdminPortalPage() {
           <div
             onClick={() => navigateToTab('merchants', 'pending')}
             style={{
-              backgroundColor: '#0f172a',
-              border: stats?.pendingClients ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '16px',
-              padding: '18px 20px',
+              backgroundColor: surface,
+              border: stats?.pendingClients ? '1px solid rgba(245, 158, 11, 0.4)' : surfaceBorder,
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: cardShadow,
               cursor: 'pointer',
-              transition: 'border-color 0.15s ease',
+              transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '13px', color: '#94a3b8' }}>Pending Approvals</span>
+              <span style={{ fontSize: '13px', color: textSecondary }}>Pending Approvals</span>
               <AlertTriangle size={18} color="#f59e0b" />
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: stats?.pendingClients ? '#f59e0b' : '#ffffff' }}>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: stats?.pendingClients ? '#f59e0b' : textPrimary }}>
               {stats?.pendingClients ?? 0}
             </div>
-            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+            <div style={{ fontSize: '12px', color: textSecondary, marginTop: '4px' }}>
               Requires superadmin authorization
             </div>
           </div>
@@ -1026,22 +1322,23 @@ export function AdminPortalPage() {
           <div
             onClick={() => navigateToTab('transactions')}
             style={{
-              backgroundColor: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '16px',
-              padding: '18px 20px',
+              backgroundColor: surface,
+              border: surfaceBorder,
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: cardShadow,
               cursor: 'pointer',
-              transition: 'border-color 0.15s ease',
+              transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '13px', color: '#94a3b8' }}>Processed Volume</span>
+              <span style={{ fontSize: '13px', color: textSecondary }}>Processed Volume</span>
               <DollarSign size={18} color="#10b981" />
             </div>
             <div style={{ fontSize: '24px', fontWeight: 800, color: '#34d399' }}>
               {(stats?.totalVolumeEgp ?? 0).toFixed(2)} EGP
             </div>
-            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+            <div style={{ fontSize: '12px', color: textSecondary, marginTop: '4px' }}>
               Across {stats?.confirmedTransactions ?? 0} confirmed payments
             </div>
           </div>
@@ -1049,167 +1346,113 @@ export function AdminPortalPage() {
           <div
             onClick={() => navigateToTab('merchants')}
             style={{
-              backgroundColor: '#0f172a',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '16px',
-              padding: '18px 20px',
+              backgroundColor: surface,
+              border: surfaceBorder,
+              borderRadius: '20px',
+              padding: '20px',
+              boxShadow: cardShadow,
               cursor: 'pointer',
-              transition: 'border-color 0.15s ease',
+              transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '13px', color: '#94a3b8' }}>Active Detectors</span>
+              <span style={{ fontSize: '13px', color: textSecondary }}>Active Detectors</span>
               <Smartphone size={18} color="#06b6d4" />
             </div>
             <div style={{ fontSize: '24px', fontWeight: 800, color: '#38bdf8' }}>
-              {stats?.totalDetectors ?? 0}
+              {stats?.onlineDetectors ?? 0}
             </div>
-            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-              Android companion APK listeners
+            <div style={{ fontSize: '12px', color: textSecondary, marginTop: '4px' }}>
+              {stats?.totalDetectors ?? 0} registered Android listeners
             </div>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            marginBottom: '20px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            paddingBottom: '12px',
-          }}
-        >
-          <button
-            onClick={() => navigateToTab('merchants')}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-              backgroundColor: activeTab === 'merchants' ? '#7c3aed' : 'transparent',
-              color: activeTab === 'merchants' ? '#ffffff' : '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Users size={16} /> Merchants ({merchants.length})
-            {(stats?.pendingClients ?? 0) > 0 && (
-              <span
-                style={{
-                  padding: '1px 6px',
-                  backgroundColor: '#f59e0b',
-                  color: '#000000',
-                  borderRadius: '9999px',
-                  fontSize: '10px',
-                  fontWeight: 800,
-                }}
-              >
-                {stats?.pendingClients}
+        <div className="admin-overview-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, .65fr)', gap: '18px', marginBottom: '18px' }}>
+          <section style={{ backgroundColor: surface, border: surfaceBorder, borderRadius: '20px', padding: '20px', boxShadow: cardShadow }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: textPrimary, fontSize: '16px', fontWeight: 800 }}>Operational health</h3>
+                <p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>Live availability across critical gateway services</p>
+              </div>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '999px', backgroundColor: 'rgba(16,185,129,.12)', color: '#34d399', fontSize: '11px', fontWeight: 700 }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e' }} /> Live
               </span>
-            )}
-          </button>
+            </div>
+            {[
+              { label: 'Approved merchant access', value: merchantAvailability, detail: `${stats?.activeClients ?? 0} of ${stats?.approvedClients ?? 0} active`, color: '#6366f1' },
+              { label: 'Detector availability', value: detectorAvailability, detail: `${stats?.onlineDetectors ?? 0} of ${stats?.totalDetectors ?? 0} online`, color: '#0ea5e9' },
+              { label: 'Recent webhook success', value: recentWebhookSuccessRate ?? 100, detail: recentWebhookSuccessRate === null ? 'No recent deliveries' : `${recentWebhookSuccessRate}% successful`, color: '#10b981' },
+            ].map((health) => (
+              <div key={health.label} style={{ marginBottom: '17px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '7px', fontSize: '12px' }}>
+                  <span style={{ color: textPrimary, fontWeight: 650 }}>{health.label}</span>
+                  <span style={{ color: textSecondary }}>{health.detail}</span>
+                </div>
+                <div style={{ height: '8px', borderRadius: '999px', overflow: 'hidden', backgroundColor: isDark ? '#1e293b' : '#e2e8f0' }}>
+                  <div style={{ width: `${Math.max(2, health.value)}%`, maxWidth: '100%', height: '100%', borderRadius: '999px', background: health.color, transition: 'width .35s ease' }} />
+                </div>
+              </div>
+            ))}
+            <button onClick={() => navigateToTab('webhooks')} style={{ padding: 0, marginTop: '2px', border: 0, background: 'transparent', color: '#38bdf8', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+              Open delivery monitoring →
+            </button>
+          </section>
 
-          <button
-            onClick={() => navigateToTab('transactions')}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-              backgroundColor: activeTab === 'transactions' ? '#7c3aed' : 'transparent',
-              color: activeTab === 'transactions' ? '#ffffff' : '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Activity size={16} /> Platform Transactions
-          </button>
-
-          <button
-            onClick={() => navigateToTab('audit')}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-              backgroundColor: activeTab === 'audit' ? '#7c3aed' : 'transparent',
-              color: activeTab === 'audit' ? '#ffffff' : '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Shield size={16} /> Audit Trail ({auditLogs.length})
-          </button>
-
-          <button
-            onClick={() => navigateToTab('webhooks')}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-              backgroundColor: activeTab === 'webhooks' ? '#7c3aed' : 'transparent',
-              color: activeTab === 'webhooks' ? '#ffffff' : '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Send size={16} /> Webhook Logs ({webhookLogs.length})
-          </button>
-
-          <button
-            onClick={() => navigateToTab('plans')}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-              backgroundColor: activeTab === 'plans' ? '#7c3aed' : 'transparent',
-              color: activeTab === 'plans' ? '#ffffff' : '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <CreditCard size={16} /> Plans & Pricing ({plans.length})
-          </button>
-
-          <button
-            onClick={() => navigateToTab('notifications')}
-            style={{
-              padding: '8px 18px',
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-              backgroundColor: activeTab === 'notifications' ? '#7c3aed' : 'transparent',
-              color: activeTab === 'notifications' ? '#ffffff' : '#94a3b8',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Bell size={16} /> Broadcast Notifications
-          </button>
+          <section style={{ backgroundColor: surface, border: surfaceBorder, borderRadius: '20px', padding: '20px', boxShadow: cardShadow }}>
+            <div style={{ marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, color: textPrimary, fontSize: '16px', fontWeight: 800 }}>Action center</h3>
+              <p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>Items that may need administrator attention</p>
+            </div>
+            {[
+              { label: 'Merchant applications', count: stats?.pendingClients ?? 0, tone: '#f59e0b', action: () => navigateToTab('merchants', 'pending') },
+              { label: 'Failed webhook deliveries', count: stats?.failedWebhooks ?? 0, tone: '#ef4444', action: () => navigateToTab('webhooks') },
+              { label: 'Unmatched payments', count: stats?.unmatchedPayments ?? 0, tone: '#f97316', action: () => navigateToTab('transactions') },
+              { label: 'Suspended merchants', count: stats?.suspendedClients ?? 0, tone: '#8b5cf6', action: () => navigateToTab('merchants', 'approved') },
+            ].map((item) => (
+              <button key={item.label} onClick={item.action} style={{ width: '100%', padding: '11px 0', border: 0, borderBottom: `1px solid ${isDark ? 'rgba(51,65,85,.45)' : '#eef2f7'}`, background: 'transparent', color: textPrimary, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '9px', fontSize: '12px', fontWeight: 600 }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.tone }} /> {item.label}
+                </span>
+                <span style={{ minWidth: '28px', padding: '3px 8px', borderRadius: '999px', backgroundColor: `${item.tone}22`, color: item.tone, fontSize: '11px', fontWeight: 800 }}>{item.count}</span>
+              </button>
+            ))}
+          </section>
         </div>
 
+        <section style={{ backgroundColor: surface, border: surfaceBorder, borderRadius: '20px', boxShadow: cardShadow, overflow: 'hidden' }}>
+          <div style={{ padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', borderBottom: `1px solid ${isDark ? 'rgba(51,65,85,.5)' : '#e2e8f0'}` }}>
+            <div>
+              <h3 style={{ margin: 0, color: textPrimary, fontSize: '16px', fontWeight: 800 }}>Recent payment activity</h3>
+              <p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>Latest transactions processed across all merchants</p>
+            </div>
+            <button onClick={() => navigateToTab('transactions')} style={{ border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#f8fafc', color: textPrimary, borderRadius: '9px', padding: '8px 11px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>View all transactions</button>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ backgroundColor: isDark ? '#162033' : '#f8fafc' }}>
+                {['Merchant', 'Session', 'Amount', 'Status', 'Created'].map((label) => <th key={label} style={{ padding: '11px 20px', color: textSecondary, fontSize: '10px', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</th>)}
+              </tr></thead>
+              <tbody>
+                {transactions.slice(0, 6).map((tx) => (
+                  <tr key={tx.id} style={{ borderTop: `1px solid ${isDark ? 'rgba(51,65,85,.35)' : '#eef2f7'}` }}>
+                    <td style={{ padding: '13px 20px', color: textPrimary, fontSize: '12px', fontWeight: 650 }}>{tx.client?.businessName || 'Unknown merchant'}</td>
+                    <td style={{ padding: '13px 20px', color: '#38bdf8', fontSize: '11px', fontFamily: 'monospace' }}>{tx.sessionId}</td>
+                    <td style={{ padding: '13px 20px', color: textPrimary, fontSize: '12px', fontWeight: 750 }}>{Number(tx.amountEgp).toFixed(2)} EGP</td>
+                    <td style={{ padding: '13px 20px' }}><span style={{ padding: '3px 8px', borderRadius: '999px', backgroundColor: tx.status === 'CONFIRMED' ? 'rgba(16,185,129,.13)' : 'rgba(245,158,11,.13)', color: tx.status === 'CONFIRMED' ? '#34d399' : '#fbbf24', fontSize: '10px', fontWeight: 800 }}>{tx.status}</span></td>
+                    <td style={{ padding: '13px 20px', color: textSecondary, fontSize: '11px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+                {transactions.length === 0 && <tr><td colSpan={5} style={{ padding: '32px', color: textSecondary, textAlign: 'center', fontSize: '12px' }}>No payment activity recorded yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         {/* ─── TAB 1: MERCHANTS & APPROVALS ─────────────────────────── */}
+        </>
+        )}
+
         {activeTab === 'merchants' && (
           <div>
             {/* Search & Status Filter */}
@@ -1365,15 +1608,22 @@ export function AdminPortalPage() {
                             >
                               {m.approvalStatus}
                             </span>
+                            {isApproved && !m.isActive && (
+                              <div style={{ marginTop: '5px', fontSize: '10px', fontWeight: 800, color: '#f87171' }}>
+                                SUSPENDED
+                              </div>
+                            )}
                           </td>
 
                           <td style={{ padding: '14px 20px', fontSize: '13px', color: '#cbd5e1' }}>
-                            {m.detectorDevices && m.detectorDevices.length > 0 ? (
+                            {m.detectorDevices?.[0] && Date.now() - new Date(m.detectorDevices[0].lastSeenAt).getTime() <= 5 * 60 * 1000 ? (
                               <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <CheckCircle2 size={14} /> {m.detectorDevices.length} Connected
+                                <CheckCircle2 size={14} /> Online
                               </span>
                             ) : (
-                              <span style={{ color: '#94a3b8' }}>None</span>
+                              <span style={{ color: '#94a3b8' }}>
+                                {m.detectorDevices?.length ? 'Offline' : 'Not paired'}
+                              </span>
                             )}
                           </td>
 
@@ -1435,7 +1685,7 @@ export function AdminPortalPage() {
 
                               {isApproved && (
                                 <button
-                                  onClick={() => handleReject(m.id, m.businessName)}
+                                  onClick={() => handleSelectMerchant(m)}
                                   style={{
                                     padding: '6px 10px',
                                     backgroundColor: 'transparent',
@@ -1446,7 +1696,7 @@ export function AdminPortalPage() {
                                     cursor: 'pointer',
                                   }}
                                 >
-                                  Deactivate
+                                  Manage
                                 </button>
                               )}
 
@@ -2019,6 +2269,8 @@ export function AdminPortalPage() {
                   const isTrial = p.name === 'FREE_TRIAL';
                   const isEnterprise = p.name === 'ENTERPRISE';
                   const isPlus = p.name === 'PLUS';
+                  const offerActive = !isTrial && !isEnterprise && p.offerPriceEgp !== null && p.offerEndsAt && new Date(p.offerEndsAt).getTime() > Date.now() && p.offerPriceEgp < p.priceEgp;
+                  const offerPercent = offerActive ? Math.round(((p.priceEgp - p.offerPriceEgp) / p.priceEgp) * 100) : 0;
                   return (
                     <div
                       key={p.name}
@@ -2077,7 +2329,7 @@ export function AdminPortalPage() {
                           )}
                         </div>
                         <button
-                          onClick={() => setEditingPlan({ ...p })}
+                          onClick={() => openEditPlan(p)}
                           style={{
                             padding: '6px 12px',
                             backgroundColor: isTrial
@@ -2104,6 +2356,8 @@ export function AdminPortalPage() {
                       </div>
 
                       <div style={{ marginBottom: '16px' }}>
+                        {offerActive && <div style={{ display: 'inline-flex', marginBottom: '7px', padding: '3px 8px', borderRadius: '999px', background: 'rgba(236,72,153,.14)', color: '#f472b6', fontSize: '10px', fontWeight: 850 }}>{p.offerLabel || 'Limited-time offer'} • {offerPercent}% OFF</div>}
+                        {offerActive && <div style={{ color: '#64748b', fontSize: '12px', textDecoration: 'line-through' }}>{p.priceEgp} EGP</div>}
                         <span
                           style={{
                             fontSize: isEnterprise ? '24px' : '32px',
@@ -2111,7 +2365,7 @@ export function AdminPortalPage() {
                             color: isTrial ? '#10b981' : isEnterprise ? '#f59e0b' : '#38bdf8',
                           }}
                         >
-                          {isEnterprise ? 'Contact Sales' : p.priceEgp}
+                          {isEnterprise ? 'Contact Sales' : offerActive ? p.offerPriceEgp : p.priceEgp}
                         </span>
                         <span style={{ fontSize: '14px', color: '#94a3b8', marginLeft: '4px' }}>
                           {isTrial
@@ -2120,6 +2374,7 @@ export function AdminPortalPage() {
                             ? '(Customer Service / Custom)'
                             : `EGP / ${p.periodDays || 30} days`}
                         </span>
+                        {offerActive && <div style={{ marginTop: '5px', color: '#94a3b8', fontSize: '10px' }}>Offer ends {new Date(p.offerEndsAt).toLocaleString()}</div>}
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px' }}>
@@ -2142,6 +2397,136 @@ export function AdminPortalPage() {
                   );
                 })}
             </div>
+
+            <section style={{ marginTop: '10px', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Sparkles size={18} color="#a855f7" /><h4 style={{ fontSize: '18px', fontWeight: 800, color: textPrimary, margin: 0 }}>Private enterprise offers</h4></div>
+                  <p style={{ fontSize: '12px', color: textSecondary, margin: '5px 0 0' }}>Prepare company-specific pricing, capacity, and contract periods for high-volume merchants.</p>
+                </div>
+                <button type="button" onClick={openNewSpecialOffer} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 15px', border: 0, borderRadius: '10px', background: 'linear-gradient(135deg, #7c3aed, #ec4899)', color: '#fff', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}><Sparkles size={14} /> Create special offer</button>
+              </div>
+              {specialOffers.length === 0 ? (
+                <div style={{ padding: '30px', borderRadius: '18px', border: surfaceBorder, backgroundColor: surface, color: textSecondary, textAlign: 'center', boxShadow: cardShadow }}>No private offers yet. Create one for an approved large-company merchant.</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px' }}>
+                  {specialOffers.map((offer) => {
+                    const expired = new Date(offer.validUntil).getTime() <= Date.now();
+                    const effectiveStatus = expired && offer.status === 'ACTIVE' ? 'EXPIRED' : offer.status;
+                    const statusColor = effectiveStatus === 'ACTIVE' ? '#34d399' : effectiveStatus === 'ACCEPTED' ? '#38bdf8' : '#94a3b8';
+                    return (
+                      <article key={offer.id} style={{ padding: '20px', borderRadius: '18px', border: isDark ? '1px solid rgba(168,85,247,.35)' : '1px solid #e9d5ff', background: isDark ? 'linear-gradient(135deg, rgba(124,58,237,.1), #111827)' : 'linear-gradient(135deg, #faf5ff, #fff)', boxShadow: cardShadow }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}><div><div style={{ color: '#a855f7', fontSize: '10px', fontWeight: 900 }}>{offer.client?.businessName}</div><h5 style={{ color: textPrimary, fontSize: '16px', margin: '5px 0' }}>{offer.title}</h5><div style={{ color: textSecondary, fontSize: '11px' }}>{offer.client?.email}</div></div><span style={{ height: 'fit-content', padding: '4px 8px', borderRadius: '999px', backgroundColor: `${statusColor}22`, color: statusColor, fontSize: '9px', fontWeight: 900 }}>{effectiveStatus}</span></div>
+                        <p style={{ color: textSecondary, fontSize: '11px', minHeight: '34px', lineHeight: 1.5 }}>{offer.description || 'Custom enterprise commercial proposal.'}</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px', margin: '14px 0' }}>
+                          <div style={{ padding: '9px', borderRadius: '9px', backgroundColor: isDark ? '#162033' : '#fff' }}><small style={{ color: textSecondary }}>PRICE</small><strong style={{ display: 'block', color: '#a855f7', fontSize: '12px' }}>{offer.priceEgp} EGP</strong></div>
+                          <div style={{ padding: '9px', borderRadius: '9px', backgroundColor: isDark ? '#162033' : '#fff' }}><small style={{ color: textSecondary }}>TX LIMIT</small><strong style={{ display: 'block', color: textPrimary, fontSize: '12px' }}>{Number(offer.maxTransactions).toLocaleString()}</strong></div>
+                          <div style={{ padding: '9px', borderRadius: '9px', backgroundColor: isDark ? '#162033' : '#fff' }}><small style={{ color: textSecondary }}>PERIOD</small><strong style={{ display: 'block', color: textPrimary, fontSize: '12px' }}>{offer.periodDays} days</strong></div>
+                        </div>
+                        <div style={{ color: textSecondary, fontSize: '10px', marginBottom: '12px' }}>Valid until {new Date(offer.validUntil).toLocaleDateString()}</div>
+                        {offer.status !== 'ACCEPTED' && <div style={{ display: 'flex', gap: '8px' }}><button type="button" onClick={() => setEditingOffer({ ...offer, validDays: 14 })} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary, cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>Edit</button><button type="button" disabled={offerSaving} onClick={() => handleOfferStatus(offer, offer.status === 'ACTIVE' ? 'REVOKED' : 'ACTIVE')} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 0, backgroundColor: offer.status === 'ACTIVE' ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.12)', color: offer.status === 'ACTIVE' ? '#f87171' : '#34d399', cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>{offer.status === 'ACTIVE' ? 'Revoke' : 'Restore'}</button></div>}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {editingOffer && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 10000, padding: '20px', backgroundColor: 'rgba(2,6,23,.78)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <form onSubmit={handleSaveSpecialOffer} style={{ width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '20px', backgroundColor: surface, border: surfaceBorder, boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}><div><h3 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>{editingOffer.id ? 'Edit enterprise offer' : 'Create enterprise offer'}</h3><p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>This proposal will only be visible to the selected merchant.</p></div><button type="button" onClick={() => setEditingOffer(null)} style={{ border: 0, background: 'transparent', color: textSecondary, fontSize: '20px', cursor: 'pointer' }}>×</button></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '14px' }}>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Company<select required disabled={Boolean(editingOffer.id)} value={editingOffer.clientId} onChange={(e) => setEditingOffer({ ...editingOffer, clientId: e.target.value })} style={{ width: '100%', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }}><option value="">Select approved merchant</option>{merchants.filter((m) => m.approvalStatus === 'APPROVED').map((m) => <option key={m.id} value={m.id}>{m.businessName} — {m.email}</option>)}</select></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Offer title<input required maxLength={120} value={editingOffer.title} onChange={(e) => setEditingOffer({ ...editingOffer, title: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Custom price (EGP)<input required type="number" min={1} value={editingOffer.priceEgp} onChange={(e) => setEditingOffer({ ...editingOffer, priceEgp: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Transaction allowance<input required type="number" min={1} value={editingOffer.maxTransactions} onChange={(e) => setEditingOffer({ ...editingOffer, maxTransactions: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Subscription duration (days)<input required type="number" min={1} max={3650} value={editingOffer.periodDays} onChange={(e) => setEditingOffer({ ...editingOffer, periodDays: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Offer valid for (days)<input required type="number" min={1} max={365} value={editingOffer.validDays} onChange={(e) => setEditingOffer({ ...editingOffer, validDays: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                  </div>
+                  <label style={{ display: 'block', marginTop: '14px', color: textSecondary, fontSize: '11px' }}>Proposal details<textarea rows={4} maxLength={1000} value={editingOffer.description || ''} onChange={(e) => setEditingOffer({ ...editingOffer, description: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary, resize: 'vertical' }} /></label>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '9px', marginTop: '20px' }}><button type="button" onClick={() => setEditingOffer(null)} style={{ padding: '9px 14px', borderRadius: '9px', border: surfaceBorder, background: 'transparent', color: textSecondary, cursor: 'pointer' }}>Cancel</button><button type="submit" disabled={offerSaving} style={{ padding: '9px 16px', borderRadius: '9px', border: 0, background: 'linear-gradient(135deg, #7c3aed, #ec4899)', color: '#fff', fontWeight: 750, cursor: 'pointer' }}>{offerSaving ? 'Saving...' : editingOffer.id ? 'Save offer' : 'Send private offer'}</button></div>
+                </form>
+              </div>
+            )}
+
+            <section style={{ marginTop: '10px', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Gift size={18} color="#38bdf8" />
+                    <h4 style={{ fontSize: '18px', fontWeight: 800, color: textPrimary, margin: 0 }}>Extra transaction bundles</h4>
+                  </div>
+                  <p style={{ fontSize: '12px', color: textSecondary, margin: '5px 0 0' }}>
+                    Control the top-up packs shown in merchant billing, including capacity, price, order, and availability.
+                  </p>
+                </div>
+                <button type="button" onClick={openNewBundle} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 15px', border: 0, borderRadius: '10px', background: 'linear-gradient(135deg, #0ea5e9, #6366f1)', color: '#fff', fontSize: '12px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 5px 14px rgba(14,165,233,.28)' }}>
+                  <Gift size={14} /> Create bundle
+                </button>
+              </div>
+
+              {bundles.length === 0 ? (
+                <div style={{ padding: '36px', border: surfaceBorder, borderRadius: '18px', backgroundColor: surface, color: textSecondary, textAlign: 'center', boxShadow: cardShadow }}>
+                  No extra bundles configured. Create the first bundle to make it available in merchant billing.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+                  {bundles.map((bundle) => (
+                    <article key={bundle.id} style={{ padding: '20px', borderRadius: '18px', border: bundle.isActive ? surfaceBorder : '1px dashed rgba(148,163,184,.45)', backgroundColor: surface, boxShadow: cardShadow, opacity: bundle.isActive ? 1 : .72 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 800, letterSpacing: '.06em' }}>{bundle.name}</span>
+                          <h5 style={{ margin: '4px 0 0', color: textPrimary, fontSize: '17px', fontWeight: 800 }}>{bundle.displayName}</h5>
+                        </div>
+                        <span style={{ padding: '4px 8px', borderRadius: '999px', backgroundColor: bundle.isActive ? 'rgba(16,185,129,.13)' : 'rgba(148,163,184,.13)', color: bundle.isActive ? '#34d399' : textSecondary, fontSize: '10px', fontWeight: 800 }}>
+                          {bundle.isActive ? 'LIVE' : 'HIDDEN'}
+                        </span>
+                      </div>
+                      <div style={{ margin: '18px 0 5px', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                        <span style={{ color: '#38bdf8', fontSize: '28px', fontWeight: 900 }}>{bundle.priceEgp}</span>
+                        <span style={{ color: textSecondary, fontSize: '12px' }}>EGP</span>
+                      </div>
+                      <div style={{ color: textPrimary, fontSize: '14px', fontWeight: 750 }}>+{Number(bundle.extraTx).toLocaleString()} transactions</div>
+                      <p style={{ minHeight: '34px', color: textSecondary, fontSize: '11px', lineHeight: 1.5, margin: '8px 0 16px' }}>{bundle.description || 'No merchant-facing description.'}</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', padding: '10px', borderRadius: '10px', backgroundColor: isDark ? '#162033' : '#f8fafc', marginBottom: '14px' }}>
+                        <div><div style={{ color: textSecondary, fontSize: '9px' }}>PURCHASES</div><strong style={{ color: textPrimary, fontSize: '12px' }}>{bundle.confirmedPurchaseCount || 0}</strong></div>
+                        <div><div style={{ color: textSecondary, fontSize: '9px' }}>REVENUE</div><strong style={{ color: textPrimary, fontSize: '12px' }}>{Number(bundle.confirmedRevenueEgp || 0).toFixed(0)} EGP</strong></div>
+                        <div><div style={{ color: textSecondary, fontSize: '9px' }}>GRANTED</div><strong style={{ color: textPrimary, fontSize: '12px' }}>{Number(bundle.grantedTransactions || 0).toLocaleString()}</strong></div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button type="button" onClick={() => setEditingBundle({ ...bundle })} style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#f8fafc', color: textPrimary, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}><Edit2 size={12} style={{ verticalAlign: 'middle', marginRight: '5px' }} />Edit</button>
+                        <button type="button" disabled={bundleSaving} onClick={() => handleToggleBundle(bundle)} style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: bundle.isActive ? '1px solid rgba(239,68,68,.35)' : '1px solid rgba(16,185,129,.35)', backgroundColor: bundle.isActive ? 'rgba(239,68,68,.08)' : 'rgba(16,185,129,.08)', color: bundle.isActive ? '#f87171' : '#34d399', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>{bundle.isActive ? 'Hide' : 'Publish'}</button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {editingBundle && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 10000, padding: '20px', backgroundColor: 'rgba(2,6,23,.78)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <form onSubmit={handleSaveBundle} style={{ width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '20px', backgroundColor: surface, border: surfaceBorder, boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '20px' }}>
+                    <div><h3 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>{editingBundle.id ? 'Edit extra bundle' : 'Create extra bundle'}</h3><p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>Changes affect the bundle catalog shown on merchant billing pages.</p></div>
+                    <button type="button" onClick={() => setEditingBundle(null)} style={{ border: 0, background: 'transparent', color: textSecondary, cursor: 'pointer', fontSize: '20px' }}>×</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '14px' }}>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Bundle key<input required disabled={Boolean(editingBundle.id)} value={editingBundle.name} onChange={(e) => setEditingBundle({ ...editingBundle, name: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })} placeholder="GROWTH_PACK" style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Display name<input required maxLength={80} value={editingBundle.displayName} onChange={(e) => setEditingBundle({ ...editingBundle, displayName: e.target.value })} placeholder="Growth Pack" style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Price (EGP)<input required type="number" min={0.01} step={0.01} value={editingBundle.priceEgp} onChange={(e) => setEditingBundle({ ...editingBundle, priceEgp: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Extra transactions<input required type="number" min={1} value={editingBundle.extraTx} onChange={(e) => setEditingBundle({ ...editingBundle, extraTx: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Display order<input required type="number" min={0} value={editingBundle.sortOrder} onChange={(e) => setEditingBundle({ ...editingBundle, sortOrder: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '9px', alignSelf: 'end', minHeight: '39px', color: textPrimary, fontSize: '12px', cursor: 'pointer' }}><input type="checkbox" checked={editingBundle.isActive !== false} onChange={(e) => setEditingBundle({ ...editingBundle, isActive: e.target.checked })} style={{ width: '17px', height: '17px', accentColor: '#2563eb' }} />Visible in merchant billing</label>
+                  </div>
+                  <label style={{ display: 'block', marginTop: '14px', color: textSecondary, fontSize: '11px' }}>Merchant-facing description<textarea maxLength={500} rows={3} value={editingBundle.description || ''} onChange={(e) => setEditingBundle({ ...editingBundle, description: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '9px', marginTop: '20px' }}>
+                    <button type="button" onClick={() => setEditingBundle(null)} style={{ padding: '9px 14px', borderRadius: '9px', border: surfaceBorder, backgroundColor: 'transparent', color: textSecondary, cursor: 'pointer' }}>Cancel</button>
+                    <button type="submit" disabled={bundleSaving} style={{ padding: '9px 16px', borderRadius: '9px', border: 0, backgroundColor: '#2563eb', color: '#fff', fontWeight: 750, cursor: 'pointer' }}>{bundleSaving ? 'Saving...' : editingBundle.id ? 'Save bundle' : 'Create bundle'}</button>
+                  </div>
+                </form>
+              </div>
+            )}
 
             {/* Edit Plan Modal */}
             {editingPlan && (
@@ -2170,6 +2555,8 @@ export function AdminPortalPage() {
                     borderRadius: '20px',
                     padding: '24px',
                     color: '#ffffff',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
                   }}
                 >
                   <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px 0' }}>
@@ -2195,6 +2582,19 @@ export function AdminPortalPage() {
                         }}
                       />
                     </div>
+                    {editingPlan.name !== 'FREE_TRIAL' && editingPlan.name !== 'ENTERPRISE' && (
+                      <div style={{ padding: '14px', borderRadius: '12px', border: '1px solid rgba(236,72,153,.3)', background: 'rgba(236,72,153,.06)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginBottom: '12px' }}>
+                          <div><div style={{ fontSize: '13px', fontWeight: 800, color: '#f472b6' }}>Plan promotion</div><div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Leave the offer price empty to use the regular price.</div></div>
+                          {editingPlan.offerPriceEgp !== '' && editingPlan.offerPriceEgp !== null && <button type="button" onClick={() => setEditingPlan({ ...editingPlan, offerPriceEgp: '' })} style={{ border: '1px solid rgba(248,113,113,.35)', borderRadius: '7px', padding: '5px 8px', background: 'rgba(239,68,68,.1)', color: '#f87171', cursor: 'pointer', fontSize: '10px', fontWeight: 700 }}>Remove offer</button>}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <label style={{ fontSize: '11px', color: '#94a3b8' }}>Offer price (EGP)<input type="number" min="0.01" step="0.01" max={Math.max(0.01, Number(editingPlan.priceEgp) - 0.01)} value={editingPlan.offerPriceEgp ?? ''} onChange={(e) => setEditingPlan({ ...editingPlan, offerPriceEgp: e.target.value })} placeholder="No offer" style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '9px', backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,.1)', borderRadius: '8px', color: '#fff' }} /></label>
+                          <label style={{ fontSize: '11px', color: '#94a3b8' }}>Valid for days<input type="number" min="1" max="365" value={editingPlan.offerValidDays ?? 7} onChange={(e) => setEditingPlan({ ...editingPlan, offerValidDays: e.target.value })} disabled={editingPlan.offerPriceEgp === '' || editingPlan.offerPriceEgp === null} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '9px', backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,.1)', borderRadius: '8px', color: '#fff', opacity: editingPlan.offerPriceEgp === '' || editingPlan.offerPriceEgp === null ? .5 : 1 }} /></label>
+                        </div>
+                        <label style={{ display: 'block', marginTop: '10px', fontSize: '11px', color: '#94a3b8' }}>Offer label<input type="text" maxLength={80} value={editingPlan.offerLabel ?? ''} onChange={(e) => setEditingPlan({ ...editingPlan, offerLabel: e.target.value })} disabled={editingPlan.offerPriceEgp === '' || editingPlan.offerPriceEgp === null} placeholder="e.g. Summer sale" style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '9px', backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,.1)', borderRadius: '8px', color: '#fff', opacity: editingPlan.offerPriceEgp === '' || editingPlan.offerPriceEgp === null ? .5 : 1 }} /></label>
+                      </div>
+                    )}
                     <div>
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
                         Transaction Limit / Quota
@@ -2611,7 +3011,9 @@ export function AdminPortalPage() {
             <div
               style={{
                 width: '100%',
-                maxWidth: '560px',
+                maxWidth: '920px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
                 backgroundColor: '#111827',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 borderRadius: '20px',
@@ -2629,7 +3031,7 @@ export function AdminPortalPage() {
                 }}
               >
                 <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>
-                  {selectedMerchant.businessName} - Integration Keys
+                  {selectedMerchant.businessName} - Control Center
                 </h3>
                 <button
                   onClick={() => handleSelectMerchant(null)}
@@ -2644,6 +3046,46 @@ export function AdminPortalPage() {
                   ✕
                 </button>
               </div>
+
+              {overviewLoading ? (
+                <div style={{ padding: '18px', textAlign: 'center', color: '#94a3b8' }}>
+                  <RefreshCw size={16} className="animate-spin" style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                  Loading live merchant health...
+                </div>
+              ) : merchantOverview && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '10px', marginBottom: '18px' }}>
+                    {[
+                      { label: 'Account access', value: selectedMerchant.isActive ? 'Active' : 'Suspended', color: selectedMerchant.isActive ? '#34d399' : '#f87171' },
+                      { label: 'Detector health', value: `${merchantOverview.detectorOnlineCount} / ${merchantOverview.detectorDevices.length} online`, color: merchantOverview.detectorOnlineCount ? '#38bdf8' : '#fbbf24' },
+                      { label: 'Active sessions', value: String(merchantOverview.activeSessions), color: '#c084fc' },
+                      { label: 'Confirmed volume', value: `${merchantOverview.confirmedVolumeEgp.toFixed(2)} EGP`, color: '#34d399' },
+                      { label: 'Webhook success', value: merchantOverview.webhookSuccessRate === null ? 'No deliveries' : `${merchantOverview.webhookSuccessRate}%`, color: merchantOverview.webhookSuccessRate !== null && merchantOverview.webhookSuccessRate >= 90 ? '#34d399' : '#fbbf24' },
+                    ].map((metric) => (
+                      <div key={metric.label} style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,.07)' }}>
+                        <div style={{ color: '#64748b', fontSize: '10px', textTransform: 'uppercase', fontWeight: 700 }}>{metric.label}</div>
+                        <div style={{ color: metric.color, fontSize: '14px', fontWeight: 800, marginTop: '5px' }}>{metric.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px', marginBottom: '18px' }}>
+                    <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#0f172a', fontSize: '12px', color: '#cbd5e1' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontWeight: 700, marginBottom: '7px' }}><Activity size={14} /> Payment monitoring</div>
+                      <div>{merchantOverview.totalTransactions} total • {merchantOverview.transactionsByStatus.CONFIRMED || 0} confirmed • {merchantOverview.unmatchedPayments} unmatched</div>
+                      <div style={{ color: '#64748b', marginTop: '5px' }}>Latest: {merchantOverview.latestTransaction ? `${merchantOverview.latestTransaction.status} • ${merchantOverview.latestTransaction.amountEgp.toFixed(2)} EGP • ${new Date(merchantOverview.latestTransaction.createdAt).toLocaleString()}` : 'No transactions'}</div>
+                    </div>
+                    <div style={{ padding: '12px', borderRadius: '10px', backgroundColor: '#0f172a', fontSize: '12px', color: '#cbd5e1' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', fontWeight: 700, marginBottom: '7px' }}><Wifi size={14} /> Integration activity</div>
+                      <div>API last used: {merchantOverview.apiKeyLastUsedAt ? new Date(merchantOverview.apiKeyLastUsedAt).toLocaleString() : 'Never'}</div>
+                      <div style={{ marginTop: '4px' }}>Detector last used: {merchantOverview.detectTokenLastUsedAt ? new Date(merchantOverview.detectTokenLastUsedAt).toLocaleString() : 'Never'}</div>
+                      <div style={{ color: '#64748b', marginTop: '5px' }}>{merchantOverview.webhookSuccess} / {merchantOverview.webhookTotal} webhook deliveries succeeded</div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <h4 style={{ margin: '0 0 10px', fontSize: '12px', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '.06em' }}>Integration credentials</h4>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
@@ -2764,6 +3206,46 @@ export function AdminPortalPage() {
                 </div>
               </div>
 
+              <div style={{ marginTop: '20px', paddingTop: '18px', borderTop: '1px solid rgba(255,255,255,.08)' }}>
+                <h4 style={{ margin: '0 0 12px', fontSize: '12px', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '.06em' }}>Merchant controls</h4>
+                <form onSubmit={handleAssignMerchantPlan} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '8px', alignItems: 'end' }}>
+                  <label style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Plan
+                    <select value={merchantPlan} onChange={(e) => setMerchantPlan(e.target.value)} style={{ width: '100%', display: 'block', marginTop: '5px', padding: '9px', borderRadius: '8px', border: '1px solid #334155', background: '#1e293b', color: '#fff' }}>
+                      {plans.map((plan) => <option key={plan.name} value={plan.name}>{plan.name}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Transaction limit
+                    <input type="number" min={1} max={10000000} required value={merchantTxLimit} onChange={(e) => setMerchantTxLimit(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', display: 'block', marginTop: '5px', padding: '9px', borderRadius: '8px', border: '1px solid #334155', background: '#1e293b', color: '#fff' }} />
+                  </label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8' }}>
+                    Valid for days
+                    <input type="number" min={1} max={3650} required value={merchantExtendDays} onChange={(e) => setMerchantExtendDays(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', display: 'block', marginTop: '5px', padding: '9px', borderRadius: '8px', border: '1px solid #334155', background: '#1e293b', color: '#fff' }} />
+                  </label>
+                  <button type="submit" disabled={merchantAction !== null} style={{ padding: '10px 14px', border: 0, borderRadius: '8px', background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+                    {merchantAction === 'plan' ? 'Saving...' : 'Apply plan'}
+                  </button>
+                </form>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '14px' }}>
+                  {selectedMerchant.approvalStatus === 'APPROVED' && (
+                    <button onClick={handleMerchantAccess} disabled={merchantAction !== null} style={{ padding: '9px 12px', borderRadius: '8px', border: `1px solid ${selectedMerchant.isActive ? 'rgba(239,68,68,.45)' : 'rgba(16,185,129,.45)'}`, background: selectedMerchant.isActive ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.12)', color: selectedMerchant.isActive ? '#f87171' : '#34d399', cursor: 'pointer', display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                      <Power size={14} /> {merchantAction === 'access' ? 'Updating...' : selectedMerchant.isActive ? 'Suspend access' : 'Reactivate access'}
+                    </button>
+                  )}
+                  <button onClick={handleRevokeSessions} disabled={merchantAction !== null} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #475569', background: '#1e293b', color: '#cbd5e1', cursor: 'pointer', display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                    <Lock size={14} /> {merchantAction === 'sessions' ? 'Revoking...' : 'Sign out all sessions'}
+                  </button>
+                  <button onClick={handleRotateMerchantKeys} disabled={merchantAction !== null || selectedMerchant.approvalStatus !== 'APPROVED'} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(245,158,11,.4)', background: 'rgba(245,158,11,.1)', color: '#fbbf24', cursor: 'pointer', display: 'inline-flex', gap: '6px', alignItems: 'center', opacity: selectedMerchant.approvalStatus === 'APPROVED' ? 1 : .5 }}>
+                    <RotateCcw size={14} /> {merchantAction === 'keys' ? 'Rotating...' : 'Rotate all credentials'}
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '9px' }}>
+                  Subscription ends: {merchantOverview?.subscriptionEndsAt ? new Date(merchantOverview.subscriptionEndsAt).toLocaleString() : 'Not set'} • Checkout timeout: {merchantOverview?.checkoutTtlMin ?? '—'} minutes
+                </div>
+              </div>
+
               <div style={{ textAlign: 'right', marginTop: '20px' }}>
                 <button
                   onClick={() => handleSelectMerchant(null)}
@@ -2783,7 +3265,9 @@ export function AdminPortalPage() {
             </div>
           </div>
         )}
+        </div>
       </main>
+      </div>
     </div>
   );
 }

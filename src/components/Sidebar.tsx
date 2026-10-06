@@ -8,6 +8,7 @@ import {
   Sun,
   Moon,
   Globe,
+  X,
 } from 'lucide-react';
 
 export interface SidebarProps {
@@ -15,6 +16,8 @@ export interface SidebarProps {
   onNavigate: (page: Page) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 const navItems: { page: Page; key: string; label: string; emoji: string }[] = [
@@ -34,6 +37,8 @@ export function Sidebar({
   onNavigate,
   isCollapsed: controlledCollapsed,
   onToggleCollapse: controlledToggle,
+  mobileOpen = false,
+  onCloseMobile,
 }: SidebarProps) {
   const { lang, setLang, t, isRtl } = useLanguage();
   const { toggleTheme, isDark } = useTheme();
@@ -63,124 +68,174 @@ export function Sidebar({
   };
 
   return (
-    <aside
-      className="merchant-sidebar flex flex-col"
-      style={{
-        position: 'relative',
-        width: isCollapsed ? '76px' : '264px',
-        minWidth: isCollapsed ? '76px' : '264px',
-        maxWidth: isCollapsed ? '76px' : '264px',
-        height: '100%',
-        backgroundColor: isDark ? '#0b101e' : '#ffffff',
-        color: isDark ? '#f8fafc' : '#1e293b',
-        borderInlineEnd: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
-        transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease',
-        flexShrink: 0,
-        zIndex: 20,
-      }}
-    >
-      {/* Sidebar Header with Brand & Collapse Toggle */}
-      <div
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {mobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="merchant-mobile-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            zIndex: 9998,
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`merchant-sidebar ${mobileOpen ? 'merchant-sidebar-mobile-drawer' : 'merchant-sidebar-desktop'} flex flex-col`}
         style={{
-          height: '68px',
-          padding: isCollapsed ? '12px' : '14px 14px',
-          borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #f1f5f9',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: isCollapsed ? 'center' : 'space-between',
-          gap: '8px',
+          position: mobileOpen ? 'fixed' : 'relative',
+          top: mobileOpen ? 0 : undefined,
+          bottom: mobileOpen ? 0 : undefined,
+          [isRtl ? 'right' : 'left']: mobileOpen ? 0 : undefined,
+          width: mobileOpen ? '280px' : isCollapsed ? '76px' : '264px',
+          minWidth: mobileOpen ? '280px' : isCollapsed ? '76px' : '264px',
+          maxWidth: mobileOpen ? '280px' : isCollapsed ? '76px' : '264px',
+          height: mobileOpen ? '100dvh' : '100%',
+          maxHeight: mobileOpen ? '100dvh' : '100%',
+          backgroundColor: isDark ? '#0b101e' : '#ffffff',
+          color: isDark ? '#f8fafc' : '#1e293b',
+          borderInlineEnd: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
+          transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s ease, background-color 0.25s ease',
           flexShrink: 0,
+          zIndex: mobileOpen ? 9999 : 20,
+          boxShadow: mobileOpen ? '0 10px 40px rgba(0,0,0,0.6)' : undefined,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
-        {!isCollapsed ? (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1, overflow: 'visible' }}>
-              <div
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '10px',
-                  backgroundColor: '#512772',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
-                  padding: '4px',
-                }}
-              >
-                <img
-                  src="/Logo.png"
-                  alt="InstaPay"
+        {/* Sidebar Header with Brand & Collapse Toggle */}
+        <div
+          style={{
+            height: '68px',
+            padding: isCollapsed && !mobileOpen ? '12px' : '14px 14px',
+            borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #f1f5f9',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: isCollapsed && !mobileOpen ? 'center' : 'space-between',
+            gap: '8px',
+            flexShrink: 0,
+          }}
+        >
+          {(!isCollapsed || mobileOpen) ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1, overflow: 'visible' }}>
+                <div
                   style={{
-                    width: '30px',
-                    height: 'auto',
-                    maxWidth: '100%',
-                    objectFit: 'contain',
-                    display: 'block',
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    backgroundColor: '#512772',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
+                    padding: '4px',
                   }}
-                />
-              </div>
-              <div style={{ whiteSpace: 'nowrap', overflow: 'visible' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: isDark ? '#ffffff' : '#0f172a' }}>
-                    InstaPay
-                  </h2>
-                  <span
+                >
+                  <img
+                    src="/Logo.png"
+                    alt="InstaPay"
                     style={{
-                      fontSize: '9px',
-                      fontWeight: 700,
-                      padding: '1.5px 6px',
-                      borderRadius: '4px',
-                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
-                      color: isDark ? '#38bdf8' : '#0284c7',
-                      border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
-                      letterSpacing: '0.04em',
-                      display: 'inline-block',
-                      flexShrink: 0,
+                      width: '30px',
+                      height: 'auto',
+                      maxWidth: '100%',
+                      objectFit: 'contain',
+                      display: 'block',
                     }}
-                  >
-                    GATEWAY
-                  </span>
+                  />
                 </div>
-                <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
-                  Merchant Portal
-                </p>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'visible' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <h2 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: isDark ? '#ffffff' : '#0f172a' }}>
+                      InstaPay
+                    </h2>
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        padding: '1.5px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                        letterSpacing: '0.04em',
+                        display: 'inline-block',
+                        flexShrink: 0,
+                      }}
+                    >
+                      GATEWAY
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
+                    Merchant Portal
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {/* Collapse Button (Chevron) */}
-            <button
-              onClick={handleToggleCollapse}
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
-                cursor: 'pointer',
-                backgroundColor: isDark ? '#111827' : '#f8fafc',
-                color: isDark ? '#94a3b8' : '#64748b',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                transition: 'all 0.2s',
-              }}
-              title={t('collapse_sidebar')}
-              aria-label={t('collapse_sidebar')}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = isDark ? '#1e293b' : '#e2e8f0';
-                e.currentTarget.style.color = isDark ? '#f8fafc' : '#0f172a';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = isDark ? '#111827' : '#f8fafc';
-                e.currentTarget.style.color = isDark ? '#94a3b8' : '#64748b';
-              }}
-            >
-              <ChevronLeft size={16} className="rtl:rotate-180" />
-            </button>
-          </>
-        ) : (
+              {/* Mobile Close Button OR Desktop Collapse Button */}
+              {mobileOpen ? (
+                <button
+                  type="button"
+                  onClick={onCloseMobile}
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '8px',
+                    border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    backgroundColor: isDark ? '#111827' : '#f8fafc',
+                    color: isDark ? '#f8fafc' : '#0f172a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                  title={t('close') || 'Close'}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              ) : (
+                <button
+                  onClick={handleToggleCollapse}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    backgroundColor: isDark ? '#111827' : '#f8fafc',
+                    color: isDark ? '#94a3b8' : '#64748b',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all 0.2s',
+                  }}
+                  title={t('collapse_sidebar')}
+                  aria-label={t('collapse_sidebar')}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = isDark ? '#1e293b' : '#e2e8f0';
+                    e.currentTarget.style.color = isDark ? '#f8fafc' : '#0f172a';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDark ? '#111827' : '#f8fafc';
+                    e.currentTarget.style.color = isDark ? '#94a3b8' : '#64748b';
+                  }}
+                >
+                  <ChevronLeft size={16} className="rtl:rotate-180" />
+                </button>
+              )}
+            </>
+          ) : (
           /* Collapsed Header: Centered Logo + Quick Expand Button */
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
             <div
@@ -235,7 +290,10 @@ export function Sidebar({
             return (
               <button
                 key={item.page}
-                onClick={() => onNavigate(item.page)}
+                onClick={() => {
+                  onNavigate(item.page);
+                  onCloseMobile?.();
+                }}
                 title={itemLabel}
                 aria-label={itemLabel}
                 style={{
@@ -291,7 +349,10 @@ export function Sidebar({
           return (
             <button
               key={item.page}
-              onClick={() => onNavigate(item.page)}
+              onClick={() => {
+                onNavigate(item.page);
+                onCloseMobile?.();
+              }}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -538,5 +599,6 @@ export function Sidebar({
         )}
       </div>
     </aside>
+  </>
   );
 }

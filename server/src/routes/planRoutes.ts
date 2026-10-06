@@ -10,6 +10,28 @@ class PlanRequestError extends Error {
   status = 400
 }
 
+function publicPlanWithOffer(plan: any, now = new Date()) {
+  const hasActiveOffer =
+    Number.isFinite(plan.offerPriceEgp) &&
+    plan.offerPriceEgp > 0 &&
+    plan.offerPriceEgp < plan.priceEgp &&
+    plan.offerEndsAt instanceof Date &&
+    plan.offerEndsAt.getTime() > now.getTime()
+  const effectivePriceEgp = hasActiveOffer ? plan.offerPriceEgp : plan.priceEgp
+  return {
+    ...plan,
+    offerPriceEgp: hasActiveOffer ? plan.offerPriceEgp : null,
+    offerLabel: hasActiveOffer ? plan.offerLabel : null,
+    offerEndsAt: hasActiveOffer ? plan.offerEndsAt : null,
+    hasActiveOffer,
+    effectivePriceEgp,
+    offerSavingsEgp: hasActiveOffer ? Number((plan.priceEgp - effectivePriceEgp).toFixed(2)) : 0,
+    offerDiscountPercent: hasActiveOffer
+      ? Math.round(((plan.priceEgp - effectivePriceEgp) / plan.priceEgp) * 100)
+      : 0,
+  }
+}
+
 async function activateFreeTrial(client: any) {
   if (client.trialRedeemedAt || client.subscriptionEndsAt) {
     throw new PlanRequestError('You have already utilized your introductory Free Trial. Please choose a subscription tier.')
@@ -57,7 +79,8 @@ planCatalogRouter.get('/', async (_req: Request, res: Response) => {
       where: { isActive: true },
       orderBy: { priceEgp: 'asc' },
     })
-    return res.json({ ok: true, plans })
+    const now = new Date()
+    return res.json({ ok: true, plans: plans.map((plan: any) => publicPlanWithOffer(plan, now)) })
   } catch (err: unknown) {
     const error = err as Error
     return res.status(err instanceof PlanRequestError ? err.status : 500).json({ ok: false, error: error.message })
@@ -101,6 +124,20 @@ planRouter.post('/trial/activate', requireMerchant, async (req: Request, res: Re
 })
 
 // ─── Create Subscription Checkout ───────────────────────────────────
+
+planRouter.get('/special-offers', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const offers = await db.specialOffer.findMany({
+      where: { clientId: client.id, status: 'ACTIVE', validUntil: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    })
+    return res.json({ ok: true, offers })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
 
 planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response) => {
   try {
@@ -150,7 +187,9 @@ planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response
       process.env.PLATFORM_INSTAPAY_PAYMENT_URL ||
       `https://ipn.eg/S/platform/instapay/SUBSCRIPTION`
 
-    const amountCents = toEgpCents(plan.priceEgp)
+    const pricedPlan = publicPlanWithOffer(plan)
+    const checkoutPriceEgp = pricedPlan.effectivePriceEgp
+    const amountCents = toEgpCents(checkoutPriceEgp)
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000) // 30 minutes TTL
     const effectiveSender = String(initialSender || client.instapayHandle || 'pending@instapay').trim()
 
@@ -159,13 +198,15 @@ planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response
         clientId: client.id,
         senderHandle: effectiveSender,
         recipientHandle: platformHandle,
-        amountEgp: plan.priceEgp,
+        amountEgp: checkoutPriceEgp,
         amountCents,
         currency: 'EGP',
         status: 'PENDING',
         purpose: 'SUBSCRIPTION',
         subscriptionPlanName: plan.name,
-        note: `Subscription payment for ${plan.name} plan`,
+        note: pricedPlan.hasActiveOffer
+          ? `Subscription payment for ${plan.name} plan (${pricedPlan.offerLabel || 'promotional offer'})`
+          : `Subscription payment for ${plan.name} plan`,
         deepLinkUrl: platformPaymentUrl,
         deepLinkToken: 'platform_sub',
         expiresAt,
@@ -214,7 +255,10 @@ planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response
       checkout: {
         sessionId: transaction.sessionId,
         planName: plan.name,
-        priceEgp: plan.priceEgp,
+        priceEgp: checkoutPriceEgp,
+        originalPriceEgp: plan.priceEgp,
+        hasActiveOffer: pricedPlan.hasActiveOffer,
+        offerLabel: pricedPlan.hasActiveOffer ? pricedPlan.offerLabel : null,
         recipientHandle: platformHandle,
         paymentUrl: platformPaymentUrl,
         senderHandle: transaction.senderHandle,

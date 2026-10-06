@@ -342,15 +342,18 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
   return (
     <div
       style={{
-        minHeight: '100vh',
-        width: '100vw',
+        minHeight: '100dvh',
+        width: '100%',
         background: 'linear-gradient(135deg, #070b14 0%, #0f172a 50%, #070b14 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px',
+        padding: 'clamp(16px, 4vw, 32px) 14px',
+        paddingTop: 'max(16px, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
         position: 'relative',
-        overflow: 'hidden',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
         fontFamily: "'Inter', sans-serif",
         direction: isRtl ? 'rtl' : 'ltr',
       }}
@@ -385,11 +388,12 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
           maxWidth: '460px',
           backgroundColor: '#0f172a',
           border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '24px',
-          padding: '36px',
+          borderRadius: '20px',
+          padding: 'clamp(20px, 5vw, 36px)',
           boxShadow: '0 25px 50px -12px rgba(0,0,0,0.85)',
           position: 'relative',
           zIndex: 1,
+          margin: 'auto 0',
         }}
       >
         {/* Top Header with Language Switcher */}

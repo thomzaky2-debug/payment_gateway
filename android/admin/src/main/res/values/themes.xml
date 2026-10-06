@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base dark theme -->
     <style name="Theme.InstaPayAdmin" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/brand_primary</item>
@@ -14,11 +14,11 @@
 
         <!-- Status bar -->
         <item name="android:statusBarColor">@color/bg_root</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightStatusBar">@bool/light_system_bars</item>
 
         <!-- Navigation bar -->
         <item name="android:navigationBarColor">@color/bg_bottom_nav</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">@bool/light_system_bars</item>
 
         <!-- Default text colors -->
         <item name="android:textColorPrimary">@color/text_primary</item>

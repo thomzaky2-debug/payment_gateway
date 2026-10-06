@@ -5,6 +5,12 @@
     <string name="nav_dashboard">لوحة التحكم</string>
     <string name="nav_transactions">العمليات</string>
     <string name="nav_settings">الإعدادات</string>
+    <string name="portal_overview_title">نظرة عامة</string>
+    <string name="portal_overview_subtitle">نشاط المدفوعات المباشر</string>
+    <string name="portal_transactions_title">المعاملات</string>
+    <string name="portal_transactions_subtitle">البحث ومراجعة المدفوعات</string>
+    <string name="portal_settings_title">الإعدادات</string>
+    <string name="portal_settings_subtitle">إعدادات الكاشف والحساب</string>
 
     <!-- Dashboard -->
     <string name="dash_today">اليوم</string>

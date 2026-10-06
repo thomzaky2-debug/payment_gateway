@@ -24,6 +24,14 @@ class MainActivity : AppCompatActivity() {
     val paymentFeedback by lazy { PaymentFeedback(this) }
     val wsClient by lazy { DashboardWebSocketClient(this) }
 
+    private val pageCopy by lazy {
+        listOf(
+            getString(R.string.portal_overview_title) to getString(R.string.portal_overview_subtitle),
+            getString(R.string.portal_transactions_title) to getString(R.string.portal_transactions_subtitle),
+            getString(R.string.portal_settings_title) to getString(R.string.portal_settings_subtitle),
+        )
+    }
+
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(LocaleHelper.onAttach(newBase))
     }
@@ -99,6 +107,9 @@ class MainActivity : AppCompatActivity() {
             override fun onPageSelected(position: Int) {
                 super.onPageSelected(position)
                 binding.bottomNav.menu.getItem(position).isChecked = true
+                val copy = pageCopy[position]
+                binding.pageTitle.text = copy.first
+                binding.pageSubtitle.text = copy.second
             }
         })
 
@@ -106,6 +117,8 @@ class MainActivity : AppCompatActivity() {
         val savedTab = savedInstanceState?.getInt("selected_tab", 0) ?: 0
         binding.viewPager.setCurrentItem(savedTab, false)
         binding.bottomNav.menu.getItem(savedTab).isChecked = true
+        binding.pageTitle.text = pageCopy[savedTab].first
+        binding.pageSubtitle.text = pageCopy[savedTab].second
 
         // Start the WebSocket client for real-time updates
         MainScope().launch { wsClient.start() }

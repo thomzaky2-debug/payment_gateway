@@ -476,7 +476,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
       />
 
       {/* ─── Two-column: Simulator + cURL ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px', marginBottom: '24px' }}>
         {/* Simulator */}
         <div style={{ ...card({ padding: '28px' }) }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '22px' }}>

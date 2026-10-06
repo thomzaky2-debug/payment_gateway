@@ -113,14 +113,21 @@ adminRouter.get('/stats', requireAdmin, async (_req: Request, res: Response) => 
       totalClients,
       pendingClients,
       approvedClients,
+      activeClients,
+      suspendedClients,
       totalTransactions,
       confirmedTransactions,
       totalVolumeResult,
       totalDetectors,
+      onlineDetectors,
+      failedWebhooks,
+      unmatchedPayments,
     ] = await Promise.all([
       db.client.count(),
       db.client.count({ where: { approvalStatus: 'PENDING' } }),
       db.client.count({ where: { approvalStatus: 'APPROVED' } }),
+      db.client.count({ where: { approvalStatus: 'APPROVED', isActive: true } }),
+      db.client.count({ where: { approvalStatus: 'APPROVED', isActive: false } }),
       db.transaction.count(),
       db.transaction.count({ where: { status: 'CONFIRMED' } }),
       db.transaction.aggregate({
@@ -128,6 +135,9 @@ adminRouter.get('/stats', requireAdmin, async (_req: Request, res: Response) => 
         _sum: { amountEgp: true },
       }),
       db.detectorDevice.count(),
+      db.detectorDevice.count({ where: { lastSeenAt: { gte: new Date(Date.now() - 5 * 60 * 1000) } } }),
+      db.webhookLog.count({ where: { isSuccess: false } }),
+      db.mismatchedPayment.count({ where: { status: 'UNMATCHED' } }),
     ])
 
     return res.json({
@@ -136,10 +146,15 @@ adminRouter.get('/stats', requireAdmin, async (_req: Request, res: Response) => 
         totalClients,
         pendingClients,
         approvedClients,
+        activeClients,
+        suspendedClients,
         totalTransactions,
         confirmedTransactions,
         totalVolumeEgp: totalVolumeResult._sum.amountEgp || 0,
         totalDetectors,
+        onlineDetectors,
+        failedWebhooks,
+        unmatchedPayments,
       },
     })
   } catch (err: unknown) {
@@ -219,6 +234,150 @@ adminRouter.get('/clients', requireAdmin, async (_req: Request, res: Response) =
 
 // ─── Approve Merchant ───────────────────────────────────────────────
 
+// Monitoring and operational controls for an individual merchant.
+adminRouter.get('/clients/:id/overview', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const client = await db.client.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        businessName: true,
+        approvalStatus: true,
+        isActive: true,
+        apiKeyLastUsedAt: true,
+        detectTokenLastUsedAt: true,
+        subscriptionEndsAt: true,
+        checkoutTtlMin: true,
+        detectorDevices: { orderBy: { lastSeenAt: 'desc' } },
+      },
+    })
+    if (!client) return res.status(404).json({ ok: false, error: 'Merchant not found.' })
+
+    const [transactionGroups, confirmedVolume, unmatchedPayments, webhookTotal, webhookSuccess, latestWebhook, activeSessions, latestTransaction] = await Promise.all([
+      db.transaction.groupBy({ by: ['status'], where: { clientId: id }, _count: { _all: true } }),
+      db.transaction.aggregate({ where: { clientId: id, status: 'CONFIRMED' }, _sum: { amountEgp: true } }),
+      db.mismatchedPayment.count({ where: { clientId: id, status: 'UNMATCHED' } }),
+      db.webhookLog.count({ where: { clientId: id } }),
+      db.webhookLog.count({ where: { clientId: id, isSuccess: true } }),
+      db.webhookLog.findFirst({
+        where: { clientId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, isSuccess: true, statusCode: true, event: true },
+      }),
+      db.authSession.count({ where: { clientId: id, kind: 'MERCHANT', revokedAt: null, expiresAt: { gt: new Date() } } }),
+      db.transaction.findFirst({
+        where: { clientId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { sessionId: true, status: true, amountEgp: true, createdAt: true },
+      }),
+    ])
+
+    const transactionsByStatus = Object.fromEntries(transactionGroups.map((group) => [group.status, group._count._all]))
+    const totalTransactions = transactionGroups.reduce((total, group) => total + group._count._all, 0)
+    const detectorOnlineCount = client.detectorDevices.filter(
+      (device) => Date.now() - device.lastSeenAt.getTime() <= 5 * 60 * 1000
+    ).length
+
+    return res.json({
+      ok: true,
+      overview: {
+        ...client,
+        activeSessions,
+        detectorOnlineCount,
+        totalTransactions,
+        transactionsByStatus,
+        confirmedVolumeEgp: confirmedVolume._sum.amountEgp || 0,
+        unmatchedPayments,
+        webhookTotal,
+        webhookSuccess,
+        webhookSuccessRate: webhookTotal > 0 ? Math.round((webhookSuccess / webhookTotal) * 100) : null,
+        latestWebhook,
+        latestTransaction,
+      },
+    })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.patch('/clients/:id/access', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    if (typeof req.body?.isActive !== 'boolean') {
+      return res.status(400).json({ ok: false, error: 'isActive must be a boolean.' })
+    }
+    const existing = await db.client.findUnique({ where: { id } })
+    if (!existing) return res.status(404).json({ ok: false, error: 'Merchant not found.' })
+    if (req.body.isActive && existing.approvalStatus !== 'APPROVED') {
+      return res.status(409).json({ ok: false, error: 'Only approved merchants can be activated.' })
+    }
+
+    const client = await db.client.update({ where: { id }, data: { isActive: req.body.isActive } })
+    const revokedSessions = req.body.isActive ? 0 : await revokeAllMerchantSessions(id)
+    await db.auditLog.create({
+      data: {
+        action: req.body.isActive ? 'ACTIVATE_MERCHANT' : 'SUSPEND_MERCHANT',
+        details: `${req.body.isActive ? 'Activated' : 'Suspended'} merchant ${client.businessName}${revokedSessions ? ` and revoked ${revokedSessions} session(s)` : ''}`,
+      },
+    })
+    return res.json({ ok: true, client: safeAdminClient(client), revokedSessions })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.post('/clients/:id/revoke-sessions', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const client = await db.client.findUnique({ where: { id }, select: { businessName: true } })
+    if (!client) return res.status(404).json({ ok: false, error: 'Merchant not found.' })
+    const revokedSessions = await revokeAllMerchantSessions(id)
+    await db.auditLog.create({
+      data: { action: 'REVOKE_MERCHANT_SESSIONS', details: `Revoked ${revokedSessions} active session(s) for ${client.businessName}` },
+    })
+    return res.json({ ok: true, revokedSessions })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.post('/clients/:id/rotate-keys', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const existing = await db.client.findUnique({ where: { id } })
+    if (!existing) return res.status(404).json({ ok: false, error: 'Merchant not found.' })
+    if (existing.approvalStatus !== 'APPROVED') {
+      return res.status(409).json({ ok: false, error: 'Integration keys can only be rotated for approved merchants.' })
+    }
+    const keys = generateMerchantKeys()
+    const client = await db.client.update({
+      where: { id },
+      data: {
+        apiKey: keys.apiKey,
+        detectToken: keys.detectToken,
+        webhookSecret: keys.webhookSecret,
+        apiKeyHash: keys.apiKeyHash,
+        detectTokenHash: keys.detectTokenHash,
+        webhookSecretHash: keys.webhookSecretHash,
+        apiKeyLastUsedAt: null,
+        detectTokenLastUsedAt: null,
+      },
+    })
+    await db.auditLog.create({
+      data: { action: 'ROTATE_MERCHANT_KEYS', details: `Rotated API, detector, and webhook credentials for ${client.businessName}` },
+    })
+    return res.json({ ok: true, client: safeAdminClient(client) })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+// Approve a new or previously rejected merchant.
 adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
@@ -412,7 +571,14 @@ adminRouter.get('/plans', requireAdmin, async (_req: Request, res: Response) => 
     const plans = await db.plan.findMany({
       orderBy: { priceEgp: 'asc' },
     })
-    return res.json({ ok: true, plans })
+    const now = Date.now()
+    return res.json({
+      ok: true,
+      plans: plans.map((plan) => ({
+        ...plan,
+        hasActiveOffer: plan.offerPriceEgp !== null && plan.offerPriceEgp < plan.priceEgp && Boolean(plan.offerEndsAt && plan.offerEndsAt.getTime() > now),
+      })),
+    })
   } catch (err: unknown) {
     const error = err as Error
     return res.status(500).json({ ok: false, error: error.message })
@@ -421,17 +587,54 @@ adminRouter.get('/plans', requireAdmin, async (_req: Request, res: Response) => 
 
 adminRouter.patch('/plans', requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { name, priceEgp, maxTransactions, periodDays, description, isActive } = req.body
+    const { name, priceEgp, maxTransactions, periodDays, description, isActive, offerPriceEgp, offerLabel, offerValidDays, clearOffer } = req.body
     if (!name) {
       return res.status(400).json({ ok: false, error: 'Plan name is required.' })
     }
 
+    const currentPlan = await db.plan.findUnique({ where: { name: String(name).toUpperCase() } })
+    if (!currentPlan) return res.status(404).json({ ok: false, error: 'Plan not found.' })
+
     const data: Record<string, any> = {}
-    if (priceEgp !== undefined) data.priceEgp = Number(priceEgp)
-    if (maxTransactions !== undefined) data.maxTransactions = Math.max(1, Number(maxTransactions))
-    if (periodDays !== undefined) data.periodDays = Math.max(1, Number(periodDays))
+    if (priceEgp !== undefined) {
+      const parsedPrice = Number(priceEgp)
+      if (!Number.isFinite(parsedPrice) || parsedPrice < 0 || parsedPrice > 10_000_000) return res.status(400).json({ ok: false, error: 'Plan price must be between 0 and 10,000,000 EGP.' })
+      data.priceEgp = parsedPrice
+    }
+    if (maxTransactions !== undefined) {
+      const parsedLimit = Number(maxTransactions)
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100_000_000) return res.status(400).json({ ok: false, error: 'Transaction limit must be between 1 and 100,000,000.' })
+      data.maxTransactions = parsedLimit
+    }
+    if (periodDays !== undefined) {
+      const parsedPeriod = Number(periodDays)
+      if (!Number.isInteger(parsedPeriod) || parsedPeriod < 1 || parsedPeriod > 3650) return res.status(400).json({ ok: false, error: 'Plan duration must be between 1 and 3,650 days.' })
+      data.periodDays = parsedPeriod
+    }
     if (description !== undefined) data.description = String(description)
     if (isActive !== undefined) data.isActive = Boolean(isActive)
+
+    if (clearOffer === true || offerPriceEgp === null || offerPriceEgp === '') {
+      data.offerPriceEgp = null
+      data.offerLabel = null
+      data.offerEndsAt = null
+    } else if (offerPriceEgp !== undefined) {
+      const parsedOfferPrice = Number(offerPriceEgp)
+      const basePrice = data.priceEgp ?? currentPlan.priceEgp
+      const parsedValidDays = Number(offerValidDays)
+      if (basePrice <= 0) return res.status(400).json({ ok: false, error: 'Offers can only be added to paid plans.' })
+      if (!Number.isFinite(parsedOfferPrice) || parsedOfferPrice <= 0 || parsedOfferPrice >= basePrice) return res.status(400).json({ ok: false, error: 'Offer price must be greater than 0 EGP and lower than the regular plan price.' })
+      if (!Number.isInteger(parsedValidDays) || parsedValidDays < 1 || parsedValidDays > 365) return res.status(400).json({ ok: false, error: 'Offer validity must be between 1 and 365 days.' })
+      const cleanLabel = String(offerLabel || 'Limited-time offer').trim()
+      if (!cleanLabel || cleanLabel.length > 80) return res.status(400).json({ ok: false, error: 'Offer label must be between 1 and 80 characters.' })
+      data.offerPriceEgp = parsedOfferPrice
+      data.offerLabel = cleanLabel
+      data.offerEndsAt = new Date(Date.now() + parsedValidDays * 24 * 60 * 60 * 1000)
+    } else if (data.priceEgp !== undefined && currentPlan.offerPriceEgp !== null && currentPlan.offerPriceEgp >= data.priceEgp) {
+      data.offerPriceEgp = null
+      data.offerLabel = null
+      data.offerEndsAt = null
+    }
 
     const updated = await db.plan.update({
       where: { name: String(name).toUpperCase() },
@@ -468,7 +671,7 @@ adminRouter.patch('/plans', requireAdmin, async (req: Request, res: Response) =>
     await db.auditLog.create({
       data: {
         action: 'UPDATE_PLAN',
-        details: `Updated plan ${updatedPlan.name}: ${updatedPlan.priceEgp} EGP, max ${updatedPlan.maxTransactions} txs, period ${updatedPlan.periodDays ?? 30} days, active: ${updatedPlan.isActive ?? true}`,
+        details: `Updated plan ${updatedPlan.name}: ${updatedPlan.priceEgp} EGP, max ${updatedPlan.maxTransactions} txs, period ${updatedPlan.periodDays ?? 30} days, active: ${updatedPlan.isActive ?? true}${updatedPlan.offerPriceEgp !== null && updatedPlan.offerEndsAt ? `, offer ${updatedPlan.offerPriceEgp} EGP until ${updatedPlan.offerEndsAt.toISOString()}` : ', no active offer'}`,
       },
     })
 
@@ -597,13 +800,25 @@ adminRouter.post('/clients/:id/plan', requireAdmin, async (req: Request, res: Re
     const id = String(req.params.id)
     const { planName, customTxLimit, extendDays } = req.body
 
+    if (!planName || typeof planName !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Plan name is required.' })
+    }
+    const parsedTxLimit = customTxLimit !== undefined ? Number(customTxLimit) : undefined
+    const parsedExtendDays = extendDays !== undefined ? Number(extendDays) : undefined
+    if (parsedTxLimit !== undefined && (!Number.isInteger(parsedTxLimit) || parsedTxLimit < 1 || parsedTxLimit > 10_000_000)) {
+      return res.status(400).json({ ok: false, error: 'Transaction limit must be an integer between 1 and 10,000,000.' })
+    }
+    if (parsedExtendDays !== undefined && (!Number.isInteger(parsedExtendDays) || parsedExtendDays < 1 || parsedExtendDays > 3650)) {
+      return res.status(400).json({ ok: false, error: 'Extension must be an integer between 1 and 3,650 days.' })
+    }
+
     const plan = await db.plan.findUnique({ where: { name: String(planName).toUpperCase() } })
     if (!plan && planName) {
       return res.status(404).json({ ok: false, error: 'Specified plan does not exist.' })
     }
 
-    const effectiveExtendDays = extendDays !== undefined ? Number(extendDays) : (plan?.periodDays ?? 30)
-    const txLimit = customTxLimit !== undefined ? Number(customTxLimit) : plan?.maxTransactions ?? 1000
+    const effectiveExtendDays = parsedExtendDays ?? (plan?.periodDays ?? 30)
+    const txLimit = parsedTxLimit ?? plan?.maxTransactions ?? 1000
     const subscriptionEndsAt = new Date(Date.now() + effectiveExtendDays * 24 * 60 * 60 * 1000)
 
     const updated = await db.client.update({
@@ -631,6 +846,186 @@ adminRouter.post('/clients/:id/plan', requireAdmin, async (req: Request, res: Re
 })
 
 // ─── Broadcast / Targeted Merchant Notification ─────────────────────
+
+adminRouter.get('/special-offers', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const offers = await db.specialOffer.findMany({
+      include: { client: { select: { id: true, businessName: true, email: true, subscriptionPlan: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+    return res.json({ ok: true, offers })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.post('/special-offers', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const clientId = String(req.body?.clientId || '')
+    const title = String(req.body?.title || '').trim()
+    const description = String(req.body?.description || '').trim()
+    const priceEgp = Number(req.body?.priceEgp)
+    const maxTransactions = Number(req.body?.maxTransactions)
+    const periodDays = Number(req.body?.periodDays)
+    const validDays = Number(req.body?.validDays)
+    if (!clientId || !title || title.length > 120) return res.status(400).json({ ok: false, error: 'Merchant and an offer title of up to 120 characters are required.' })
+    if (!Number.isFinite(priceEgp) || priceEgp <= 0 || priceEgp > 10_000_000) return res.status(400).json({ ok: false, error: 'Offer price must be between 0 and 10,000,000 EGP.' })
+    if (!Number.isInteger(maxTransactions) || maxTransactions < 1 || maxTransactions > 100_000_000) return res.status(400).json({ ok: false, error: 'Transaction allowance must be between 1 and 100,000,000.' })
+    if (!Number.isInteger(periodDays) || periodDays < 1 || periodDays > 3650) return res.status(400).json({ ok: false, error: 'Subscription duration must be between 1 and 3,650 days.' })
+    if (!Number.isInteger(validDays) || validDays < 1 || validDays > 365) return res.status(400).json({ ok: false, error: 'Offer validity must be between 1 and 365 days.' })
+    const client = await db.client.findUnique({ where: { id: clientId }, select: { businessName: true, approvalStatus: true } })
+    if (!client) return res.status(404).json({ ok: false, error: 'Merchant not found.' })
+    if (client.approvalStatus !== 'APPROVED') return res.status(409).json({ ok: false, error: 'Special offers can only be assigned to approved merchants.' })
+
+    const offer = await db.specialOffer.create({
+      data: { clientId, title, description: description || null, priceEgp, maxTransactions, periodDays, validUntil: new Date(Date.now() + validDays * 24 * 60 * 60 * 1000) },
+      include: { client: { select: { id: true, businessName: true, email: true, subscriptionPlan: true } } },
+    })
+    await db.merchantNotification.create({
+      data: { clientId, title: `Exclusive offer: ${title}`, message: `A custom ${periodDays}-day package with ${maxTransactions.toLocaleString()} transactions is available for ${priceEgp.toFixed(2)} EGP. Open Plans & Billing to review it.`, severity: 'INFO' },
+    })
+    await db.auditLog.create({ data: { action: 'CREATE_SPECIAL_OFFER', details: `Created "${title}" for ${client.businessName}: ${priceEgp} EGP, ${maxTransactions} txs, ${periodDays} days` } })
+    return res.status(201).json({ ok: true, offer })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.patch('/special-offers/:id', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const existing = await db.specialOffer.findUnique({ where: { id }, include: { client: { select: { businessName: true } } } })
+    if (!existing) return res.status(404).json({ ok: false, error: 'Special offer not found.' })
+    if (existing.status === 'ACCEPTED') return res.status(409).json({ ok: false, error: 'Accepted offers are immutable.' })
+    const data: Record<string, string | number | Date | null> = {}
+    if (req.body.status !== undefined) {
+      const status = String(req.body.status).toUpperCase()
+      if (!['ACTIVE', 'REVOKED'].includes(status)) return res.status(400).json({ ok: false, error: 'Offer status must be ACTIVE or REVOKED.' })
+      data.status = status
+    }
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title).trim()
+      if (!title || title.length > 120) return res.status(400).json({ ok: false, error: 'Offer title must be 1-120 characters.' })
+      data.title = title
+    }
+    if (req.body.description !== undefined) data.description = String(req.body.description).trim().slice(0, 1000) || null
+    for (const field of ['priceEgp', 'maxTransactions', 'periodDays'] as const) {
+      if (req.body[field] !== undefined) data[field] = Number(req.body[field])
+    }
+    if (data.priceEgp !== undefined && (!Number.isFinite(data.priceEgp) || Number(data.priceEgp) <= 0 || Number(data.priceEgp) > 10_000_000)) return res.status(400).json({ ok: false, error: 'Invalid offer price.' })
+    if (data.maxTransactions !== undefined && (!Number.isInteger(data.maxTransactions) || Number(data.maxTransactions) < 1 || Number(data.maxTransactions) > 100_000_000)) return res.status(400).json({ ok: false, error: 'Invalid transaction allowance.' })
+    if (data.periodDays !== undefined && (!Number.isInteger(data.periodDays) || Number(data.periodDays) < 1 || Number(data.periodDays) > 3650)) return res.status(400).json({ ok: false, error: 'Invalid subscription duration.' })
+    if (req.body.validDays !== undefined) {
+      const validDays = Number(req.body.validDays)
+      if (!Number.isInteger(validDays) || validDays < 1 || validDays > 365) return res.status(400).json({ ok: false, error: 'Offer validity must be between 1 and 365 days.' })
+      data.validUntil = new Date(Date.now() + validDays * 24 * 60 * 60 * 1000)
+    }
+    const offer = await db.specialOffer.update({ where: { id }, data, include: { client: { select: { id: true, businessName: true, email: true, subscriptionPlan: true } } } })
+    await db.auditLog.create({ data: { action: 'UPDATE_SPECIAL_OFFER', details: `Updated special offer "${offer.title}" for ${existing.client.businessName}; status: ${offer.status}` } })
+    return res.json({ ok: true, offer })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.get('/bundles', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const [bundles, purchaseGroups] = await Promise.all([
+      db.topUpBundle.findMany({ orderBy: [{ sortOrder: 'asc' }, { priceEgp: 'asc' }] }),
+      db.bundlePurchase.groupBy({
+        by: ['bundleId', 'status'],
+        _count: { _all: true },
+        _sum: { priceEgp: true, extraTx: true },
+      }),
+    ])
+    const catalog = bundles.map((bundle) => {
+      const groups = purchaseGroups.filter((group) => group.bundleId === bundle.id)
+      const confirmed = groups.find((group) => group.status === 'CONFIRMED')
+      return {
+        ...bundle,
+        purchaseCount: groups.reduce((total, group) => total + group._count._all, 0),
+        confirmedPurchaseCount: confirmed?._count._all || 0,
+        confirmedRevenueEgp: confirmed?._sum.priceEgp || 0,
+        grantedTransactions: confirmed?._sum.extraTx || 0,
+      }
+    })
+    return res.json({ ok: true, bundles: catalog })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.post('/bundles', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const name = String(req.body?.name || '').trim().toUpperCase()
+    const displayName = String(req.body?.displayName || '').trim()
+    const description = String(req.body?.description || '').trim()
+    const priceEgp = Number(req.body?.priceEgp)
+    const extraTx = Number(req.body?.extraTx)
+    const sortOrder = req.body?.sortOrder === undefined ? 0 : Number(req.body.sortOrder)
+    if (!/^[A-Z0-9_]{3,50}$/.test(name)) return res.status(400).json({ ok: false, error: 'Bundle key must be 3-50 uppercase letters, numbers, or underscores.' })
+    if (!displayName || displayName.length > 80) return res.status(400).json({ ok: false, error: 'Display name is required and must not exceed 80 characters.' })
+    if (!Number.isFinite(priceEgp) || priceEgp <= 0 || priceEgp > 1_000_000) return res.status(400).json({ ok: false, error: 'Price must be between 0 and 1,000,000 EGP.' })
+    if (!Number.isInteger(extraTx) || extraTx < 1 || extraTx > 10_000_000) return res.status(400).json({ ok: false, error: 'Extra transactions must be an integer between 1 and 10,000,000.' })
+    if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 10_000) return res.status(400).json({ ok: false, error: 'Sort order must be an integer between 0 and 10,000.' })
+
+    const bundle = await db.topUpBundle.create({
+      data: { name, displayName, description: description || null, priceEgp, extraTx, sortOrder, isActive: req.body?.isActive !== false },
+    })
+    await db.auditLog.create({ data: { action: 'CREATE_TOPUP_BUNDLE', details: `Created ${bundle.displayName}: ${bundle.priceEgp} EGP for ${bundle.extraTx} extra transactions` } })
+    return res.status(201).json({ ok: true, bundle })
+  } catch (err: unknown) {
+    const error = err as Error & { code?: string }
+    if (error.code === 'P2002') return res.status(409).json({ ok: false, error: 'A bundle with this key already exists.' })
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
+
+adminRouter.patch('/bundles/:id', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const existing = await db.topUpBundle.findUnique({ where: { id } })
+    if (!existing) return res.status(404).json({ ok: false, error: 'Bundle not found.' })
+    const data: Record<string, string | number | boolean | null> = {}
+    if (req.body.displayName !== undefined) {
+      const displayName = String(req.body.displayName).trim()
+      if (!displayName || displayName.length > 80) return res.status(400).json({ ok: false, error: 'Display name must be 1-80 characters.' })
+      data.displayName = displayName
+    }
+    if (req.body.description !== undefined) data.description = String(req.body.description).trim().slice(0, 500) || null
+    if (req.body.priceEgp !== undefined) {
+      const priceEgp = Number(req.body.priceEgp)
+      if (!Number.isFinite(priceEgp) || priceEgp <= 0 || priceEgp > 1_000_000) return res.status(400).json({ ok: false, error: 'Price must be between 0 and 1,000,000 EGP.' })
+      data.priceEgp = priceEgp
+    }
+    if (req.body.extraTx !== undefined) {
+      const extraTx = Number(req.body.extraTx)
+      if (!Number.isInteger(extraTx) || extraTx < 1 || extraTx > 10_000_000) return res.status(400).json({ ok: false, error: 'Extra transactions must be an integer between 1 and 10,000,000.' })
+      data.extraTx = extraTx
+    }
+    if (req.body.sortOrder !== undefined) {
+      const sortOrder = Number(req.body.sortOrder)
+      if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 10_000) return res.status(400).json({ ok: false, error: 'Sort order must be an integer between 0 and 10,000.' })
+      data.sortOrder = sortOrder
+    }
+    if (req.body.isActive !== undefined) {
+      if (typeof req.body.isActive !== 'boolean') return res.status(400).json({ ok: false, error: 'isActive must be a boolean.' })
+      data.isActive = req.body.isActive
+    }
+    if (Object.keys(data).length === 0) return res.status(400).json({ ok: false, error: 'No bundle changes were provided.' })
+
+    const bundle = await db.topUpBundle.update({ where: { id }, data })
+    await db.auditLog.create({ data: { action: 'UPDATE_TOPUP_BUNDLE', details: `Updated ${bundle.displayName}: ${bundle.priceEgp} EGP, ${bundle.extraTx} extra transactions, active: ${bundle.isActive}` } })
+    return res.json({ ok: true, bundle })
+  } catch (err: unknown) {
+    const error = err as Error
+    return res.status(500).json({ ok: false, error: error.message })
+  }
+})
 
 adminRouter.post('/notifications', requireAdmin, async (req: Request, res: Response) => {
   try {

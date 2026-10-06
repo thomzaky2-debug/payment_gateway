@@ -18,8 +18,8 @@ android {
         applicationId = "com.instapaydetector.admin"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0-admin-portal-parity"
+        versionCode = 4
+        versionName = "1.3.0-web-parity"
         resValue("string", "app_name", "InstaPay Admin")
         buildConfigField(
             "String",
@@ -51,7 +51,7 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            buildConfigField("String", "GATEWAY_BASE_URL", "\"http://10.0.2.2:3001\"")
+            buildConfigField("String", "GATEWAY_BASE_URL", "\"${gatewayBaseUrl ?: "http://10.0.2.2:3001"}\"")
         }
         release {
             isMinifyEnabled = true

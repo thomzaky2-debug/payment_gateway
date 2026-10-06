@@ -86,15 +86,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupViewPager() {
         val tabs = listOf(
-            AdminTab("Ops", OpsFragment(), R.drawable.ic_gauge),
+            AdminTab("Overview", DashboardFragment(), R.drawable.ic_nav_dashboard),
             AdminTab("Merchants", merchantsFragment, R.drawable.ic_nav_merchants),
-            AdminTab("Billing", BillingFragment(), R.drawable.ic_calendar),
-            AdminTab("Notify", NotificationsFragment(), R.drawable.ic_bell),
             AdminTab("Transactions", TransactionsFragment(), R.drawable.ic_nav_transactions),
-            AdminTab("Webhooks", WebhooksFragment(), R.drawable.ic_globe),
-            AdminTab("Activity", ActivityFragment(), R.drawable.ic_activity),
-            AdminTab("Settings", SettingsFragment(), R.drawable.ic_nav_settings),
-            AdminTab("Audit", AuditFragment(), R.drawable.ic_shield)
+            AdminTab("Audit Trail", AuditFragment(), R.drawable.ic_shield),
+            AdminTab("Webhook Logs", WebhooksFragment(), R.drawable.ic_globe),
+            AdminTab("Plans & Pricing", BillingFragment(), R.drawable.ic_calendar),
+            AdminTab("Notifications", NotificationsFragment(), R.drawable.ic_bell),
+            AdminTab("Operations", OpsFragment(), R.drawable.ic_gauge),
+            AdminTab("Settings", SettingsFragment(), R.drawable.ic_nav_settings)
         )
 
         binding.viewPager.adapter = object : FragmentStateAdapter(this) {

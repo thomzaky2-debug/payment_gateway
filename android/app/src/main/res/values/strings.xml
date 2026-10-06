@@ -5,6 +5,12 @@
     <string name="nav_dashboard">Dashboard</string>
     <string name="nav_transactions">Transactions</string>
     <string name="nav_settings">Settings</string>
+    <string name="portal_overview_title">Overview</string>
+    <string name="portal_overview_subtitle">Live payment activity</string>
+    <string name="portal_transactions_title">Transactions</string>
+    <string name="portal_transactions_subtitle">Search and review payments</string>
+    <string name="portal_settings_title">Settings</string>
+    <string name="portal_settings_subtitle">Detector and account controls</string>
 
     <!-- Dashboard -->
     <string name="dash_today">Today</string>

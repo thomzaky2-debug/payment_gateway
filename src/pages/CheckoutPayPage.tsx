@@ -470,13 +470,15 @@ export function CheckoutPayPage() {
     <div
       dir={isRtl ? 'rtl' : 'ltr'}
       style={{
-        minHeight: '100vh',
+        minHeight: '100dvh',
+        width: '100%',
         backgroundColor: bgPage,
         color: textPrimary,
         display: 'flex',
         flexDirection: 'column',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         transition: 'background-color 0.25s ease, color 0.25s ease',
+        overflowX: 'hidden',
       }}
     >
       {/* ─── Top Header Bar (Matching Merchant Portal Design) ─── */}
@@ -487,11 +489,13 @@ export function CheckoutPayPage() {
           zIndex: 30,
           backgroundColor: bgCard,
           borderBottom: `1px solid ${borderCard}`,
-          padding: '12px 24px',
+          padding: '12px clamp(12px, 3vw, 24px)',
+          paddingTop: 'max(12px, env(safe-area-inset-top, 0px))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           transition: 'all 0.25s ease',
+          minHeight: '60px',
         }}
       >
         {/* Brand / Logo */}
@@ -1236,7 +1240,7 @@ export function CheckoutPayPage() {
             </div>
 
             {/* Two-Column Layout Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
               {/* ─── Column 1: Payment Steps & Account Input ─── */}
               <div
                 style={{

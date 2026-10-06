@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Page } from '../App';
-import { LogOut, User, Shield, AlertTriangle, Bell, CheckCircle2, Globe, Check, Sun, Moon } from 'lucide-react';
+import { LogOut, User, Shield, AlertTriangle, Bell, CheckCircle2, Globe, Check, Sun, Moon, Menu } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { notificationsApi } from '../services/api';
@@ -10,6 +10,7 @@ interface TopbarProps {
   client?: any;
   onLogout: () => void;
   onNavigate?: (page: Page, subPath?: string) => void;
+  onOpenMobileMenu?: () => void;
 }
 
 const pageTitles: Record<Page, { en: string; ar: string }> = {
@@ -24,7 +25,7 @@ const pageTitles: Record<Page, { en: string; ar: string }> = {
   security: { en: 'Security', ar: 'إعدادات الأمان' },
 };
 
-export function Topbar({ currentPage, client, onLogout, onNavigate }: TopbarProps) {
+export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobileMenu }: TopbarProps) {
   const { lang, setLang, isRtl } = useLanguage();
   const { theme, toggleTheme, isDark } = useTheme();
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -61,40 +62,67 @@ export function Topbar({ currentPage, client, onLogout, onNavigate }: TopbarProp
     <header
       className="flex items-center justify-between"
       style={{
-        padding: '14px 24px',
+        padding: '12px 16px',
         backgroundColor: isDark ? '#0f172a' : 'white',
         borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
         position: 'relative',
         transition: 'background-color 0.25s ease, border-color 0.25s ease',
+        minHeight: '64px',
       }}
     >
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
-            {pageTitles[currentPage]?.[lang] || pageTitles[currentPage]?.en}
-          </h1>
-          {isPending && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '3px 8px',
-                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7',
-                color: isDark ? '#fbbf24' : '#b45309',
-                fontSize: '11px',
-                fontWeight: 700,
-                borderRadius: '6px',
-                border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
-              }}
-            >
-              <AlertTriangle size={12} /> {isRtl ? 'في انتظار اعتماد الإدارة' : 'Pending Admin Approval'}
-            </span>
-          )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+        {/* Mobile Hamburger Menu Button */}
+        <button
+          type="button"
+          onClick={onOpenMobileMenu}
+          className="merchant-mobile-menu-btn"
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '38px',
+            height: '38px',
+            borderRadius: '9px',
+            backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+            border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
+            color: isDark ? '#f8fafc' : '#1e293b',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+          title="Open Menu / القائمة"
+          aria-label="Open Navigation Menu"
+        >
+          <Menu size={20} />
+        </button>
+
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: '18px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {pageTitles[currentPage]?.[lang] || pageTitles[currentPage]?.en}
+            </h1>
+            {isPending && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 7px',
+                  backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7',
+                  color: isDark ? '#fbbf24' : '#b45309',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  borderRadius: '5px',
+                  border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <AlertTriangle size={11} /> {isRtl ? 'في انتظار الاعتماد' : 'Pending Approval'}
+              </span>
+            )}
+          </div>
+          <p style={{ fontSize: '12px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {client?.businessName || 'Merchant Portal'}
+          </p>
         </div>
-        <p style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0' }}>
-          InstaPay Merchant Gateway • {client?.businessName || 'Business Account'}
-        </p>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

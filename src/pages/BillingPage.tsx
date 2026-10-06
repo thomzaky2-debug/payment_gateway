@@ -65,16 +65,18 @@ export function BillingPage({ showToast }: BillingPageProps) {
   const [purchasingBundle, setPurchasingBundle] = useState<string | null>(null);
   const [showBundleHistory, setShowBundleHistory] = useState(false);
   const [bundleCheckoutModal, setBundleCheckoutModal] = useState<any>(null);
+  const [specialOffers, setSpecialOffers] = useState<any[]>([]);
 
   const loadData = async (isManual = false) => {
     setLoading(true);
     try {
       const timestamp = Date.now();
-      const [sessionRes, plansRes, bundlesRes, historyRes] = await Promise.all([
+      const [sessionRes, plansRes, bundlesRes, historyRes, offersRes] = await Promise.all([
         authApi.getSession({ _t: timestamp }),
         plansApi.list({ _t: timestamp }),
         bundlesApi.list().catch(() => ({ ok: false, bundles: [] })),
         bundlesApi.getHistory().catch(() => ({ ok: false, purchases: [] })),
+        subscriptionApi.getSpecialOffers().catch(() => ({ ok: false, offers: [] })),
       ]);
 
       if (sessionRes?.ok && sessionRes?.client) {
@@ -89,6 +91,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
       if (historyRes?.ok && historyRes?.purchases) {
         setBundleHistory(historyRes.purchases);
       }
+      if (offersRes?.ok) setSpecialOffers(offersRes.offers || []);
       if (isManual && showToast) {
         showToast('success', isRtl ? 'تم تحديث بيانات الاشتراكات والخطط بنجاح' : 'Plans & subscription details refreshed');
       }
@@ -663,7 +666,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
       )}
 
       {/* Plans Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 270px), 1fr))', gap: '20px', marginBottom: '32px' }}>
         {plans
           .slice()
           .sort((a, b) => {
@@ -678,6 +681,8 @@ export function BillingPage({ showToast }: BillingPageProps) {
             const isPlus = plan.name === 'PLUS';
             const isPopular = plan.name === 'PRO';
             const isCurrent = currentPlan === plan.name && (isTrial ? !isExpired : true);
+            const hasActiveOffer = Boolean(!isTrial && !isEnterprise && plan.hasActiveOffer && plan.offerEndsAt && new Date(plan.offerEndsAt).getTime() > Date.now());
+            const displayedPrice = hasActiveOffer ? plan.effectivePriceEgp : plan.priceEgp;
 
             const cardBorder = isTrial
               ? isTrialClaimed
@@ -823,6 +828,12 @@ export function BillingPage({ showToast }: BillingPageProps) {
                 )}
 
                 <div>
+                  {hasActiveOffer && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '13px', padding: '8px 10px', borderRadius: '9px', background: isDark ? 'linear-gradient(135deg, rgba(236,72,153,.18), rgba(124,58,237,.13))' : 'linear-gradient(135deg, #fdf2f8, #faf5ff)', border: isDark ? '1px solid rgba(244,114,182,.35)' : '1px solid #fbcfe8' }}>
+                      <span style={{ color: '#ec4899', fontSize: '11px', fontWeight: 850 }}>✨ {plan.offerLabel || (isRtl ? 'عرض لفترة محدودة' : 'Limited-time offer')}</span>
+                      <span style={{ padding: '3px 7px', borderRadius: '999px', background: '#ec4899', color: '#fff', fontSize: '10px', fontWeight: 900 }}>{plan.offerDiscountPercent}% OFF</span>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                     <h4 style={{ fontSize: '18px', fontWeight: 800, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
                       {isTrial
@@ -894,17 +905,21 @@ export function BillingPage({ showToast }: BillingPageProps) {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: activeTrialDaysRemaining > 0 && !isTrial ? '8px' : '16px' }}>
-                      <span style={{ fontSize: '32px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
-                        {plan.priceEgp}
-                      </span>
-                      <span style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b' }}>
-                        {isTrial
-                          ? isRtl
-                            ? 'ج.م (مجاناً تماماً)'
-                            : 'EGP (100% Free)'
-                          : `EGP / ${plan.periodDays || 30} ${isRtl ? 'يوم' : 'days'}`}
-                      </span>
+                    <div style={{ marginBottom: activeTrialDaysRemaining > 0 && !isTrial ? '8px' : '16px' }}>
+                      {hasActiveOffer && <div style={{ fontSize: '13px', color: isDark ? '#64748b' : '#94a3b8', textDecoration: 'line-through', marginBottom: '1px' }}>{plan.priceEgp} EGP</div>}
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                        <span style={{ fontSize: '32px', fontWeight: 800, color: hasActiveOffer ? '#ec4899' : isDark ? '#f8fafc' : '#0f172a' }}>
+                          {displayedPrice}
+                        </span>
+                        <span style={{ fontSize: '14px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                          {isTrial
+                            ? isRtl
+                              ? 'ج.م (مجاناً تماماً)'
+                              : 'EGP (100% Free)'
+                            : `EGP / ${plan.periodDays || 30} ${isRtl ? 'يوم' : 'days'}`}
+                        </span>
+                      </div>
+                      {hasActiveOffer && <div style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '10.5px', marginTop: '4px' }}>{isRtl ? 'ينتهي العرض في' : 'Offer ends'} {new Date(plan.offerEndsAt).toLocaleString()}</div>}
                     </div>
                   )}
 
@@ -1090,6 +1105,38 @@ export function BillingPage({ showToast }: BillingPageProps) {
       {/* ═══════════════════════════════════════════════════════════════
           Extra Top-Up Bundles Section
           ═══════════════════════════════════════════════════════════════ */}
+      {specialOffers.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '11px', background: 'linear-gradient(135deg, #7c3aed, #ec4899)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Sparkles size={20} /></div>
+            <div>
+              <h3 style={{ margin: 0, color: isDark ? '#f8fafc' : '#1e293b', fontSize: '20px', fontWeight: 800 }}>{isRtl ? 'عروض حصرية لنشاطك' : 'Exclusive offers for your business'}</h3>
+              <p style={{ margin: '2px 0 0', color: isDark ? '#94a3b8' : '#64748b', fontSize: '12.5px' }}>{isRtl ? 'باقات مخصصة من فريق إنستاباي للشركات.' : 'Custom commercial packages prepared by the InstaPay team for your company.'}</p>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '16px' }}>
+            {specialOffers.map((offer) => (
+              <div key={offer.id} style={card({ padding: '22px', border: isDark ? '1px solid rgba(168,85,247,.45)' : '1px solid #d8b4fe', background: isDark ? 'linear-gradient(135deg, rgba(124,58,237,.14), #111827)' : 'linear-gradient(135deg, #faf5ff, #ffffff)' })}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
+                  <div><span style={{ color: '#a855f7', fontSize: '10px', fontWeight: 900, letterSpacing: '.08em' }}>PRIVATE ENTERPRISE OFFER</span><h4 style={{ margin: '5px 0', color: isDark ? '#fff' : '#1e293b', fontSize: '19px' }}>{offer.title}</h4></div>
+                  <Gift size={22} color="#a855f7" />
+                </div>
+                <p style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '12px', lineHeight: 1.55, minHeight: '36px' }}>{offer.description || 'A tailored package designed for your transaction volume and business needs.'}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', margin: '16px 0' }}>
+                  <div style={subcard({ padding: '10px' })}><div style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '9px' }}>PRICE</div><strong style={{ color: '#a855f7', fontSize: '14px' }}>{offer.priceEgp} EGP</strong></div>
+                  <div style={subcard({ padding: '10px' })}><div style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '9px' }}>TRANSACTIONS</div><strong style={{ color: isDark ? '#fff' : '#1e293b', fontSize: '14px' }}>{Number(offer.maxTransactions).toLocaleString()}</strong></div>
+                  <div style={subcard({ padding: '10px' })}><div style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '9px' }}>DURATION</div><strong style={{ color: isDark ? '#fff' : '#1e293b', fontSize: '14px' }}>{offer.periodDays} days</strong></div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ color: isDark ? '#94a3b8' : '#64748b', fontSize: '11px' }}>Valid until {new Date(offer.validUntil).toLocaleDateString()}</span>
+                  <button onClick={() => setShowContactModal(true)} style={{ padding: '9px 14px', border: 0, borderRadius: '9px', background: 'linear-gradient(135deg, #7c3aed, #ec4899)', color: '#fff', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>Contact to accept</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {bundles.length > 0 && (
         <div style={{ marginBottom: '32px' }}>
           {/* Section Header */}
@@ -1178,7 +1225,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
           )}
 
           {/* Bundle Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '16px', marginBottom: '20px' }}>
             {bundles.map((bundle: any, idx: number) => {
               const pricePerTx = (bundle.priceEgp / bundle.extraTx).toFixed(2);
               const isBestValue = idx === 1;

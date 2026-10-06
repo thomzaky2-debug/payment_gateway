@@ -313,7 +313,7 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
       </div>
 
       {/* ─── Two-column layout: Setup + Device Info ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px', marginBottom: '24px' }}>
         {/* APK Setup Card */}
         <div style={{ ...card({ padding: '28px' }) }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>

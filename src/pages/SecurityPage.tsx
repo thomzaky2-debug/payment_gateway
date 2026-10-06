@@ -340,7 +340,7 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
       </div>
 
       {/* ─── Security Configuration Grid (2-Column) ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px', marginBottom: '24px' }}>
         {/* Card 1: Two-Factor Authentication */}
         <div style={{ ...card({ padding: '24px' }) }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
