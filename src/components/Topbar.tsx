@@ -70,11 +70,11 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
         borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
         position: 'relative',
         transition: 'background-color 0.25s ease, border-color 0.25s ease',
-        minHeight: '52px',
-        gap: '8px',
+        minHeight: '48px',
+        gap: '6px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
         {/* Mobile Hamburger Menu Button */}
         <button
           type="button"
@@ -83,9 +83,9 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           style={{
             alignItems: 'center',
             justifyContent: 'center',
-            width: '32px',
-            height: '32px',
-            borderRadius: '7px',
+            width: '28px',
+            height: '28px',
+            borderRadius: '6px',
             backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
             border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
             color: isDark ? '#f8fafc' : '#1e293b',
@@ -95,12 +95,12 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           title="Open Menu / القائمة"
           aria-label="Open Navigation Menu"
         >
-          <Menu size={16} />
+          <Menu size={14} />
         </button>
 
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
-            <h1 style={{ fontSize: 'clamp(14px, 3vw, 16px)', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+            <h1 style={{ fontSize: 'clamp(13px, 2.8vw, 15px)', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {pageTitles[currentPage]?.[lang] || pageTitles[currentPage]?.en}
             </h1>
             {isPending && (
@@ -426,8 +426,8 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           }}
           title={isRtl ? 'إعدادات الحساب' : 'Store Settings'}
         >
-          <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>
-            {client?.businessName ? client.businessName[0].toUpperCase() : <User size={15} />}
+          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '11px', flexShrink: 0 }}>
+            {client?.businessName ? client.businessName[0].toUpperCase() : <User size={13} />}
           </div>
           <div className="topbar-desktop-only" style={{ minWidth: 0 }}>
             <p style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

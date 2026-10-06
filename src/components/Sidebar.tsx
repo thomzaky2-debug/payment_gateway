@@ -94,9 +94,9 @@ export function Sidebar({
           top: mobileOpen ? 0 : undefined,
           bottom: mobileOpen ? 0 : undefined,
           [isRtl ? 'right' : 'left']: mobileOpen ? 0 : undefined,
-          width: mobileOpen ? 'min(240px, 80vw)' : isCollapsed ? '62px' : '208px',
-          minWidth: mobileOpen ? 'min(240px, 80vw)' : isCollapsed ? '62px' : '208px',
-          maxWidth: mobileOpen ? 'min(240px, 80vw)' : isCollapsed ? '62px' : '208px',
+          width: mobileOpen ? 'min(200px, 70vw)' : isCollapsed ? '56px' : '198px',
+          minWidth: mobileOpen ? 'min(200px, 70vw)' : isCollapsed ? '56px' : '198px',
+          maxWidth: mobileOpen ? 'min(200px, 70vw)' : isCollapsed ? '56px' : '198px',
           height: mobileOpen ? '100dvh' : '100%',
           maxHeight: mobileOpen ? '100dvh' : '100%',
           backgroundColor: isDark ? '#0b101e' : '#ffffff',
@@ -107,48 +107,48 @@ export function Sidebar({
           zIndex: mobileOpen ? 9999 : 20,
           boxShadow: mobileOpen ? '0 10px 40px rgba(0,0,0,0.6)' : undefined,
           overflowY: 'auto',
-          paddingBottom: mobileOpen ? 'max(16px, env(safe-area-inset-bottom, 0px))' : undefined,
+          paddingBottom: mobileOpen ? 'max(14px, env(safe-area-inset-bottom, 0px))' : undefined,
           WebkitOverflowScrolling: 'touch',
         }}
       >
         {/* Sidebar Header with Brand & Collapse Toggle */}
         <div
           style={{
-            height: mobileOpen ? 'calc(54px + env(safe-area-inset-top, 0px))' : '54px',
-            paddingTop: mobileOpen ? 'max(12px, env(safe-area-inset-top, 0px))' : (isCollapsed && !mobileOpen ? '8px' : '10px'),
-            paddingBottom: '10px',
-            paddingLeft: isCollapsed && !mobileOpen ? '8px' : '12px',
-            paddingRight: isCollapsed && !mobileOpen ? '8px' : '12px',
+            height: mobileOpen ? 'calc(48px + env(safe-area-inset-top, 0px))' : '48px',
+            paddingTop: mobileOpen ? 'max(10px, env(safe-area-inset-top, 0px))' : (isCollapsed && !mobileOpen ? '6px' : '8px'),
+            paddingBottom: '8px',
+            paddingLeft: isCollapsed && !mobileOpen ? '6px' : '10px',
+            paddingRight: isCollapsed && !mobileOpen ? '6px' : '10px',
             borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #f1f5f9',
             display: 'flex',
             alignItems: 'center',
             justifyContent: isCollapsed && !mobileOpen ? 'center' : 'space-between',
-            gap: '8px',
+            gap: '6px',
             flexShrink: 0,
           }}
         >
           {(!isCollapsed || mobileOpen) ? (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, overflow: 'visible' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0, flex: 1, overflow: 'visible' }}>
                 <div
                   style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '7px',
                     backgroundColor: '#512772',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
-                    padding: '3px',
+                    boxShadow: '0 2px 8px rgba(81, 39, 114, 0.4)',
+                    padding: '2px',
                   }}
                 >
                   <img
                     src="/Logo.png"
                     alt="InstaPay"
                     style={{
-                      width: '24px',
+                      width: '20px',
                       height: 'auto',
                       maxWidth: '100%',
                       objectFit: 'contain',
@@ -157,16 +157,16 @@ export function Sidebar({
                   />
                 </div>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'visible' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <h2 style={{ fontSize: '14px', fontWeight: 800, margin: 0, color: isDark ? '#ffffff' : '#0f172a' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <h2 style={{ fontSize: '13px', fontWeight: 800, margin: 0, color: isDark ? '#ffffff' : '#0f172a' }}>
                       InstaPay
                     </h2>
                     <span
                       style={{
-                        fontSize: '8.5px',
+                        fontSize: '7.5px',
                         fontWeight: 700,
-                        padding: '1px 5px',
-                        borderRadius: '4px',
+                        padding: '1px 4px',
+                        borderRadius: '3px',
                         backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
                         color: isDark ? '#38bdf8' : '#0284c7',
                         border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
@@ -178,7 +178,7 @@ export function Sidebar({
                       GATEWAY
                     </span>
                   </div>
-                  <p style={{ fontSize: '10px', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
+                  <p style={{ fontSize: '9px', color: isDark ? '#94a3b8' : '#64748b', margin: 0 }}>
                     Merchant Portal
                   </p>
                 </div>
@@ -361,10 +361,10 @@ export function Sidebar({
                 width: '100%',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '9px',
-                padding: '7px 10px',
-                borderRadius: '8px',
-                fontSize: '12.5px',
+                gap: '8px',
+                padding: '6px 8px',
+                borderRadius: '7px',
+                fontSize: '11.5px',
                 fontWeight: isActive ? 600 : 500,
                 border: 'none',
                 cursor: 'pointer',
