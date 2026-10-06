@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Page } from '../App';
-import { LogOut, User, Shield, AlertTriangle, Bell, CheckCircle2, Globe, Check, Sun, Moon, Menu } from 'lucide-react';
+import { LogOut, User, Shield, AlertTriangle, Bell, CheckCircle2, Globe, Check, Sun, Moon, Menu, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { notificationsApi } from '../services/api';
@@ -223,49 +223,87 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           </button>
 
           {showNotifMenu && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '42px',
-                right: isRtl ? 'auto' : 0,
-                left: isRtl ? 0 : 'auto',
-                width: '320px',
-                backgroundColor: isDark ? '#1e293b' : 'white',
-                border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
-                borderRadius: '16px',
-                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
-                zIndex: 1000,
-                overflow: 'hidden',
-              }}
-            >
+            <>
+              {/* Tap-to-dismiss backdrop for mobile screens */}
               <div
+                className="merchant-notif-backdrop"
+                onClick={() => setShowNotifMenu(false)}
                 style={{
-                  padding: '12px 16px',
-                  borderBottom: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  position: 'fixed',
+                  inset: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  backdropFilter: 'blur(3px)',
+                  zIndex: 9998,
+                }}
+                aria-hidden="true"
+              />
+
+              <div
+                className="merchant-notif-dropdown"
+                style={{
+                  position: 'absolute',
+                  top: '42px',
+                  right: isRtl ? 'auto' : 0,
+                  left: isRtl ? 0 : 'auto',
+                  width: '320px',
+                  backgroundColor: isDark ? '#1e293b' : 'white',
+                  border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+                  borderRadius: '16px',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
+                  zIndex: 9999,
+                  overflow: 'hidden',
                 }}
               >
-                <span style={{ fontSize: '13px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b' }}>
-                  {isRtl ? 'إشعارات المتجر' : 'Notifications'}
-                </span>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={handleMarkAllRead}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      fontSize: '11px',
-                      color: '#38bdf8',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {isRtl ? 'تحديد الكل كمقروء' : 'Mark all read'}
-                  </button>
-                )}
-              </div>
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderBottom: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b' }}>
+                    {isRtl ? 'إشعارات المتجر' : 'Notifications'}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          fontSize: '11px',
+                          color: '#38bdf8',
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {isRtl ? 'تحديد الكل كمقروء' : 'Mark all read'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowNotifMenu(false)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: '4px',
+                        cursor: 'pointer',
+                        color: isDark ? '#94a3b8' : '#64748b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '6px',
+                      }}
+                      title={isRtl ? 'إغلاق' : 'Close'}
+                      aria-label="Close"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
 
               <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                 {notifications.length === 0 ? (
@@ -345,7 +383,8 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
                 </div>
               )}
             </div>
-          )}
+          </>
+        )}
         </div>
 
         <button

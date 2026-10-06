@@ -105,6 +105,9 @@ button, a, input, select, textarea {
   .merchant-mobile-backdrop {
     display: none !important;
   }
+  .merchant-notif-backdrop {
+    display: none !important;
+  }
 }
 
 @keyframes pulseGreen {
@@ -597,6 +600,33 @@ html:not(.dark) .admin-toast {
     width: 28px !important;
     height: 28px !important;
     font-size: 11px !important;
+  }
+
+  /* Centered, completely visible notification modal on mobile Android */
+  .merchant-notif-backdrop {
+    display: block !important;
+  }
+
+  .merchant-notif-dropdown {
+    position: fixed !important;
+    top: max(56px, calc(env(safe-area-inset-top, 0px) + 50px)) !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: 380px !important;
+    margin: 0 auto !important;
+    border-radius: 16px !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+    z-index: 9999 !important;
+  }
+
+  /* Centered toasts on mobile Android */
+  .app-toast-container {
+    left: 12px !important;
+    right: 12px !important;
+    max-width: 380px !important;
+    margin: 0 auto !important;
+    align-items: center !important;
   }
 
   /* Eliminate double padding inside main layouts on mobile */

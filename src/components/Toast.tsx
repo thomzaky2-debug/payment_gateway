@@ -26,16 +26,16 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
 
   return (
     <div
+      className="app-toast-container"
       style={{
         position: 'fixed',
         top: 'max(16px, env(safe-area-inset-top, 0px))',
-        right: 'clamp(12px, 3vw, 20px)',
-        left: 'clamp(12px, 3vw, auto)',
+        right: '20px',
         zIndex: 99999,
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
-        maxWidth: 'calc(100vw - 24px)',
+        maxWidth: '420px',
         pointerEvents: 'none',
       }}
       role="region"
