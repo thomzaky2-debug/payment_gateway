@@ -688,7 +688,7 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
             placeholder={isRtl ? 'عنوان IP (مثال: 192.168.1.100)' : 'IP Address (e.g. 197.45.123.45)'}
             style={{
               flex: 1,
-              minWidth: '200px',
+              minWidth: 'min(100%, 150px)',
               padding: '11px 14px',
               backgroundColor: isDark ? '#162033' : '#f8fafc',
               border: `1px solid ${borderColor}`,
@@ -706,7 +706,7 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
             placeholder={isRtl ? 'اسم الجهة أو الخادم (مثال: سيرفر الإنتاج)' : 'Server / Office Label (e.g. Production Server)'}
             style={{
               flex: 1,
-              minWidth: '200px',
+              minWidth: 'min(100%, 150px)',
               padding: '11px 14px',
               backgroundColor: isDark ? '#162033' : '#f8fafc',
               border: `1px solid ${borderColor}`,

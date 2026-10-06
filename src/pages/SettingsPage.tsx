@@ -27,6 +27,8 @@ import {
   Info,
   ChevronRight,
   Filter,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { settingsApi, notificationsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -93,6 +95,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'urgent'>('all');
+  const [notifViewMode, setNotifViewMode] = useState<'grid' | 'list'>('grid');
   const [notifyOnUnderpaid, setNotifyOnUnderpaid] = useState(true);
   const [notifyOnOverpaid, setNotifyOnOverpaid] = useState(true);
   const [notifyOnUnmatched, setNotifyOnUnmatched] = useState(true);
@@ -152,11 +155,12 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
 
   const card = (extra?: React.CSSProperties): React.CSSProperties => ({
     backgroundColor: isDark ? '#111827' : '#ffffff',
-    borderRadius: '20px',
+    borderRadius: '16px',
     border: `1px solid ${borderColor}`,
     boxShadow: isDark
       ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
       : '0 4px 16px rgba(0,0,0,0.06)',
+    padding: 'clamp(14px, 3.5vw, 24px)',
     transition: 'all 0.3s ease',
     ...extra,
   });
@@ -585,6 +589,8 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
         display: 'flex',
         gap: '8px',
         overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
         paddingBottom: '8px',
         marginBottom: '24px',
         borderBottom: `1px solid ${borderColor}`,
@@ -599,9 +605,9 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '10px 18px',
+                padding: 'clamp(7px, 2vw, 10px) clamp(11px, 2.5vw, 18px)',
                 borderRadius: '12px',
-                fontSize: '13px',
+                fontSize: 'clamp(11.5px, 2vw, 13px)',
                 fontWeight: isActive ? 700 : 600,
                 cursor: 'pointer',
                 backgroundColor: isActive
@@ -861,7 +867,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
                       {isRtl ? 'صلاحية جلسة الدفع بالدقائق (Session TTL)' : 'Checkout Session Lifetime (Minutes)'}
                     </label>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <input
                         type="number"
                         min="1"
@@ -1513,17 +1519,17 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
-                      padding: '5px 12px',
+                      padding: '5px 10px',
                       borderRadius: '8px',
                       backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#eff6ff',
                       border: isDark ? '1px solid rgba(37, 99, 235, 0.25)' : '1px solid #bfdbfe',
-                      fontSize: '11.5px',
+                      fontSize: '11px',
                       color: isDark ? '#60a5fa' : '#1d4ed8',
                       fontWeight: 600,
                     }}>
-                      <Clock size={13} color="#3b82f6" />
+                      <Clock size={12} color="#3b82f6" />
                       <span>
-                        {isRtl ? 'آخر تحديث للصندوق: ' : 'Inbox Synced: '}
+                        {isRtl ? 'آخر تحديث: ' : 'Synced: '}
                         <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                           {lastNotifRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </strong>
@@ -1533,13 +1539,14 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '4px', backgroundColor: isDark ? '#162033' : '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
+                    {/* Filter Pills */}
+                    <div style={{ display: 'flex', gap: '3px', backgroundColor: isDark ? '#162033' : '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
                       {(['all', 'unread', 'urgent'] as const).map((filter) => (
                         <button
                           key={filter}
                           onClick={() => setNotifFilter(filter)}
                           style={{
-                            padding: '4px 10px',
+                            padding: '4px 9px',
                             borderRadius: '6px',
                             fontSize: '11px',
                             fontWeight: notifFilter === filter ? 700 : 500,
@@ -1559,6 +1566,52 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                       ))}
                     </div>
 
+                    {/* Multi-column Grid vs List View Toggle */}
+                    <div style={{ display: 'flex', gap: '2px', backgroundColor: isDark ? '#162033' : '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setNotifViewMode('grid')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: notifViewMode === 'grid' ? 700 : 500,
+                          backgroundColor: notifViewMode === 'grid' ? '#2563eb' : 'transparent',
+                          color: notifViewMode === 'grid' ? 'white' : textSecondary,
+                        }}
+                        title={isRtl ? 'عرض شبكي متعدد الأعمدة' : 'Multi-column grid'}
+                      >
+                        <LayoutGrid size={12} />
+                        <span>{isRtl ? 'شبكة' : 'Grid'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNotifViewMode('list')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: notifViewMode === 'list' ? 700 : 500,
+                          backgroundColor: notifViewMode === 'list' ? '#2563eb' : 'transparent',
+                          color: notifViewMode === 'list' ? 'white' : textSecondary,
+                        }}
+                        title={isRtl ? 'عرض قائمة' : 'List view'}
+                      >
+                        <List size={12} />
+                        <span>{isRtl ? 'قائمة' : 'List'}</span>
+                      </button>
+                    </div>
+
                     <button
                       onClick={async () => {
                         await fetchNotificationsList();
@@ -1566,17 +1619,17 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                       }}
                       disabled={loadingNotifs}
                       style={{
-                        padding: '6px 12px',
+                        padding: '5px 10px',
                         backgroundColor: isDark ? '#162033' : '#ffffff',
                         border: `1px solid ${borderColor}`,
                         color: textPrimary,
                         borderRadius: '8px',
-                        fontSize: '12px',
+                        fontSize: '11.5px',
                         fontWeight: 600,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '6px',
+                        gap: '5px',
                       }}
                     >
                       <RefreshCw size={12} style={loadingNotifs ? { animation: 'spin 1s linear infinite' } : {}} />
@@ -1587,21 +1640,21 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                       <button
                         onClick={handleMarkAllRead}
                         style={{
-                          padding: '6px 12px',
+                          padding: '5px 10px',
                           backgroundColor: '#2563eb',
                           color: 'white',
                           border: 'none',
                           borderRadius: '8px',
-                          fontSize: '12px',
+                          fontSize: '11.5px',
                           fontWeight: 700,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '6px',
+                          gap: '5px',
                           boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
                         }}
                       >
-                        <CheckCheck size={14} />
+                        <CheckCheck size={13} />
                         <span>{isRtl ? 'تحديد الكل كمقروء' : 'Mark all read'}</span>
                       </button>
                     )}
@@ -1625,13 +1678,217 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                       {isRtl ? 'لا توجد تنبيهات تطابق الفلتر المحدد حالياً.' : 'No alerts match the selected filter.'}
                     </p>
                   </div>
+                ) : notifViewMode === 'grid' ? (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
+                      gap: '12px',
+                    }}
+                  >
+                    {filteredNotifications.map((n) => (
+                      <div
+                        key={n.id}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          padding: '14px 16px',
+                          borderRadius: '14px',
+                          backgroundColor: n.readAt
+                            ? (isDark ? '#162033' : '#f8fafc')
+                            : (isDark ? 'rgba(37, 99, 235, 0.12)' : '#eff6ff'),
+                          border: n.readAt
+                            ? `1px solid ${borderColor}`
+                            : (isDark ? '1px solid rgba(37, 99, 235, 0.35)' : '1px solid #bfdbfe'),
+                          boxShadow: isDark
+                            ? '0 4px 12px rgba(0,0,0,0.2)'
+                            : '0 2px 8px rgba(0,0,0,0.04)',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        {!n.readAt && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: '3px',
+                              backgroundColor: n.severity === 'URGENT' ? '#ef4444' : '#2563eb',
+                            }}
+                          />
+                        )}
+
+                        <div>
+                          {/* Card Header Row */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              gap: '8px',
+                              marginBottom: '8px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                              <span
+                                style={{
+                                  fontSize: '9.5px',
+                                  fontWeight: 800,
+                                  padding: '2px 7px',
+                                  borderRadius: '6px',
+                                  backgroundColor: n.severity === 'URGENT'
+                                    ? (isDark ? 'rgba(239, 68, 68, 0.25)' : '#fee2e2')
+                                    : (isDark ? 'rgba(56, 189, 248, 0.2)' : '#e0f2fe'),
+                                  color: n.severity === 'URGENT' ? '#f87171' : '#0284c7',
+                                  border: n.severity === 'URGENT'
+                                    ? (isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid #fecaca')
+                                    : (isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd'),
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {n.severity}
+                              </span>
+                              {!n.readAt && (
+                                <span
+                                  style={{
+                                    width: '7px',
+                                    height: '7px',
+                                    borderRadius: '50%',
+                                    backgroundColor: '#2563eb',
+                                    display: 'inline-block',
+                                    flexShrink: 0,
+                                  }}
+                                  title={isRtl ? 'غير مقروء' : 'Unread'}
+                                />
+                              )}
+                            </div>
+
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: textSecondary,
+                                fontFamily: "'JetBrains Mono', monospace",
+                                flexShrink: 0,
+                                backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.04)',
+                                padding: '2px 6px',
+                                borderRadius: '5px',
+                              }}
+                            >
+                              <Clock size={11} color="#3b82f6" />
+                              <span>{formatRelativeTime(n.createdAt)}</span>
+                            </div>
+                          </div>
+
+                          {/* Title */}
+                          <h4
+                            style={{
+                              fontSize: '13px',
+                              fontWeight: 700,
+                              color: textPrimary,
+                              margin: '0 0 6px 0',
+                              lineHeight: 1.35,
+                            }}
+                          >
+                            {n.title}
+                          </h4>
+
+                          {/* Message Body (Takes 100% full width of card) */}
+                          <p
+                            style={{
+                              fontSize: '12px',
+                              color: textSecondary,
+                              margin: '0 0 14px 0',
+                              lineHeight: 1.55,
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {n.message}
+                          </p>
+                        </div>
+
+                        {/* Card Footer Divider & Metadata Actions */}
+                        <div
+                          style={{
+                            paddingTop: '10px',
+                            borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid rgba(226, 232, 240, 0.8)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '8px',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: '10.5px',
+                              color: textMuted,
+                              fontFamily: "'JetBrains Mono', monospace",
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {formatFullTimestamp(n.createdAt)}
+                          </span>
+
+                          {n.readAt ? (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                color: '#10b981',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                backgroundColor: isDark ? 'rgba(16,185,129,0.12)' : '#ecfdf5',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                border: isDark ? '1px solid rgba(16,185,129,0.25)' : '1px solid #a7f3d0',
+                              }}
+                            >
+                              <Check size={11} />
+                              <span>{isRtl ? `قُرئ ${formatRelativeTime(n.readAt)}` : `Read ${formatRelativeTime(n.readAt)}`}</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleMarkSingleRead(n.id)}
+                              style={{
+                                fontSize: '11px',
+                                color: '#2563eb',
+                                backgroundColor: isDark ? 'rgba(37,99,235,0.12)' : '#eff6ff',
+                                border: isDark ? '1px solid rgba(37,99,235,0.3)' : '1px solid #bfdbfe',
+                                cursor: 'pointer',
+                                fontWeight: 700,
+                                padding: '3px 9px',
+                                borderRadius: '6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              <Check size={11} />
+                              <span>{isRtl ? 'تحديد كمقروء' : 'Mark read'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {filteredNotifications.map((n) => (
                       <div
                         key={n.id}
                         style={{
-                          padding: '14px 18px',
+                          padding: '12px 16px',
                           borderRadius: '12px',
                           backgroundColor: n.readAt
                             ? (isDark ? '#162033' : '#f8fafc')
@@ -1640,17 +1897,16 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                             ? `1px solid ${borderColor}`
                             : (isDark ? '1px solid rgba(37, 99, 235, 0.35)' : '1px solid #bfdbfe'),
                           display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start',
-                          gap: '14px',
+                          flexDirection: 'column',
+                          gap: '8px',
                           transition: 'all 0.2s',
                         }}
                       >
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span
                               style={{
-                                fontSize: '10px',
+                                fontSize: '9.5px',
                                 fontWeight: 800,
                                 padding: '2px 7px',
                                 borderRadius: '6px',
@@ -1662,7 +1918,7 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                             >
                               {n.severity}
                             </span>
-                            <span style={{ fontSize: '13.5px', fontWeight: 700, color: textPrimary }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: textPrimary }}>
                               {n.title}
                             </span>
                             {!n.readAt && (
@@ -1672,56 +1928,55 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                               }} />
                             )}
                           </div>
-                          <p style={{ fontSize: '12.5px', color: textSecondary, margin: 0, lineHeight: 1.5 }}>
-                            {n.message}
-                          </p>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Clock size={11} color="#3b82f6" />
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>
+                                {formatRelativeTime(n.createdAt)}
+                              </span>
+                            </div>
+                            {n.readAt ? (
+                              <span style={{
+                                fontSize: '10px',
+                                color: '#10b981',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                backgroundColor: isDark ? 'rgba(16,185,129,0.1)' : '#ecfdf5',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                              }}>
+                                <Check size={11} />
+                                <span>{isRtl ? 'مقروء' : 'Read'}</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleMarkSingleRead(n.id)}
+                                style={{
+                                  fontSize: '11px',
+                                  color: '#2563eb',
+                                  background: isDark ? 'rgba(37,99,235,0.1)' : '#eff6ff',
+                                  border: isDark ? '1px solid rgba(37,99,235,0.25)' : '1px solid #bfdbfe',
+                                  cursor: 'pointer',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                {isRtl ? 'تحديد كمقروء' : 'Mark read'}
+                              </button>
+                            )}
+                          </div>
                         </div>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isRtl ? 'flex-start' : 'flex-end', gap: '4px', flexShrink: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <Clock size={12} color="#3b82f6" />
-                            <span style={{ fontSize: '11.5px', fontWeight: 700, color: textPrimary, fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
-                              {formatRelativeTime(n.createdAt)}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '10.5px', color: textMuted, fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }}>
-                            {formatFullTimestamp(n.createdAt)}
-                          </span>
-                          {n.readAt && (
-                            <span style={{
-                              fontSize: '10px',
-                              color: '#10b981',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                              backgroundColor: isDark ? 'rgba(16,185,129,0.1)' : '#ecfdf5',
-                              padding: '1px 6px',
-                              borderRadius: '4px',
-                            }}>
-                              <Check size={11} />
-                              <span>{isRtl ? `قُرئ ${formatRelativeTime(n.readAt)}` : `Read ${formatRelativeTime(n.readAt)}`}</span>
-                            </span>
-                          )}
-                          {!n.readAt && (
-                            <button
-                              type="button"
-                              onClick={() => handleMarkSingleRead(n.id)}
-                              style={{
-                                fontSize: '11px',
-                                color: '#2563eb',
-                                background: isDark ? 'rgba(37,99,235,0.1)' : '#eff6ff',
-                                border: isDark ? '1px solid rgba(37,99,235,0.25)' : '1px solid #bfdbfe',
-                                cursor: 'pointer',
-                                fontWeight: 700,
-                                padding: '2px 8px',
-                                borderRadius: '6px',
-                                marginTop: '2px',
-                                transition: 'all 0.15s',
-                              }}
-                            >
-                              {isRtl ? 'تحديد كمقروء' : 'Mark read'}
-                            </button>
-                          )}
+                        <p style={{ fontSize: '12px', color: textSecondary, margin: 0, lineHeight: 1.5, wordBreak: 'break-word' }}>
+                          {n.message}
+                        </p>
+
+                        <div style={{ fontSize: '10.5px', color: textMuted, fontFamily: "'JetBrains Mono', monospace" }}>
+                          {formatFullTimestamp(n.createdAt)}
                         </div>
                       </div>
                     ))}

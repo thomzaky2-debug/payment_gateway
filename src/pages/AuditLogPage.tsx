@@ -677,7 +677,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
         </div>
 
         {/* Timestamp Filter, Status Filter & Search Input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1, minWidth: '320px', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1, minWidth: 'min(100%, 240px)', justifyContent: 'flex-end' }}>
           {/* Timestamp Date Range Dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Calendar size={14} style={{ color: textSecondary }} />
@@ -727,7 +727,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
           </select>
 
           {/* Search Input */}
-          <div style={{ position: 'relative', width: '220px' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 'min(100%, 180px)' }}>
             <Search size={14} style={{ position: 'absolute', [isRtl ? 'right' : 'left']: '10px', top: '50%', transform: 'translateY(-50%)', color: textMuted }} />
             <input
               type="text"

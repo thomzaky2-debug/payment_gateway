@@ -286,12 +286,12 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
 
         {/* Status metrics */}
         {latestDevice && (
-          <div style={{ display: 'flex', gap: '16px', position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', gap: '12px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
             {[
               { label: isRtl ? 'الحالة' : 'Status', value: isOnline ? (isRtl ? 'متصل' : 'Online') : (isRtl ? 'غير متصل' : 'Offline'), color: isOnline ? '#34d399' : '#f87171' },
               { label: isRtl ? 'النبضة' : 'Heartbeat', value: timeSinceLastSeen !== null ? formatTimeSince(timeSinceLastSeen) : '—', color: accent },
             ].map((m, i) => (
-              <div key={i} style={{
+              <div key={i} className="hero-glass-metric" style={{
                 padding: '12px 20px',
                 backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.18)',
                 borderRadius: '12px',
