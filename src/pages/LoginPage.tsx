@@ -339,109 +339,95 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     setForgotOtpError('');
   };
 
+  const iconLeftPos = isRtl ? { right: '14px', left: 'auto' } : { left: '14px', right: 'auto' };
+  const eyeTogglePos = isRtl ? { left: '8px', right: 'auto' } : { right: '8px', left: 'auto' };
+
   return (
     <div
+      className="merchant-login-container"
       style={{
-        minHeight: '100dvh',
-        width: '100%',
-        background: 'linear-gradient(135deg, #070b14 0%, #0f172a 50%, #070b14 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'clamp(16px, 4vw, 32px) 14px',
-        paddingTop: 'max(16px, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
-        position: 'relative',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        fontFamily: "'Inter', sans-serif",
         direction: isRtl ? 'rtl' : 'ltr',
+        fontFamily: "'Inter', sans-serif",
       }}
     >
       {/* Background ambient glow */}
       <div
         style={{
           position: 'absolute',
-          top: '-30%',
+          top: '-25%',
           left: '-15%',
-          width: '70%',
-          height: '160%',
-          background: 'radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, transparent 70%)',
+          width: '75%',
+          height: '150%',
+          background: 'radial-gradient(circle, rgba(124, 58, 237, 0.16) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
       <div
         style={{
           position: 'absolute',
-          bottom: '-30%',
+          bottom: '-25%',
           right: '-15%',
-          width: '70%',
-          height: '160%',
-          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, transparent 70%)',
+          width: '75%',
+          height: '150%',
+          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.14) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
 
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '460px',
-          backgroundColor: '#0f172a',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '20px',
-          padding: 'clamp(20px, 5vw, 36px)',
-          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.85)',
-          position: 'relative',
-          zIndex: 1,
-          margin: 'auto 0',
-        }}
-      >
+      <div className="merchant-login-card">
         {/* Top Header with Language Switcher */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
+                width: '38px',
+                height: '38px',
+                borderRadius: '11px',
                 background: 'linear-gradient(135deg, #10b981, #06b6d4)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '18px',
-                boxShadow: '0 6px 16px -2px rgba(16,185,129,0.4)',
+                boxShadow: '0 6px 18px -2px rgba(16,185,129,0.45)',
               }}
             >
               ⚡
             </div>
-            <span style={{ fontSize: '16px', fontWeight: 800, color: '#f8fafc' }}>InstaPay</span>
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: '#f8fafc', lineHeight: 1.2 }}>InstaPay</div>
+              <div style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 500 }}>
+                {lang === 'ar' ? 'بوابة التجار' : 'Merchant Gateway'}
+              </div>
+            </div>
           </div>
 
           <button
             onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
             style={{
-              padding: '6px 12px',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
-              color: '#cbd5e1',
-              fontSize: '12px',
+              padding: '6px 14px',
+              minHeight: '36px',
+              backgroundColor: 'rgba(255, 255, 255, 0.06)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: '9px',
+              color: '#e2e8f0',
+              fontSize: '12.5px',
               fontWeight: 600,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
+              touchAction: 'manipulation',
             }}
           >
-            <Globe size={13} />
-            {lang === 'en' ? 'عربي' : 'EN'}
+            <Globe size={14} />
+            <span>{lang === 'en' ? 'عربي' : 'English'}</span>
           </button>
         </div>
 
         {/* ─── CASE A: TWO-STEP SIGN IN OTP VERIFICATION ─────────────── */}
         {forgotMode ? null : loginOtpStep ? (
           <div>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '22px' }}>
               <div
                 style={{
                   width: '54px',
@@ -454,14 +440,15 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   justifyContent: 'center',
                   color: '#c084fc',
                   marginBottom: '12px',
+                  boxShadow: '0 8px 24px -4px rgba(124, 58, 237, 0.3)',
                 }}
               >
                 <KeyRound size={26} />
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
+              <h2 style={{ fontSize: '19px', fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
                 {t('verification_code')}
               </h2>
-              <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
+              <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, wordBreak: 'break-all' }}>
                 {t('code_sent_to')} <strong style={{ color: '#38bdf8' }}>{email}</strong>
               </p>
             </div>
@@ -471,15 +458,16 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
               <div
                 onClick={() => setLoginOtp(loginDevOtp)}
                 style={{
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                  border: '1px dashed rgba(56, 189, 248, 0.4)',
+                  padding: '10px 14px',
+                  backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                  border: '1px dashed rgba(56, 189, 248, 0.5)',
                   borderRadius: '10px',
                   color: '#38bdf8',
                   fontSize: '12px',
                   marginBottom: '18px',
                   textAlign: 'center',
                   cursor: 'pointer',
+                  touchAction: 'manipulation',
                 }}
               >
                 ⚡ Dev Mock OTP: <strong>{loginDevOtp}</strong> (Click to autofill)
@@ -490,6 +478,9 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
               <div style={{ marginBottom: '20px' }}>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="one-time-code"
                   maxLength={6}
                   value={loginOtp}
                   onChange={(e) => {
@@ -498,23 +489,12 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   }}
                   placeholder="000000"
                   autoFocus
+                  className="merchant-otp-input"
                   style={{
-                    width: '100%',
-                    padding: '14px',
-                    backgroundColor: '#1e293b',
                     border: loginOtpError ? '2px solid #ef4444' : '2px solid #7c3aed',
-                    borderRadius: '12px',
-                    fontSize: '28px',
-                    fontWeight: 800,
-                    letterSpacing: '10px',
-                    textAlign: 'center',
-                    color: '#ffffff',
-                    fontFamily: 'monospace',
-                    outline: 'none',
                     boxShadow: loginOtpError
                       ? '0 0 24px rgba(239, 68, 68, 0.4)'
                       : '0 0 20px rgba(124, 58, 237, 0.25)',
-                    transition: 'all 0.2s',
                   }}
                 />
 
@@ -540,7 +520,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   </div>
                 )}
 
-                <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginTop: '8px' }}>
+                <p style={{ fontSize: '11.5px', color: '#94a3b8', textAlign: 'center', marginTop: '10px' }}>
                   {t('otp_help_note')}
                 </p>
               </div>
@@ -548,30 +528,20 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
               <button
                 type="submit"
                 disabled={loading || loginOtp.length < 6}
+                className="merchant-auth-btn"
                 style={{
-                  width: '100%',
-                  padding: '13px',
                   background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
                   color: 'white',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  borderRadius: '12px',
-                  border: 'none',
-                  cursor: loading || loginOtp.length < 6 ? 'not-allowed' : 'pointer',
                   opacity: loading || loginOtp.length < 6 ? 0.6 : 1,
                   boxShadow: '0 8px 20px -4px rgba(124, 58, 237, 0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
                   marginBottom: '16px',
                 }}
               >
                 {loading ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}
-                {t('verify_and_login')}
+                <span>{t('verify_and_login')}</span>
               </button>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
                 <button
                   type="button"
                   onClick={() => setLoginOtpStep(false)}
@@ -582,11 +552,13 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
+                    gap: '5px',
+                    padding: '6px 4px',
+                    minHeight: '36px',
                   }}
                 >
-                  <ArrowLeft size={14} />
-                  {t('back_to_login')}
+                  <ArrowLeft size={15} style={isRtl ? { transform: 'rotate(180deg)' } : {}} />
+                  <span>{t('back_to_login')}</span>
                 </button>
 
                 <button
@@ -599,6 +571,8 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                     color: cooldown > 0 ? '#64748b' : '#38bdf8',
                     cursor: cooldown > 0 ? 'default' : 'pointer',
                     fontWeight: 600,
+                    padding: '6px 4px',
+                    minHeight: '36px',
                   }}
                 >
                   {cooldown > 0 ? `${t('resend_code')} (${cooldown}s)` : t('resend_code')}
@@ -610,17 +584,17 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
           /* ─── CASE B: STANDARD SIGN IN & REGISTRATION FORM ───────── */
           <div>
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-              <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: '#f8fafc', margin: '0 0 6px 0' }}>
+              <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
                 {isRegister ? t('register') : t('sign_in')}
               </h1>
-              <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
+              <p style={{ fontSize: '12.5px', color: '#94a3b8', margin: 0 }}>
                 {isRegister
-                  ? 'Open your merchant payment gateway account'
-                  : 'Enter your credentials to access your dashboard'}
+                  ? (lang === 'ar' ? 'افتح حسابك التجاري في بوابة الدفع' : 'Open your merchant payment gateway account')
+                  : (lang === 'ar' ? 'أدخل بيانات الدخول للوصول إلى لوحة التحكم' : 'Enter your credentials to access your dashboard')}
               </p>
             </div>
 
-            {/* Tab Switcher */}
+            {/* Segmented Tab Switcher */}
             <div
               style={{
                 display: 'flex',
@@ -628,6 +602,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 borderRadius: '12px',
                 padding: '4px',
                 marginBottom: '20px',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
               }}
             >
               <button
@@ -638,12 +613,14 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 }}
                 style={{
                   flex: 1,
+                  minHeight: '40px',
                   padding: '8px 12px',
-                  borderRadius: '8px',
+                  borderRadius: '9px',
                   border: 'none',
                   backgroundColor: !isRegister ? '#0f172a' : 'transparent',
                   color: !isRegister ? '#38bdf8' : '#94a3b8',
-                  fontWeight: 600,
+                  boxShadow: !isRegister ? '0 2px 8px rgba(0, 0, 0, 0.4)' : 'none',
+                  fontWeight: 700,
                   fontSize: '13px',
                   cursor: 'pointer',
                   display: 'flex',
@@ -651,10 +628,11 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   justifyContent: 'center',
                   gap: '6px',
                   transition: 'all 0.2s',
+                  touchAction: 'manipulation',
                 }}
               >
-                <LogIn size={14} />
-                {t('sign_in')}
+                <LogIn size={15} />
+                <span>{t('sign_in')}</span>
               </button>
               <button
                 type="button"
@@ -664,12 +642,14 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 }}
                 style={{
                   flex: 1,
+                  minHeight: '40px',
                   padding: '8px 12px',
-                  borderRadius: '8px',
+                  borderRadius: '9px',
                   border: 'none',
                   backgroundColor: isRegister ? '#0f172a' : 'transparent',
                   color: isRegister ? '#38bdf8' : '#94a3b8',
-                  fontWeight: 600,
+                  boxShadow: isRegister ? '0 2px 8px rgba(0, 0, 0, 0.4)' : 'none',
+                  fontWeight: 700,
                   fontSize: '13px',
                   cursor: 'pointer',
                   display: 'flex',
@@ -677,10 +657,11 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   justifyContent: 'center',
                   gap: '6px',
                   transition: 'all 0.2s',
+                  touchAction: 'manipulation',
                 }}
               >
-                <UserPlus size={14} />
-                {t('register')}
+                <UserPlus size={15} />
+                <span>{t('register')}</span>
               </button>
             </div>
 
@@ -688,25 +669,21 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
               {isRegister && (
                 <>
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
-                      Business Name
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+                      {lang === 'ar' ? 'اسم المتجر / النشاط التجاري' : 'Business Name'}
                     </label>
                     <div style={{ position: 'relative' }}>
-                      <Building size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                      <Building size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                       <input
                         type="text"
+                        autoComplete="organization"
+                        autoCapitalize="words"
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
                         placeholder="e.g. Cairo Tech Hub"
+                        className="merchant-auth-input has-icon-left"
                         style={{
-                          width: '100%',
-                          padding: '10px 14px 10px 42px',
-                          backgroundColor: '#1e293b',
                           border: `1px solid ${errors.businessName ? '#ef4444' : '#334155'}`,
-                          borderRadius: '10px',
-                          fontSize: '13px',
-                          outline: 'none',
-                          color: '#f8fafc',
                         }}
                       />
                     </div>
@@ -714,101 +691,116 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
-                      InstaPay Address / Payment Link
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: '#cbd5e1' }}>
+                        {lang === 'ar' ? 'عنوان أو رابط إنستاباي' : 'InstaPay Address / Payment Link'}
+                      </label>
+                    </div>
                     <div style={{ position: 'relative' }}>
-                      <AtSign size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                      <AtSign size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                       <input
                         type="text"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         value={instapayHandle}
                         onChange={(e) => setInstapayHandle(e.target.value)}
-                        placeholder="https://ipn.eg/S/platform/instapay/TOKEN"
+                        placeholder="username@instapay or https://ipn.eg/S/..."
+                        className="merchant-auth-input has-icon-left"
                         style={{
-                          width: '100%',
-                          padding: '10px 14px 10px 42px',
-                          backgroundColor: '#1e293b',
-                          border: `1px solid ${errors.instapayHandle ? '#ef4444' : '#334155'}`,
-                          borderRadius: '10px',
-                          fontSize: '12px',
                           fontFamily: 'monospace',
-                          outline: 'none',
-                          color: '#f8fafc',
+                          fontSize: '13px',
+                          border: `1px solid ${errors.instapayHandle ? '#ef4444' : '#334155'}`,
                         }}
                       />
                     </div>
-                    {errors.instapayHandle && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.instapayHandle}</p>}
+                    {errors.instapayHandle ? (
+                      <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.instapayHandle}</p>
+                    ) : (
+                      <p style={{ fontSize: '10.5px', color: '#64748b', margin: '4px 0 0 0' }}>
+                        {lang === 'ar' ? 'يدعم عنوان إنستاباي أو رابط دفع ipn.eg المباشر' : 'Supports @instapay handle or direct ipn.eg link'}
+                      </p>
+                    )}
                   </div>
                 </>
               )}
 
-              {/* Email Input with Inline "Send Code" in Register mode */}
+              {/* Email Input with Integrated Send Code in Register mode */}
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
                   {t('email')}
                 </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ position: 'relative', flex: 1 }}>
-                    <Mail size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="merchant@example.com"
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px 10px 42px',
-                        backgroundColor: '#1e293b',
-                        border: `1px solid ${errors.email ? '#ef4444' : '#334155'}`,
-                        borderRadius: '10px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        color: '#f8fafc',
-                      }}
-                    />
-                  </div>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
+                  <input
+                    type="email"
+                    inputMode="email"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="merchant@example.com"
+                    className="merchant-auth-input has-icon-left"
+                    style={{
+                      border: `1px solid ${errors.email ? '#ef4444' : '#334155'}`,
+                    }}
+                  />
+                </div>
+                {errors.email && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.email}</p>}
 
-                  {isRegister && (
+                {isRegister && (
+                  <div style={{ marginTop: '8px' }}>
                     <button
                       type="button"
                       disabled={sendingRegisterOtp || cooldown > 0}
                       onClick={handleSendRegisterOtp}
                       style={{
-                        padding: '10px 14px',
+                        width: '100%',
+                        minHeight: '38px',
+                        padding: '8px 14px',
                         backgroundColor: registerOtpSent ? 'rgba(16, 185, 129, 0.15)' : '#7c3aed',
                         border: registerOtpSent ? '1px solid #10b981' : 'none',
-                        borderRadius: '10px',
+                        borderRadius: '9px',
                         color: registerOtpSent ? '#34d399' : '#ffffff',
-                        fontSize: '12px',
+                        fontSize: '12.5px',
                         fontWeight: 600,
                         cursor: sendingRegisterOtp || cooldown > 0 ? 'not-allowed' : 'pointer',
-                        whiteSpace: 'nowrap',
                         display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'center',
                         gap: '6px',
+                        transition: 'all 0.2s',
+                        touchAction: 'manipulation',
                       }}
                     >
                       {sendingRegisterOtp ? (
-                        <RefreshCw size={13} className="animate-spin" />
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          <span>Sending code...</span>
+                        </>
                       ) : registerOtpSent ? (
                         <>
-                          <CheckCircle2 size={13} />
-                          {cooldown > 0 ? `${cooldown}s` : t('resend_code')}
+                          <CheckCircle2 size={14} />
+                          <span>{cooldown > 0 ? `${t('resend_code')} (${cooldown}s)` : t('resend_code')}</span>
                         </>
                       ) : (
-                        t('send_code')
+                        <>
+                          <KeyRound size={14} />
+                          <span>{t('send_code')}</span>
+                        </>
                       )}
                     </button>
-                  )}
-                </div>
-                {errors.email && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.email}</p>}
+                  </div>
+                )}
               </div>
 
               {/* Register 6-Digit OTP Input Field */}
               {isRegister && (
                 <div style={{ marginBottom: '14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: 500, color: '#cbd5e1' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#cbd5e1' }}>
                       {t('verification_code')}
                     </label>
                     {registerDevOtp && (
@@ -816,29 +808,26 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                         onClick={() => setRegisterOtp(registerDevOtp)}
                         style={{ fontSize: '11px', color: '#38bdf8', cursor: 'pointer', textDecoration: 'underline' }}
                       >
-                        Auto-fill Dev: {registerDevOtp}
+                        Auto-fill: {registerDevOtp}
                       </span>
                     )}
                   </div>
                   <div style={{ position: 'relative' }}>
-                    <KeyRound size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                    <KeyRound size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                     <input
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      autoComplete="one-time-code"
                       maxLength={6}
                       value={registerOtp}
                       onChange={(e) => setRegisterOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="Enter 6-digit code"
+                      placeholder="000000"
+                      className="merchant-auth-input has-icon-left"
                       style={{
-                        width: '100%',
-                        padding: '10px 14px 10px 42px',
-                        backgroundColor: '#1e293b',
-                        border: `1px solid ${errors.registerOtp ? '#ef4444' : '#334155'}`,
-                        borderRadius: '10px',
-                        fontSize: '13px',
-                        letterSpacing: '2px',
+                        letterSpacing: '3px',
                         fontFamily: 'monospace',
-                        outline: 'none',
-                        color: '#f8fafc',
+                        border: `1px solid ${errors.registerOtp ? '#ef4444' : '#334155'}`,
                       }}
                     />
                   </div>
@@ -848,70 +837,68 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
 
               {/* Password Input */}
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
                   {t('password')}
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Lock size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                  <Lock size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete={isRegister ? 'new-password' : 'current-password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="••••••••••••"
+                    className="merchant-auth-input has-icon-left has-icon-right"
                     style={{
-                      width: '100%',
-                      padding: '10px 40px 10px 42px',
-                      backgroundColor: '#1e293b',
                       border: `1px solid ${errors.password ? '#ef4444' : '#334155'}`,
-                      borderRadius: '10px',
-                      fontSize: '13px',
-                      outline: 'none',
-                      color: '#f8fafc',
                     }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     style={{
                       position: 'absolute',
-                      right: '12px',
+                      ...eyeTogglePos,
                       top: '50%',
                       transform: 'translateY(-50%)',
                       backgroundColor: 'transparent',
                       border: 'none',
                       cursor: 'pointer',
-                      color: '#64748b',
-                      padding: '4px',
+                      color: '#94a3b8',
+                      padding: '8px',
+                      width: '40px',
+                      height: '40px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      touchAction: 'manipulation',
                     }}
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
                 {errors.password && <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.password}</p>}
+                {isRegister && !errors.password && (
+                  <p style={{ fontSize: '10.5px', color: '#64748b', margin: '4px 0 0 0' }}>
+                    {lang === 'ar' ? 'كلمة المرور يجب أن تكون 12 خانة على الأقل' : 'Must be at least 12 characters'}
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
+                className="merchant-auth-btn"
                 style={{
-                  width: '100%',
-                  padding: '12px',
                   background: isRegister
                     ? 'linear-gradient(135deg, #7c3aed, #4f46e5)'
                     : 'linear-gradient(135deg, #10b981, #059669)',
                   color: 'white',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  borderRadius: '10px',
-                  border: 'none',
-                  cursor: loading ? 'not-allowed' : 'pointer',
                   opacity: loading ? 0.7 : 1,
-                  boxShadow: '0 8px 20px -4px rgba(16,185,129,0.3)',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
+                  boxShadow: isRegister
+                    ? '0 8px 20px -4px rgba(124, 58, 237, 0.4)'
+                    : '0 8px 20px -4px rgba(16, 185, 129, 0.4)',
                 }}
               >
                 {loading ? (
@@ -922,12 +909,12 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 ) : isRegister ? (
                   <>
                     <UserPlus size={16} />
-                    {t('verify_and_register')}
+                    <span>{t('verify_and_register')}</span>
                   </>
                 ) : (
                   <>
                     <Shield size={16} />
-                    {t('sign_in')}
+                    <span>{t('sign_in')}</span>
                   </>
                 )}
               </button>
@@ -935,7 +922,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
 
             {/* Forgot Password Link */}
             {!isRegister && (
-              <div style={{ textAlign: 'center', marginTop: '12px' }}>
+              <div style={{ textAlign: 'center', marginTop: '14px' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -948,23 +935,24 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                     border: 'none',
                     color: '#f59e0b',
                     cursor: 'pointer',
-                    fontSize: '12px',
+                    fontSize: '12.5px',
                     fontWeight: 600,
                     textDecoration: 'none',
-                    transition: 'color 0.2s',
+                    padding: '6px 8px',
+                    minHeight: '36px',
+                    touchAction: 'manipulation',
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.color = '#fbbf24')}
-                  onMouseOut={(e) => (e.currentTarget.style.color = '#f59e0b')}
                 >
                   {t('forgot_password')}
                 </button>
               </div>
             )}
 
+            {/* Security note */}
             <div
               style={{
-                marginTop: '20px',
-                paddingTop: '16px',
+                marginTop: '18px',
+                paddingTop: '14px',
                 borderTop: '1px solid #1e293b',
                 display: 'flex',
                 alignItems: 'center',
@@ -972,10 +960,74 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 gap: '6px',
                 fontSize: '11px',
                 color: '#64748b',
+                textAlign: 'center',
               }}
             >
-              <Shield size={12} />
-              Protected by 256-bit SSL encryption & 2FA OTP
+              <Shield size={13} style={{ flexShrink: 0 }} />
+              <span>Protected by 256-bit SSL encryption & 2FA OTP</span>
+            </div>
+
+            {/* Android Companion APK download quick badge */}
+            <div
+              style={{
+                marginTop: '14px',
+                padding: '9px 12px',
+                backgroundColor: 'rgba(16, 185, 129, 0.06)',
+                border: '1px dashed rgba(16, 185, 129, 0.25)',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                <div
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '14px',
+                    flexShrink: 0,
+                  }}
+                >
+                  🤖
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {lang === 'ar' ? 'تطبيق الكاشف للأندرويد' : 'Companion Detector APK'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                    {lang === 'ar' ? 'إشعارات التحويلات اللحظية' : 'Live push notifications'}
+                  </div>
+                </div>
+              </div>
+              <a
+                href="/api/apks/detector"
+                download="InstaPay-Detector.apk"
+                style={{
+                  padding: '5px 10px',
+                  backgroundColor: '#10b981',
+                  color: '#ffffff',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>APK</span>
+                <span>↓</span>
+              </a>
             </div>
           </div>
         )}
@@ -983,7 +1035,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
         {/* ─── CASE C: FORGOT PASSWORD FLOW ──────────────────────────── */}
         {forgotMode && (
           <div>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '22px' }}>
               <div
                 style={{
                   width: '54px',
@@ -996,14 +1048,15 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   justifyContent: 'center',
                   color: '#f59e0b',
                   marginBottom: '12px',
+                  boxShadow: '0 8px 24px -4px rgba(245, 158, 11, 0.3)',
                 }}
               >
                 <Lock size={26} />
               </div>
-              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
+              <h2 style={{ fontSize: '19px', fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
                 {t('reset_password')}
               </h2>
-              <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
+              <p style={{ fontSize: '12.5px', color: '#94a3b8', margin: 0 }}>
                 {t('reset_password_desc')}
               </p>
             </div>
@@ -1012,27 +1065,23 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
             {forgotStep === 'email' && (
               <div>
                 <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
                     {t('email')}
                   </label>
                   <div style={{ position: 'relative' }}>
-                    <Mail size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                    <Mail size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                     <input
                       type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
                       placeholder="merchant@example.com"
                       autoFocus
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px 10px 42px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
-                        borderRadius: '10px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        color: '#f8fafc',
-                      }}
+                      className="merchant-auth-input has-icon-left"
                     />
                   </div>
                 </div>
@@ -1041,27 +1090,17 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   type="button"
                   onClick={handleForgotRequest}
                   disabled={forgotLoading}
+                  className="merchant-auth-btn"
                   style={{
-                    width: '100%',
-                    padding: '12px',
                     background: 'linear-gradient(135deg, #f59e0b, #d97706)',
                     color: '#ffffff',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    borderRadius: '10px',
-                    border: 'none',
-                    cursor: forgotLoading ? 'not-allowed' : 'pointer',
                     opacity: forgotLoading ? 0.7 : 1,
                     boxShadow: '0 8px 20px -4px rgba(245, 158, 11, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
                     marginBottom: '16px',
                   }}
                 >
                   {forgotLoading ? <RefreshCw size={16} className="animate-spin" /> : <Mail size={16} />}
-                  {t('send_reset_code')}
+                  <span>{t('send_reset_code')}</span>
                 </button>
 
                 <button
@@ -1073,15 +1112,17 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                     border: 'none',
                     color: '#94a3b8',
                     cursor: 'pointer',
-                    fontSize: '12px',
+                    fontSize: '12.5px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '4px',
+                    gap: '5px',
+                    padding: '8px',
+                    minHeight: '36px',
                   }}
                 >
-                  <ArrowLeft size={14} />
-                  {t('back_to_sign_in')}
+                  <ArrowLeft size={15} style={isRtl ? { transform: 'rotate(180deg)' } : {}} />
+                  <span>{t('back_to_sign_in')}</span>
                 </button>
               </div>
             )}
@@ -1090,11 +1131,14 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
             {forgotStep === 'otp' && (
               <form onSubmit={handleForgotConfirm}>
                 <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
                     {t('verification_code')}
                   </label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="one-time-code"
                     maxLength={6}
                     value={forgotOtp}
                     onChange={(e) => {
@@ -1103,23 +1147,12 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                     }}
                     placeholder="000000"
                     autoFocus
+                    className="merchant-otp-input"
                     style={{
-                      width: '100%',
-                      padding: '14px',
-                      backgroundColor: '#1e293b',
                       border: forgotOtpError ? '2px solid #ef4444' : '2px solid #f59e0b',
-                      borderRadius: '12px',
-                      fontSize: '28px',
-                      fontWeight: 800,
-                      letterSpacing: '10px',
-                      textAlign: 'center',
-                      color: '#ffffff',
-                      fontFamily: 'monospace',
-                      outline: 'none',
                       boxShadow: forgotOtpError
                         ? '0 0 24px rgba(239, 68, 68, 0.4)'
                         : '0 0 20px rgba(245, 158, 11, 0.2)',
-                      transition: 'all 0.2s',
                     }}
                   />
 
@@ -1144,7 +1177,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                       <span>{forgotOtpError}</span>
                     </div>
                   )}
-                  <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginTop: '8px' }}>
+                  <p style={{ fontSize: '11.5px', color: '#94a3b8', textAlign: 'center', marginTop: '8px' }}>
                     {t('code_sent_to')} <strong style={{ color: '#f59e0b' }}>{forgotEmail}</strong>
                   </p>
 
@@ -1173,67 +1206,60 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 </div>
 
                 <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
                     {t('new_password')}
                   </label>
                   <div style={{ position: 'relative' }}>
-                    <Lock size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                    <Lock size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                     <input
                       type={forgotShowPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
                       value={forgotNewPassword}
                       onChange={(e) => setForgotNewPassword(e.target.value)}
-                      placeholder="••••••••"
-                      style={{
-                        width: '100%',
-                        padding: '10px 40px 10px 42px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid #334155',
-                        borderRadius: '10px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        color: '#f8fafc',
-                      }}
+                      placeholder="••••••••••••"
+                      className="merchant-auth-input has-icon-left has-icon-right"
                     />
                     <button
                       type="button"
                       onClick={() => setForgotShowPassword(!forgotShowPassword)}
+                      aria-label={forgotShowPassword ? 'Hide password' : 'Show password'}
                       style={{
                         position: 'absolute',
-                        right: '12px',
+                        ...eyeTogglePos,
                         top: '50%',
                         transform: 'translateY(-50%)',
                         backgroundColor: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
                         color: '#64748b',
-                        padding: '4px',
+                        padding: '8px',
+                        width: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}
                     >
-                      {forgotShowPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      {forgotShowPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: '#cbd5e1', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
                     {t('confirm_new_password')}
                   </label>
                   <div style={{ position: 'relative' }}>
-                    <Lock size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                    <Lock size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                     <input
                       type={forgotShowPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
                       value={forgotConfirmPassword}
                       onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder="••••••••••••"
+                      className="merchant-auth-input has-icon-left"
                       style={{
-                        width: '100%',
-                        padding: '10px 14px 10px 42px',
-                        backgroundColor: '#1e293b',
                         border: `1px solid ${forgotConfirmPassword && forgotConfirmPassword !== forgotNewPassword ? '#ef4444' : '#334155'}`,
-                        borderRadius: '10px',
-                        fontSize: '13px',
-                        outline: 'none',
-                        color: '#f8fafc',
                       }}
                     />
                   </div>
@@ -1245,43 +1271,33 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 <button
                   type="submit"
                   disabled={forgotLoading || forgotOtp.length < 6 || !forgotNewPassword || forgotNewPassword !== forgotConfirmPassword}
+                  className="merchant-auth-btn"
                   style={{
-                    width: '100%',
-                    padding: '12px',
                     background: 'linear-gradient(135deg, #f59e0b, #d97706)',
                     color: '#ffffff',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    borderRadius: '10px',
-                    border: 'none',
-                    cursor: forgotLoading ? 'not-allowed' : 'pointer',
                     opacity: forgotLoading || forgotOtp.length < 6 ? 0.6 : 1,
                     boxShadow: '0 8px 20px -4px rgba(245, 158, 11, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
                     marginBottom: '16px',
                   }}
                 >
                   {forgotLoading ? <RefreshCw size={16} className="animate-spin" /> : <Shield size={16} />}
-                  {t('reset_and_login')}
+                  <span>{t('reset_and_login')}</span>
                 </button>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
                   <button
                     type="button"
                     onClick={exitForgotMode}
-                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 4px', minHeight: '36px' }}
                   >
-                    <ArrowLeft size={14} />
-                    {t('back_to_sign_in')}
+                    <ArrowLeft size={15} style={isRtl ? { transform: 'rotate(180deg)' } : {}} />
+                    <span>{t('back_to_sign_in')}</span>
                   </button>
                   <button
                     type="button"
                     disabled={cooldown > 0 || forgotLoading}
                     onClick={handleForgotRequest}
-                    style={{ background: 'none', border: 'none', color: cooldown > 0 ? '#64748b' : '#f59e0b', cursor: cooldown > 0 ? 'default' : 'pointer', fontWeight: 600 }}
+                    style={{ background: 'none', border: 'none', color: cooldown > 0 ? '#64748b' : '#f59e0b', cursor: cooldown > 0 ? 'default' : 'pointer', fontWeight: 600, padding: '6px 4px', minHeight: '36px' }}
                   >
                     {cooldown > 0 ? `${t('resend_code')} (${cooldown}s)` : t('resend_code')}
                   </button>
@@ -1314,25 +1330,15 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 <button
                   type="button"
                   onClick={exitForgotMode}
+                  className="merchant-auth-btn"
                   style={{
-                    width: '100%',
-                    padding: '12px',
                     background: 'linear-gradient(135deg, #10b981, #059669)',
                     color: 'white',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    borderRadius: '10px',
-                    border: 'none',
-                    cursor: 'pointer',
                     boxShadow: '0 8px 20px -4px rgba(16,185,129,0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
                   }}
                 >
                   <LogIn size={16} />
-                  {t('back_to_sign_in')}
+                  <span>{t('back_to_sign_in')}</span>
                 </button>
               </div>
             )}
@@ -1342,3 +1348,4 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     </div>
   );
 }
+
