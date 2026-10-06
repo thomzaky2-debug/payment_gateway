@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { calculateHmacSha256 } from '../utils/cryptoUtils';
 
 interface DocumentationSectionProps {
   apiKey?: string;
@@ -57,7 +58,7 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
     }
   }, [isValidWebhookSecret, webhookSecret]);
 
-  // Compute live HMAC-SHA256 signature in browser using Web Crypto API
+  // Compute live HMAC-SHA256 signature in browser using hybrid Web Crypto API + Pure JS Fallback
   const calculateTestSignature = async () => {
     try {
       const ts = testTimestamp.trim();
@@ -67,19 +68,13 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
       const baseString = `${ts}.${body}`;
       setCalculatedBaseString(baseString);
 
-      const enc = new TextEncoder();
-      const key = await window.crypto.subtle.importKey(
-        'raw',
-        enc.encode(secret),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['sign']
-      );
-      const signatureBuffer = await window.crypto.subtle.sign('HMAC', key, enc.encode(baseString));
-      const hexSignature = Array.from(new Uint8Array(signatureBuffer))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
+      if (!secret) {
+        setCalculatedSignature('');
+        setVerifyResult(null);
+        return;
+      }
 
+      const hexSignature = await calculateHmacSha256(secret, baseString);
       setCalculatedSignature(hexSignature);
 
       if (verifyInputSig.trim()) {
@@ -88,10 +83,8 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
       } else {
         setVerifyResult(null);
       }
-    } catch {
-      if (showToast) {
-        showToast('error', isRtl ? 'فشل حساب التوقيع المشفر' : 'Failed to calculate HMAC signature');
-      }
+    } catch (err) {
+      console.warn('HMAC signature calculation error:', err);
     }
   };
 
@@ -1234,26 +1227,27 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
       {/* ─── Tab 4: Live Webhook Signature Tester & Debugger ─── */}
       {activeTab === 'tester' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ ...cardStyle({ padding: '24px' }) }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+          <div style={{ ...cardStyle({ padding: 'clamp(14px, 3.5vw, 24px)' }) }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
               <div style={{
                 width: '36px', height: '36px', borderRadius: '10px',
                 background: 'linear-gradient(135deg, #10b981, #06b6d4)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
               }}>
                 <Play size={18} color="white" />
               </div>
-              <div>
-                <h4 style={{ fontSize: '16px', fontWeight: 800, color: textPrimary, margin: 0 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h4 style={{ fontSize: '15px', fontWeight: 800, color: textPrimary, margin: 0 }}>
                   {isRtl ? 'مختبر وحاسبة التوقيع اللحظي (HMAC-SHA256 Tester)' : 'Live Webhook Signature Calculator & Validator'}
                 </h4>
-                <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0', lineHeight: 1.4 }}>
                   {isRtl ? 'احسب التوقيع فورياً وتحقق من تطابق كود الخادم الخاص بك مع محرك البوابة' : 'Compute and test HMAC signatures live in browser to verify your integration against the gateway.'}
                 </p>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px', marginBottom: '18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '16px', marginBottom: '18px' }}>
               {/* Inputs */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div>
@@ -1279,7 +1273,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                 </div>
 
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 700, color: textSecondary }}>
                       {isRtl ? 'الطابع الزمني (Unix Timestamp)' : 'Timestamp (Unix seconds)'}
                     </label>
@@ -1353,7 +1347,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                 </div>
 
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '4px' }}>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: '#34d399' }}>
                       {isRtl ? 'التوقيع المحسوب (Computed X-Instapay-Signature):' : 'Computed X-Instapay-Signature Header:'}
                     </span>
@@ -1367,7 +1361,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                   </div>
                   <div style={{
                     ...codeBox({ padding: '12px 14px' }),
-                    fontSize: '12px',
+                    fontSize: '11.5px',
                     color: '#4ade80',
                     fontFamily: "'JetBrains Mono', monospace",
                     wordBreak: 'break-all',
@@ -1381,7 +1375,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: textSecondary, marginBottom: '6px' }}>
                     {isRtl ? 'اختبار تطابق توقيع خارجي (Compare incoming signature):' : 'Paste signature to test match:'}
                   </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <input
                       type="text"
                       placeholder="v1=..."
@@ -1389,6 +1383,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                       onChange={(e) => setVerifyInputSig(e.target.value)}
                       style={{
                         flex: 1,
+                        minWidth: 'min(100%, 180px)',
                         padding: '10px 12px',
                         borderRadius: '8px',
                         fontSize: '12px',
@@ -1404,7 +1399,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
-                        padding: '0 12px',
+                        padding: '8px 12px',
                         borderRadius: '8px',
                         fontSize: '12px',
                         fontWeight: 700,
@@ -1412,6 +1407,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                           ? (isDark ? 'rgba(16,185,129,0.2)' : '#dcfce7')
                           : (isDark ? 'rgba(239,68,68,0.2)' : '#fee2e2'),
                         color: verifyResult ? '#10b981' : '#ef4444',
+                        whiteSpace: 'nowrap',
                       }}>
                         {verifyResult ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
                         <span>{verifyResult ? (isRtl ? 'متطابق بنجاح ✓' : 'MATCH ✓') : (isRtl ? 'غير متطابق ✕' : 'MISMATCH ✕')}</span>
