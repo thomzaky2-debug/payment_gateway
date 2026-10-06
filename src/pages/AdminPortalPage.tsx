@@ -1918,41 +1918,60 @@ export function AdminPortalPage() {
             {auditLogs.length === 0 ? (
               <p style={{ color: '#94a3b8', fontSize: '13px' }}>No audit records available.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
+                  gap: '12px',
+                }}
+              >
                 {auditLogs.map((log) => (
                   <div
                     key={log.id}
                     style={{
-                      padding: '12px 16px',
+                      padding: '14px 16px',
                       backgroundColor: '#111827',
-                      borderRadius: '10px',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255, 255, 255, 0.07)',
                       display: 'flex',
+                      flexDirection: 'column',
                       justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: '8px',
+                      gap: '10px',
+                      transition: 'all 0.2s',
                     }}
                   >
                     <div>
-                      <span
+                      <div
                         style={{
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          backgroundColor: 'rgba(124, 58, 237, 0.2)',
-                          color: '#c084fc',
-                          marginRight: '10px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '8px',
+                          flexWrap: 'wrap',
+                          gap: '6px',
                         }}
                       >
-                        {log.action}
-                      </span>
-                      <span style={{ fontSize: '13px', color: '#e2e8f0' }}>{log.details}</span>
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            backgroundColor: 'rgba(124, 58, 237, 0.2)',
+                            color: '#c084fc',
+                            border: '1px solid rgba(124, 58, 237, 0.3)',
+                          }}
+                        >
+                          {log.action}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                          {new Date(log.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '12.5px', color: '#e2e8f0', margin: 0, lineHeight: 1.45, wordBreak: 'break-word' }}>
+                        {log.details}
+                      </p>
                     </div>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>
-                      {new Date(log.createdAt).toLocaleString()}
-                    </span>
                   </div>
                 ))}
               </div>
@@ -1977,59 +1996,97 @@ export function AdminPortalPage() {
             {webhookLogs.length === 0 ? (
               <p style={{ color: '#94a3b8', fontSize: '13px' }}>No webhook dispatches recorded yet.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
+                  gap: '12px',
+                }}
+              >
                 {webhookLogs.map((w) => (
                   <div
                     key={w.id}
                     style={{
-                      padding: '14px 18px',
+                      padding: '14px 16px',
                       backgroundColor: '#111827',
-                      borderRadius: '10px',
-                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255, 255, 255, 0.07)',
                       display: 'flex',
+                      flexDirection: 'column',
                       justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
                       gap: '10px',
+                      transition: 'all 0.2s',
                     }}
                   >
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span
-                          style={{
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            backgroundColor: w.isSuccess
-                              ? 'rgba(16, 185, 129, 0.2)'
-                              : 'rgba(239, 68, 68, 0.2)',
-                            color: w.isSuccess ? '#34d399' : '#f87171',
-                          }}
-                        >
-                          HTTP {w.statusCode || 'ERR'}
-                        </span>
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#ffffff' }}>
-                          {w.client?.businessName || 'Client'}
-                        </span>
-                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>• Event: {w.event}</span>
-                      </div>
                       <div
                         style={{
-                          fontSize: '12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '8px',
+                          flexWrap: 'wrap',
+                          gap: '6px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              backgroundColor: w.isSuccess
+                                ? 'rgba(16, 185, 129, 0.2)'
+                                : 'rgba(239, 68, 68, 0.2)',
+                              color: w.isSuccess ? '#34d399' : '#f87171',
+                              border: w.isSuccess
+                                ? '1px solid rgba(16, 185, 129, 0.3)'
+                                : '1px solid rgba(239, 68, 68, 0.3)',
+                            }}
+                          >
+                            HTTP {w.statusCode || 'ERR'}
+                          </span>
+                          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#ffffff' }}>
+                            {w.client?.businessName || 'Client'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          Attempt #{w.attempt}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '11.5px', color: '#a78bfa', fontWeight: 600, marginBottom: '6px' }}>
+                        Event: {w.event}
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: '11.5px',
                           color: '#64748b',
                           fontFamily: 'monospace',
-                          marginTop: '4px',
                           wordBreak: 'break-all',
+                          backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                          padding: '6px 8px',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(255, 255, 255, 0.04)',
                         }}
                       >
                         Target: {w.url}
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                        Attempt #{w.attempt} • {new Date(w.createdAt).toLocaleTimeString()}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        alignItems: 'center',
+                        paddingTop: '6px',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                        {new Date(w.createdAt).toLocaleString()}
                       </span>
                     </div>
                   </div>

@@ -4,7 +4,8 @@ import {
   Settings, RefreshCw, Search, X, Check, Copy, ExternalLink,
   ShieldCheck, AlertCircle, CheckCircle2, Clock, Globe, Hash,
   ChevronRight, Eye, ArrowUpDown, Layers, Activity, Calendar,
-  AlertTriangle, CheckCircle, Smartphone, Timer
+  AlertTriangle, CheckCircle, Smartphone, Timer,
+  LayoutGrid, List
 } from 'lucide-react';
 import { settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -156,6 +157,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [inspectItem, setInspectItem] = useState<UnifiedAuditItem | null>(null);
   const [copiedInspect, setCopiedInspect] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [, setTick] = useState(0);
 
   // Auto tick every 10s so relative timestamps update in real-time
@@ -172,11 +174,12 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
 
   const card = (extra?: React.CSSProperties): React.CSSProperties => ({
     backgroundColor: isDark ? '#111827' : '#ffffff',
-    borderRadius: '20px',
+    borderRadius: '16px',
     border: `1px solid ${borderColor}`,
     boxShadow: isDark
       ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
       : '0 4px 16px rgba(0,0,0,0.06)',
+    padding: 'clamp(14px, 3.5vw, 24px)',
     transition: 'all 0.3s ease',
     ...extra,
   });
@@ -766,23 +769,321 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
               </button>
             )}
           </div>
+
+          {/* Grid / List View Toggle */}
+          <div style={{ display: 'flex', gap: '2px', backgroundColor: isDark ? '#162033' : '#f1f5f9', padding: '3px', borderRadius: '8px' }}>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '5px 9px',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: viewMode === 'grid' ? 700 : 500,
+                backgroundColor: viewMode === 'grid' ? '#2563eb' : 'transparent',
+                color: viewMode === 'grid' ? 'white' : textSecondary,
+              }}
+              title={isRtl ? 'عرض شبكي متعدد الأعمدة' : 'Multi-column grid'}
+            >
+              <LayoutGrid size={12} />
+              <span>{isRtl ? 'شبكة' : 'Grid'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '5px 9px',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: viewMode === 'list' ? 700 : 500,
+                backgroundColor: viewMode === 'list' ? '#2563eb' : 'transparent',
+                color: viewMode === 'list' ? 'white' : textSecondary,
+              }}
+              title={isRtl ? 'عرض قائمة' : 'List view'}
+            >
+              <List size={12} />
+              <span>{isRtl ? 'قائمة' : 'List'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ─── Log Entries List ─── */}
-      <div style={{ ...card(), overflow: 'hidden' }}>
-        {filteredLogs.length === 0 ? (
-          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-            <FileText size={42} style={{ color: textMuted, margin: '0 auto 14px auto', opacity: 0.5 }} />
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: '0 0 6px 0' }}>
-              {isRtl ? 'لم يتم العثور على سجلات مطابقة' : 'No matching audit records found'}
-            </h4>
-            <p style={{ fontSize: '13px', color: textSecondary, margin: 0 }}>
-              {isRtl ? 'جرب تغيير معايير البحث أو تصفية الوقت' : 'Try clearing filters or adjusting your timestamp range'}
-            </p>
-          </div>
-        ) : (
-          filteredLogs.map((log, index) => {
+      {/* ─── Log Entries List / Grid ─── */}
+      {filteredLogs.length === 0 ? (
+        <div style={{ ...card(), padding: '60px 20px', textAlign: 'center' }}>
+          <FileText size={42} style={{ color: textMuted, margin: '0 auto 14px auto', opacity: 0.5 }} />
+          <h4 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: '0 0 6px 0' }}>
+            {isRtl ? 'لم يتم العثور على سجلات مطابقة' : 'No matching audit records found'}
+          </h4>
+          <p style={{ fontSize: '13px', color: textSecondary, margin: 0 }}>
+            {isRtl ? 'جرب تغيير معايير البحث أو تصفية الوقت' : 'Try clearing filters or adjusting your timestamp range'}
+          </p>
+        </div>
+      ) : viewMode === 'grid' ? (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
+            gap: '14px',
+          }}
+        >
+          {filteredLogs.map((log) => {
+            const Icon = categoryIcons[log.category] || FileText;
+            const catStyles = getCategoryStyles(log.category);
+            const statusStyles = getStatusStyles(log.status);
+            const StatusIcon = statusStyles.icon;
+
+            const dateObj = new Date(log.timestamp);
+            const formattedTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const formattedDate = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+
+            return (
+              <div
+                key={log.id}
+                style={{
+                  ...card({ padding: '14px 16px' }),
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  borderRadius: '14px',
+                  backgroundColor: isDark ? '#111827' : '#ffffff',
+                  border: `1px solid ${borderColor}`,
+                  boxShadow: isDark
+                    ? '0 4px 14px rgba(0,0,0,0.3)'
+                    : '0 2px 8px rgba(0,0,0,0.04)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {/* Top Status Accent Border */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: '3px',
+                    backgroundColor: log.status === 'failed' ? '#ef4444' : log.status === 'warning' ? '#f59e0b' : '#10b981',
+                  }}
+                />
+
+                <div>
+                  {/* Card Header */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '10px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexWrap: 'wrap' }}>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '9px',
+                          backgroundColor: catStyles.bg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          border: `1px solid ${catStyles.border}30`,
+                        }}
+                      >
+                        <Icon size={16} style={{ color: catStyles.text }} />
+                      </div>
+
+                      <code
+                        style={{
+                          fontSize: '11.5px',
+                          fontWeight: 700,
+                          color: textPrimary,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          backgroundColor: isDark ? '#070b14' : '#f1f5f9',
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          border: isDark ? '1px solid #1e293b' : '1px solid #e2e8f0',
+                        }}
+                      >
+                        {log.action}
+                      </code>
+
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          padding: '1px 6px',
+                          borderRadius: '12px',
+                          backgroundColor: catStyles.bg,
+                          color: catStyles.text,
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {log.category}
+                      </span>
+
+                      {log.httpCode && (
+                        <span
+                          style={{
+                            fontSize: '9.5px',
+                            fontWeight: 800,
+                            padding: '1px 5px',
+                            borderRadius: '5px',
+                            fontFamily: "'JetBrains Mono', monospace",
+                            backgroundColor: log.httpCode >= 200 && log.httpCode < 300
+                              ? (isDark ? 'rgba(16,185,129,0.2)' : '#dcfce7')
+                              : (isDark ? 'rgba(239,68,68,0.2)' : '#fee2e2'),
+                            color: log.httpCode >= 200 && log.httpCode < 300 ? '#10b981' : '#ef4444',
+                          }}
+                        >
+                          HTTP {log.httpCode}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Relative Time Badge */}
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '10.5px',
+                        fontWeight: 600,
+                        color: textSecondary,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        flexShrink: 0,
+                        backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.04)',
+                        padding: '2px 6px',
+                        borderRadius: '5px',
+                      }}
+                    >
+                      <Clock size={11} color="#38bdf8" />
+                      <span>{formatRelativeTime(log.timestamp)}</span>
+                    </div>
+                  </div>
+
+                  {/* Status Indicator Pill */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        fontSize: '10.5px',
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: '12px',
+                        backgroundColor: statusStyles.bg,
+                        color: statusStyles.text,
+                      }}
+                    >
+                      <StatusIcon size={11} />
+                      <span style={{ textTransform: 'capitalize' }}>{log.status}</span>
+                    </span>
+                  </div>
+
+                  {/* Log Details Paragraph (Full 100% Width) */}
+                  <p
+                    style={{
+                      fontSize: '12.5px',
+                      color: textPrimary,
+                      margin: '0 0 12px 0',
+                      lineHeight: 1.5,
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {log.details}
+                  </p>
+
+                  {/* Metadata Tags */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '10px',
+                      fontSize: '11px',
+                      color: textSecondary,
+                      flexWrap: 'wrap',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <User size={12} color={textMuted} />
+                      <span>{log.user}</span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Globe size={12} color={textMuted} />
+                      <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{log.ip}</span>
+                    </span>
+                    {log.sessionId && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#38bdf8', fontFamily: "'JetBrains Mono', monospace" }}>
+                        <Hash size={12} />
+                        <span>{log.sessionId}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Divider & Inspect Button */}
+                <div
+                  style={{
+                    paddingTop: '10px',
+                    borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid rgba(226, 232, 240, 0.8)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '8px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Clock size={11} color="#38bdf8" />
+                    <span style={{ fontSize: '11px', color: textMuted, fontFamily: "'JetBrains Mono', monospace" }}>
+                      {formattedDate} {formattedTime}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setInspectItem(log)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
+                      border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <Eye size={12} />
+                    <span>{isRtl ? 'معاينة' : 'Inspect'}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ ...card({ padding: 0 }), overflow: 'hidden' }}>
+          {filteredLogs.map((log, index) => {
             const Icon = categoryIcons[log.category] || FileText;
             const catStyles = getCategoryStyles(log.category);
             const statusStyles = getStatusStyles(log.status);
@@ -799,26 +1100,21 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '16px',
-                  padding: '16px 24px',
+                  gap: '14px',
+                  padding: '14px 18px',
                   borderBottom: index < filteredLogs.length - 1 ? `1px solid ${isDark ? 'rgba(51,65,85,0.3)' : '#f1f5f9'}` : 'none',
+                  flexWrap: 'wrap',
                   transition: 'background-color 0.2s',
                   backgroundColor: 'transparent',
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
               >
                 {/* Left: Icon & Description */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1, minWidth: 'min(100%, 260px)' }}>
                   <div
                     style={{
-                      width: '42px',
-                      height: '42px',
-                      borderRadius: '12px',
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
                       backgroundColor: catStyles.bg,
                       display: 'flex',
                       alignItems: 'center',
@@ -827,19 +1123,19 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                       border: `1px solid ${catStyles.border}30`,
                     }}
                   >
-                    <Icon size={19} style={{ color: catStyles.text }} />
+                    <Icon size={17} style={{ color: catStyles.text }} />
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
                       <code
                         style={{
-                          fontSize: '12px',
+                          fontSize: '11.5px',
                           fontWeight: 700,
                           color: textPrimary,
                           fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                           backgroundColor: isDark ? '#070b14' : '#f1f5f9',
-                          padding: '2px 8px',
+                          padding: '2px 7px',
                           borderRadius: '6px',
                           border: isDark ? '1px solid #1e293b' : '1px solid #e2e8f0',
                         }}
@@ -849,10 +1145,10 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
 
                       <span
                         style={{
-                          fontSize: '11px',
+                          fontSize: '10px',
                           fontWeight: 600,
-                          padding: '2px 8px',
-                          borderRadius: '20px',
+                          padding: '1px 6px',
+                          borderRadius: '12px',
                           backgroundColor: catStyles.bg,
                           color: catStyles.text,
                           textTransform: 'capitalize',
@@ -863,10 +1159,10 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
 
                       {log.httpCode && (
                         <span style={{
-                          fontSize: '10px',
+                          fontSize: '9.5px',
                           fontWeight: 800,
-                          padding: '2px 6px',
-                          borderRadius: '6px',
+                          padding: '1px 5px',
+                          borderRadius: '5px',
                           fontFamily: "'JetBrains Mono', monospace",
                           backgroundColor: log.httpCode >= 200 && log.httpCode < 300
                             ? (isDark ? 'rgba(16,185,129,0.2)' : '#dcfce7')
@@ -880,35 +1176,35 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                       <span style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '11px',
+                        gap: '3px',
+                        fontSize: '10.5px',
                         fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: '20px',
+                        padding: '1px 6px',
+                        borderRadius: '12px',
                         backgroundColor: statusStyles.bg,
                         color: statusStyles.text,
                       }}>
-                        <StatusIcon size={12} />
+                        <StatusIcon size={11} />
                         <span style={{ textTransform: 'capitalize' }}>{log.status}</span>
                       </span>
                     </div>
 
-                    <p style={{ fontSize: '13px', color: textPrimary, margin: '0 0 6px 0', lineHeight: 1.4 }}>
+                    <p style={{ fontSize: '12.5px', color: textPrimary, margin: '0 0 6px 0', lineHeight: 1.45, wordBreak: 'break-word' }}>
                       {log.details}
                     </p>
 
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '11.5px', color: textSecondary, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '12px', fontSize: '11px', color: textSecondary, flexWrap: 'wrap' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <User size={13} color={textMuted} />
+                        <User size={12} color={textMuted} />
                         <span>{log.user}</span>
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Globe size={13} color={textMuted} />
+                        <Globe size={12} color={textMuted} />
                         <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>{log.ip}</span>
                       </span>
                       {log.sessionId && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#38bdf8', fontFamily: "'JetBrains Mono', monospace" }}>
-                          <Hash size={13} />
+                          <Hash size={12} />
                           <span>{log.sessionId}</span>
                         </span>
                       )}
@@ -917,8 +1213,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                 </div>
 
                 {/* Right: Timestamp Block & Inspect Action */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
-                  {/* Distinct Timestamp Block */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, [isRtl ? 'marginRight' : 'marginLeft']: 'auto' }}>
                   <div style={{
                     textAlign: isRtl ? 'left' : 'right',
                     display: 'flex',
@@ -929,22 +1224,22 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      fontSize: '12px',
+                      gap: '4px',
+                      fontSize: '11.5px',
                       fontWeight: 700,
                       color: textPrimary,
                       fontFamily: "'JetBrains Mono', monospace",
                     }}>
-                      <Clock size={13} color="#38bdf8" />
+                      <Clock size={12} color="#38bdf8" />
                       <span>{formattedTime}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: textMuted, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ fontSize: '10.5px', color: textMuted, display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <span>{formattedDate}</span>
                       <span style={{
-                        fontSize: '10px',
+                        fontSize: '9.5px',
                         fontWeight: 600,
-                        padding: '1px 6px',
-                        borderRadius: '6px',
+                        padding: '1px 5px',
+                        borderRadius: '5px',
                         backgroundColor: isDark ? 'rgba(56,189,248,0.12)' : '#e0f2fe',
                         color: isDark ? '#38bdf8' : '#0284c7',
                       }}>
@@ -958,28 +1253,28 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 14px',
-                      borderRadius: '10px',
+                      gap: '4px',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
                       backgroundColor: isDark ? '#162033' : '#f8fafc',
                       border: `1px solid ${borderColor}`,
                       color: textPrimary,
-                      fontSize: '12px',
+                      fontSize: '11.5px',
                       fontWeight: 600,
                       cursor: 'pointer',
                       transition: 'all 0.2s',
                     }}
                     title={isRtl ? 'عرض التفاصيل الكاملة' : 'Inspect event details'}
                   >
-                    <Eye size={14} color="#38bdf8" />
+                    <Eye size={13} color="#38bdf8" />
                     <span>{isRtl ? 'معاينة' : 'Inspect'}</span>
                   </button>
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       {/* ─── Inspect Event Modal ─── */}
       {inspectItem && (
