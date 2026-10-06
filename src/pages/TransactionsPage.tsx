@@ -626,8 +626,8 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
           ...card({ padding: 0, overflow: 'hidden', borderRadius: '20px' }),
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: 'calc(100vh - 220px)',
-          minHeight: '400px',
+          maxHeight: 'calc(100dvh - 220px)',
+          minHeight: '300px',
         }}
       >
         {loading ? (

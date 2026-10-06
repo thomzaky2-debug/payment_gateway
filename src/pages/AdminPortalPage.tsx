@@ -183,6 +183,7 @@ export function AdminPortalPage() {
 
   // Portal State
   const [activeTab, setActiveTab] = useState<AdminTab>(() => initialRoute.tab);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [merchants, setMerchants] = useState<MerchantClient[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -852,15 +853,18 @@ export function AdminPortalPage() {
     return (
       <div
         style={{
-          minHeight: '100vh',
-          width: '100vw',
+          minHeight: '100dvh',
+          width: '100%',
           background: 'linear-gradient(135deg, #070b14 0%, #0f172a 50%, #070b14 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '20px',
+          padding: 'clamp(16px, 4vw, 32px) 14px',
+          paddingTop: 'max(16px, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
           position: 'relative',
-          overflow: 'hidden',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
           fontFamily: "'Inter', sans-serif",
           color: '#e2e8f0',
         }}
@@ -894,11 +898,12 @@ export function AdminPortalPage() {
             backgroundColor: '#0f172a',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '24px',
-            padding: '36px',
+            padding: 'clamp(20px, 5vw, 36px)',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
             position: 'relative',
             overflow: 'hidden',
             zIndex: 1,
+            margin: 'auto 0',
           }}
         >
           {/* Accent glow */}
@@ -1140,8 +1145,9 @@ export function AdminPortalPage() {
     <div
       className="admin-portal-shell app-main-layout"
       style={{
-        width: '100vw',
-        height: '100vh',
+        width: '100%',
+        height: '100dvh',
+        minHeight: '100vh',
         display: 'flex',
         overflow: 'hidden',
         backgroundColor: isDark ? '#090d16' : '#f1f5f9',
@@ -1154,6 +1160,8 @@ export function AdminPortalPage() {
         activeTab={activeTab}
         pendingCount={stats?.pendingClients ?? 0}
         onNavigate={(tab) => navigateToTab(tab)}
+        mobileOpen={mobileSidebarOpen}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
       />
 
       <div className="admin-portal-workspace" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1162,6 +1170,7 @@ export function AdminPortalPage() {
         loading={loading}
         onRefresh={fetchData}
         onLogout={handleAdminLogout}
+        onOpenMobileMenu={() => setMobileSidebarOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -1171,7 +1180,8 @@ export function AdminPortalPage() {
           flex: 1,
           minWidth: 0,
           overflow: 'auto',
-          padding: '24px',
+          WebkitOverflowScrolling: 'touch',
+          padding: 'clamp(12px, 3vw, 24px)',
           backgroundColor: isDark ? '#090d16' : '#f1f5f9',
           transition: 'background-color 0.25s ease',
         }}
@@ -1368,7 +1378,7 @@ export function AdminPortalPage() {
           </div>
         </div>
 
-        <div className="admin-overview-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, .65fr)', gap: '18px', marginBottom: '18px' }}>
+        <div className="admin-overview-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '18px', marginBottom: '18px' }}>
           <section style={{ backgroundColor: surface, border: surfaceBorder, borderRadius: '20px', padding: '20px', boxShadow: cardShadow }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}>
               <div>
@@ -1532,7 +1542,8 @@ export function AdminPortalPage() {
                   No merchants found matching the filter criteria.
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
                   <thead>
                     <tr
                       style={{
@@ -1723,7 +1734,8 @@ export function AdminPortalPage() {
                     })}
                   </tbody>
                 </table>
-              )}
+              </div>
+            )}
             </div>
           </div>
         )}
@@ -1748,14 +1760,14 @@ export function AdminPortalPage() {
                 Instantly mark any checkout session as CONFIRMED, dispatch live Webhook, and notify customer browser screen.
               </p>
 
-              <div style={{ display: 'flex', gap: '10px', maxWidth: '600px' }}>
+              <div style={{ display: 'flex', gap: '10px', maxWidth: '600px', flexWrap: 'wrap' }}>
                 <input
                   type="text"
                   placeholder="Enter Session ID (e.g. cmu...)"
                   value={forceSessionId}
                   onChange={(e) => setForceSessionId(e.target.value)}
                   style={{
-                    flex: 1,
+                    flex: '1 1 200px',
                     padding: '10px 14px',
                     backgroundColor: '#1e293b',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -1778,6 +1790,7 @@ export function AdminPortalPage() {
                     fontWeight: 600,
                     cursor: forceSessionId.trim() ? 'pointer' : 'not-allowed',
                     opacity: forceSessionId.trim() ? 1 : 0.6,
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {confirmingId === forceSessionId ? 'Confirming...' : 'Force Confirm'}
@@ -1799,7 +1812,8 @@ export function AdminPortalPage() {
                   No platform transactions recorded yet.
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
                   <thead>
                     <tr
                       style={{
@@ -1881,7 +1895,8 @@ export function AdminPortalPage() {
                     ))}
                   </tbody>
                 </table>
-              )}
+              </div>
+            )}
             </div>
           </div>
         )}
@@ -1915,6 +1930,8 @@ export function AdminPortalPage() {
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '8px',
                     }}
                   >
                     <div>
@@ -2003,6 +2020,7 @@ export function AdminPortalPage() {
                           color: '#64748b',
                           fontFamily: 'monospace',
                           marginTop: '4px',
+                          wordBreak: 'break-all',
                         }}
                       >
                         Target: {w.url}
@@ -2436,7 +2454,7 @@ export function AdminPortalPage() {
               <div style={{ position: 'fixed', inset: 0, zIndex: 10000, padding: '20px', backgroundColor: 'rgba(2,6,23,.78)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <form onSubmit={handleSaveSpecialOffer} style={{ width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '20px', backgroundColor: surface, border: surfaceBorder, boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}><div><h3 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>{editingOffer.id ? 'Edit enterprise offer' : 'Create enterprise offer'}</h3><p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>This proposal will only be visible to the selected merchant.</p></div><button type="button" onClick={() => setEditingOffer(null)} style={{ border: 0, background: 'transparent', color: textSecondary, fontSize: '20px', cursor: 'pointer' }}>×</button></div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px' }}>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Company<select required disabled={Boolean(editingOffer.id)} value={editingOffer.clientId} onChange={(e) => setEditingOffer({ ...editingOffer, clientId: e.target.value })} style={{ width: '100%', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }}><option value="">Select approved merchant</option>{merchants.filter((m) => m.approvalStatus === 'APPROVED').map((m) => <option key={m.id} value={m.id}>{m.businessName} — {m.email}</option>)}</select></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Offer title<input required maxLength={120} value={editingOffer.title} onChange={(e) => setEditingOffer({ ...editingOffer, title: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Custom price (EGP)<input required type="number" min={1} value={editingOffer.priceEgp} onChange={(e) => setEditingOffer({ ...editingOffer, priceEgp: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
@@ -2511,7 +2529,7 @@ export function AdminPortalPage() {
                     <div><h3 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>{editingBundle.id ? 'Edit extra bundle' : 'Create extra bundle'}</h3><p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>Changes affect the bundle catalog shown on merchant billing pages.</p></div>
                     <button type="button" onClick={() => setEditingBundle(null)} style={{ border: 0, background: 'transparent', color: textSecondary, cursor: 'pointer', fontSize: '20px' }}>×</button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px' }}>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Bundle key<input required disabled={Boolean(editingBundle.id)} value={editingBundle.name} onChange={(e) => setEditingBundle({ ...editingBundle, name: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })} placeholder="GROWTH_PACK" style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Display name<input required maxLength={80} value={editingBundle.displayName} onChange={(e) => setEditingBundle({ ...editingBundle, displayName: e.target.value })} placeholder="Growth Pack" style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Price (EGP)<input required type="number" min={0.01} step={0.01} value={editingBundle.priceEgp} onChange={(e) => setEditingBundle({ ...editingBundle, priceEgp: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
@@ -3005,19 +3023,20 @@ export function AdminPortalPage() {
               alignItems: 'center',
               justifyContent: 'center',
               zIndex: 9999,
-              padding: '20px',
+              padding: 'clamp(10px, 3vw, 20px)',
             }}
           >
             <div
               style={{
                 width: '100%',
                 maxWidth: '920px',
-                maxHeight: '90vh',
+                maxHeight: '92dvh',
                 overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
                 backgroundColor: '#111827',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 borderRadius: '20px',
-                padding: '24px',
+                padding: 'clamp(16px, 4vw, 24px)',
                 color: '#ffffff',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
               }}

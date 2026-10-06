@@ -1,4 +1,4 @@
-import { Download, ExternalLink, LogOut, Moon, RefreshCw, Shield, Sun } from 'lucide-react';
+import { Download, ExternalLink, LogOut, Menu, Moon, RefreshCw, Shield, Sun } from 'lucide-react';
 import type { AdminTab } from '../pages/AdminPortalPage';
 import { useTheme } from '../context/ThemeContext';
 
@@ -7,6 +7,7 @@ interface AdminTopbarProps {
   loading: boolean;
   onRefresh: () => void;
   onLogout: () => void;
+  onOpenMobileMenu?: () => void;
 }
 
 const titles: Record<AdminTab, { title: string; subtitle: string }> = {
@@ -19,7 +20,7 @@ const titles: Record<AdminTab, { title: string; subtitle: string }> = {
   notifications: { title: 'Broadcast Notifications', subtitle: 'Send operational messages to individual merchants or the network' },
 };
 
-export function AdminTopbar({ activeTab, loading, onRefresh, onLogout }: AdminTopbarProps) {
+export function AdminTopbar({ activeTab, loading, onRefresh, onLogout, onOpenMobileMenu }: AdminTopbarProps) {
   const { isDark, toggleTheme } = useTheme();
   const page = titles[activeTab];
   const text = isDark ? '#f8fafc' : '#1e293b';
@@ -32,40 +33,66 @@ export function AdminTopbar({ activeTab, loading, onRefresh, onLogout }: AdminTo
       className="admin-topbar"
       style={{
         minHeight: '68px',
-        padding: '12px 24px',
+        padding: '12px clamp(14px, 3vw, 24px)',
         backgroundColor: isDark ? '#0f172a' : '#ffffff',
         borderBottom: `1px solid ${isDark ? 'rgba(51, 65, 85, 0.6)' : '#e2e8f0'}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '16px',
+        gap: '12px',
         flexWrap: 'wrap',
         flexShrink: 0,
         transition: 'background-color 0.25s ease, border-color 0.25s ease',
         zIndex: 10,
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-          <h1 style={{ margin: 0, color: text, fontSize: '20px', fontWeight: 800, letterSpacing: '-0.25px' }}>
-            {page.title}
-          </h1>
-          <span
-            style={{
-              padding: '3px 8px',
-              borderRadius: '6px',
-              backgroundColor: isDark ? 'rgba(124, 58, 237, 0.18)' : '#f3e8ff',
-              border: isDark ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid #e9d5ff',
-              color: isDark ? '#c084fc' : '#7e22ce',
-              fontSize: '10px',
-              fontWeight: 800,
-              letterSpacing: '0.05em',
-            }}
-          >
-            SUPERADMIN
-          </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+        {/* Mobile Hamburger Menu Button */}
+        <button
+          type="button"
+          onClick={onOpenMobileMenu}
+          className="admin-mobile-menu-btn"
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '38px',
+            height: '38px',
+            borderRadius: '9px',
+            backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+            border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
+            color: isDark ? '#f8fafc' : '#1e293b',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+          title="Open Navigation Menu"
+          aria-label="Open Navigation Menu"
+        >
+          <Menu size={20} />
+        </button>
+
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '9px', flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0, color: text, fontSize: 'clamp(16px, 4vw, 20px)', fontWeight: 800, letterSpacing: '-0.25px' }}>
+              {page.title}
+            </h1>
+            <span
+              style={{
+                padding: '3px 8px',
+                borderRadius: '6px',
+                backgroundColor: isDark ? 'rgba(124, 58, 237, 0.18)' : '#f3e8ff',
+                border: isDark ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid #e9d5ff',
+                color: isDark ? '#c084fc' : '#7e22ce',
+                fontSize: '10px',
+                fontWeight: 800,
+                letterSpacing: '0.05em',
+                flexShrink: 0,
+              }}
+            >
+              SUPERADMIN
+            </span>
+          </div>
+          <p style={{ margin: '2px 0 0', color: muted, fontSize: '12px' }}>{page.subtitle}</p>
         </div>
-        <p style={{ margin: '2px 0 0', color: muted, fontSize: '12px' }}>{page.subtitle}</p>
       </div>
 
       <div className="admin-topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '9px', flexWrap: 'wrap' }}>

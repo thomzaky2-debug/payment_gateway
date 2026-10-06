@@ -303,7 +303,7 @@ export function CheckoutPayPage() {
     return (
       <div
         style={{
-          minHeight: '100vh',
+          minHeight: '100dvh',
           backgroundColor: bgPage,
           color: textPrimary,
           display: 'flex',
@@ -353,7 +353,7 @@ export function CheckoutPayPage() {
     return (
       <div
         style={{
-          minHeight: '100vh',
+          minHeight: '100dvh',
           backgroundColor: bgPage,
           color: textPrimary,
           display: 'flex',

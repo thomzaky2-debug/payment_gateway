@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Moon,
   Sun,
+  X,
 } from 'lucide-react';
 import type { AdminTab } from '../pages/AdminPortalPage';
 import { useTheme } from '../context/ThemeContext';
@@ -12,6 +13,8 @@ interface AdminSidebarProps {
   activeTab: AdminTab;
   pendingCount: number;
   onNavigate: (tab: AdminTab) => void;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 const navigation: Array<{
@@ -28,7 +31,13 @@ const navigation: Array<{
   { tab: 'notifications', label: 'Notifications', emoji: '🔔' },
 ];
 
-export function AdminSidebar({ activeTab, pendingCount, onNavigate }: AdminSidebarProps) {
+export function AdminSidebar({
+  activeTab,
+  pendingCount,
+  onNavigate,
+  mobileOpen = false,
+  onCloseMobile,
+}: AdminSidebarProps) {
   const { isDark, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -54,98 +63,185 @@ export function AdminSidebar({ activeTab, pendingCount, onNavigate }: AdminSideb
   const muted = isDark ? '#94a3b8' : '#64748b';
 
   return (
-    <aside
-      className="admin-sidebar"
-      style={{
-        width: collapsed ? '76px' : '264px',
-        minWidth: collapsed ? '76px' : '264px',
-        maxWidth: collapsed ? '76px' : '264px',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        backgroundColor: background,
-        color: text,
-        borderRight: `1px solid ${border}`,
-        transition: 'width 0.25s ease, min-width 0.25s ease, max-width 0.25s ease, background-color 0.25s ease',
-        zIndex: 20,
-      }}
-    >
-      <div
-        className="admin-sidebar-brand"
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {mobileOpen && (
+        <div
+          onClick={onCloseMobile}
+          className="admin-mobile-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            zIndex: 9998,
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`admin-sidebar ${mobileOpen ? 'admin-sidebar-mobile-drawer' : 'admin-sidebar-desktop'}`}
         style={{
-          height: '68px',
-          padding: collapsed ? '12px' : '14px',
+          position: mobileOpen ? 'fixed' : 'relative',
+          top: mobileOpen ? 0 : undefined,
+          bottom: mobileOpen ? 0 : undefined,
+          left: mobileOpen ? 0 : undefined,
+          width: mobileOpen ? 'min(280px, 85vw)' : collapsed ? '76px' : '264px',
+          minWidth: mobileOpen ? 'min(280px, 85vw)' : collapsed ? '76px' : '264px',
+          maxWidth: mobileOpen ? 'min(280px, 85vw)' : collapsed ? '76px' : '264px',
+          height: mobileOpen ? '100dvh' : '100%',
+          maxHeight: mobileOpen ? '100dvh' : '100%',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: collapsed ? 'center' : 'space-between',
-          gap: '8px',
-          borderBottom: `1px solid ${isDark ? 'rgba(51, 65, 85, 0.5)' : '#f1f5f9'}`,
+          flexDirection: 'column',
           flexShrink: 0,
+          backgroundColor: background,
+          color: text,
+          borderRight: `1px solid ${border}`,
+          transition: 'width 0.25s ease, min-width 0.25s ease, max-width 0.25s ease, background-color 0.25s ease',
+          zIndex: mobileOpen ? 9999 : 20,
+          boxShadow: mobileOpen ? '0 10px 40px rgba(0, 0, 0, 0.6)' : undefined,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
-        {!collapsed ? (
-          <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-              <div
+        <div
+          className="admin-sidebar-brand"
+          style={{
+            height: '68px',
+            padding: collapsed && !mobileOpen ? '12px' : '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed && !mobileOpen ? 'center' : 'space-between',
+            gap: '8px',
+            borderBottom: `1px solid ${isDark ? 'rgba(51, 65, 85, 0.5)' : '#f1f5f9'}`,
+            flexShrink: 0,
+          }}
+        >
+          {mobileOpen ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    padding: '4px',
+                    borderRadius: '10px',
+                    backgroundColor: '#512772',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <img src="/Logo.png" alt="InstaPay" style={{ width: '30px', height: 'auto', objectFit: 'contain' }} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <strong style={{ fontSize: '16px', color: text }}>InstaPay</strong>
+                    <span
+                      style={{
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                        border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        letterSpacing: '0.05em',
+                      }}
+                    >
+                      ADMIN
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, color: muted, fontSize: '11px' }}>Control Center</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onCloseMobile}
+                aria-label="Close admin navigation menu"
                 style={{
-                  width: '38px',
-                  height: '38px',
-                  padding: '4px',
-                  borderRadius: '10px',
-                  backgroundColor: '#512772',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: `1px solid ${border}`,
+                  backgroundColor: isDark ? '#111827' : '#f8fafc',
+                  color: muted,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
-                  flexShrink: 0,
+                  cursor: 'pointer',
                 }}
               >
-                <img src="/Logo.png" alt="InstaPay" style={{ width: '30px', height: 'auto', objectFit: 'contain' }} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong style={{ fontSize: '16px', color: text }}>InstaPay</strong>
-                  <span
-                    style={{
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
-                      border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
-                      color: isDark ? '#38bdf8' : '#0284c7',
-                      fontSize: '9px',
-                      fontWeight: 800,
-                      letterSpacing: '0.05em',
-                    }}
-                  >
-                    ADMIN
-                  </span>
+                <X size={16} />
+              </button>
+            </>
+          ) : !collapsed ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    padding: '4px',
+                    borderRadius: '10px',
+                    backgroundColor: '#512772',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <img src="/Logo.png" alt="InstaPay" style={{ width: '30px', height: 'auto', objectFit: 'contain' }} />
                 </div>
-                <p style={{ margin: 0, color: muted, fontSize: '11px' }}>Control Center</p>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <strong style={{ fontSize: '16px', color: text }}>InstaPay</strong>
+                    <span
+                      style={{
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                        border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        letterSpacing: '0.05em',
+                      }}
+                    >
+                      ADMIN
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, color: muted, fontSize: '11px' }}>Control Center</p>
+                </div>
               </div>
-            </div>
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-label="Collapse admin navigation"
-              title="Collapse navigation"
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                border: `1px solid ${border}`,
-                backgroundColor: isDark ? '#111827' : '#f8fafc',
-                color: muted,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-              }}
-            >
-              <ChevronLeft size={16} />
-            </button>
-          </>
-        ) : (
+              <button
+                type="button"
+                onClick={toggleCollapsed}
+                aria-label="Collapse admin navigation"
+                title="Collapse navigation"
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  border: `1px solid ${border}`,
+                  backgroundColor: isDark ? '#111827' : '#f8fafc',
+                  color: muted,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </>
+          ) : (
           <button
             type="button"
             onClick={toggleCollapsed}
@@ -188,19 +284,22 @@ export function AdminSidebar({ activeTab, pendingCount, onNavigate }: AdminSideb
             <button
               type="button"
               key={tab}
-              onClick={() => onNavigate(tab)}
-              title={collapsed ? label : undefined}
+              onClick={() => {
+                onNavigate(tab);
+                onCloseMobile?.();
+              }}
+              title={collapsed && !mobileOpen ? label : undefined}
               aria-current={active ? 'page' : undefined}
               style={{
-                width: collapsed ? '48px' : '100%',
-                height: collapsed ? '46px' : 'auto',
-                margin: collapsed ? '0 auto' : 0,
-                padding: collapsed ? 0 : '11px 14px',
+                width: collapsed && !mobileOpen ? '48px' : '100%',
+                height: collapsed && !mobileOpen ? '46px' : 'auto',
+                margin: collapsed && !mobileOpen ? '0 auto' : 0,
+                padding: collapsed && !mobileOpen ? 0 : '11px 14px',
                 border: 'none',
                 borderRadius: '12px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: collapsed ? 'center' : 'flex-start',
+                justifyContent: collapsed && !mobileOpen ? 'center' : 'flex-start',
                 gap: '12px',
                 position: 'relative',
                 overflow: 'hidden',
@@ -214,8 +313,8 @@ export function AdminSidebar({ activeTab, pendingCount, onNavigate }: AdminSideb
               }}
             >
               <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '18px', lineHeight: 1 }}>{emoji}</span>
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
-              {!collapsed && tab === 'merchants' && pendingCount > 0 && (
+              {(!collapsed || mobileOpen) && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+              {(!collapsed || mobileOpen) && tab === 'merchants' && pendingCount > 0 && (
                 <span
                   style={{
                     marginLeft: 'auto',
@@ -251,7 +350,7 @@ export function AdminSidebar({ activeTab, pendingCount, onNavigate }: AdminSideb
       <div
         className="admin-sidebar-footer"
         style={{
-          padding: collapsed ? '12px 8px' : '14px 16px',
+          padding: collapsed && !mobileOpen ? '12px 8px' : '14px 16px',
           borderTop: `1px solid ${isDark ? 'rgba(51, 65, 85, 0.5)' : '#f1f5f9'}`,
           display: 'flex',
           flexDirection: 'column',
@@ -259,7 +358,7 @@ export function AdminSidebar({ activeTab, pendingCount, onNavigate }: AdminSideb
           flexShrink: 0,
         }}
       >
-        {!collapsed ? (
+        {!collapsed || mobileOpen ? (
           <>
             <div
               style={{
@@ -354,5 +453,6 @@ export function AdminSidebar({ activeTab, pendingCount, onNavigate }: AdminSideb
         )}
       </div>
     </aside>
+  </>
   );
 }
