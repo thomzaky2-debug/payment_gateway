@@ -312,6 +312,7 @@ function App() {
         />
 
         <main
+          className="merchant-main-scroll"
           style={{
             flex: 1,
             overflow: 'auto',

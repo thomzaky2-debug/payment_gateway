@@ -107,14 +107,18 @@ export function Sidebar({
           zIndex: mobileOpen ? 9999 : 20,
           boxShadow: mobileOpen ? '0 10px 40px rgba(0,0,0,0.6)' : undefined,
           overflowY: 'auto',
+          paddingBottom: mobileOpen ? 'max(16px, env(safe-area-inset-bottom, 0px))' : undefined,
           WebkitOverflowScrolling: 'touch',
         }}
       >
         {/* Sidebar Header with Brand & Collapse Toggle */}
         <div
           style={{
-            height: '54px',
-            padding: isCollapsed && !mobileOpen ? '8px' : '10px 12px',
+            height: mobileOpen ? 'calc(54px + env(safe-area-inset-top, 0px))' : '54px',
+            paddingTop: mobileOpen ? 'max(12px, env(safe-area-inset-top, 0px))' : (isCollapsed && !mobileOpen ? '8px' : '10px'),
+            paddingBottom: '10px',
+            paddingLeft: isCollapsed && !mobileOpen ? '8px' : '12px',
+            paddingRight: isCollapsed && !mobileOpen ? '8px' : '12px',
             borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #f1f5f9',
             display: 'flex',
             alignItems: 'center',

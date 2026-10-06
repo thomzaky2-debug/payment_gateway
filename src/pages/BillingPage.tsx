@@ -341,7 +341,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
   const accent = '#38bdf8';
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+    <div className="merchant-page-container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ─── Page Header (Detector Companion Style) ─── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '26px', flexWrap: 'wrap', gap: '16px' }}>
         <div>

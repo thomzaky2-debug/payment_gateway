@@ -261,7 +261,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
     .reduce((acc, t) => acc + (t.amountEgp || 0), 0);
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+    <div className="merchant-page-container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ─── Page Header (Detector Companion Style) ─── */}
       <div
         style={{
@@ -488,6 +488,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
         {/* Frosted Metric Pills */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
           <div
+            className="hero-glass-metric"
             style={{
               padding: '10px 18px',
               borderRadius: '12px',
@@ -506,6 +507,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
           </div>
 
           <div
+            className="hero-glass-metric"
             style={{
               padding: '10px 18px',
               borderRadius: '12px',
@@ -570,8 +572,8 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
         </div>
 
         {/* Search Input */}
-        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '8px' }}>
-          <div style={{ position: 'relative' }}>
+        <form onSubmit={handleSearch} className="transactions-search-form" style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
             <Search
               size={15}
               style={{
@@ -588,6 +590,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
               placeholder={isRtl ? 'ابحث بالجلسة أو الحساب...' : 'Search session or handle...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              className="transactions-search-input"
               style={{
                 padding: isRtl ? '8px 36px 8px 14px' : '8px 14px 8px 36px',
                 fontSize: '13px',
@@ -596,7 +599,8 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                 backgroundColor: isDark ? '#111827' : '#ffffff',
                 color: isDark ? '#f8fafc' : '#0f172a',
                 outline: 'none',
-                width: '240px',
+                width: '100%',
+                minWidth: '140px',
                 transition: 'border-color 0.2s',
               }}
             />
@@ -646,8 +650,8 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
             </div>
           </div>
         ) : (
-          <div style={{ overflowY: 'auto', overflowX: 'auto', flex: 1 }}>
-            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, textAlign: isRtl ? 'right' : 'left' }}>
+          <div style={{ overflowY: 'auto', overflowX: 'auto', flex: 1, WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: '620px', borderCollapse: 'separate', borderSpacing: 0, textAlign: isRtl ? 'right' : 'left' }}>
               <thead
                 style={{
                   position: 'sticky',

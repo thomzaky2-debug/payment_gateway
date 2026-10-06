@@ -98,6 +98,7 @@ button, a, input, select, textarea {
 }
 
 @media (min-width: 769px) {
+  .merchant-sidebar-mobile-drawer,
   .merchant-mobile-drawer {
     display: none !important;
   }
@@ -566,28 +567,85 @@ html:not(.dark) .admin-toast {
     padding: 12px !important;
   }
 
+  /* Merchant Topbar on Mobile */
+  .merchant-topbar {
+    padding: 6px 8px !important;
+    padding-top: max(8px, env(safe-area-inset-top, 0px)) !important;
+    gap: 6px !important;
+    min-height: 48px !important;
+  }
+
+  .merchant-topbar-actions {
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .merchant-topbar button {
+    padding: 5px 8px !important;
+    min-height: 30px !important;
+    font-size: 11px !important;
+    border-radius: 7px !important;
+  }
+
+  .merchant-topbar .topbar-profile-chip {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    border: none !important;
+  }
+
+  .merchant-topbar .topbar-profile-chip > div:first-child {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+  }
+
   /* Eliminate double padding inside main layouts on mobile */
+  .merchant-main-scroll,
+  main {
+    padding: 8px 6px !important;
+  }
+
+  .merchant-page-container,
   main > div > div[style*="max-width: 1400px"],
   main > div > div[style*="maxWidth: 1400px"],
   .admin-portal-content-inner {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    padding-left: 2px !important;
+    padding-right: 2px !important;
     padding-top: 2px !important;
-    padding-bottom: 6px !important;
+    padding-bottom: 14px !important;
+  }
+
+  /* Hero glass metrics 50/50 flex on narrow mobile screens */
+  .hero-glass-metric {
+    flex: 1 1 calc(50% - 6px) !important;
+    min-width: 0 !important;
+    padding: 8px 10px !important;
+  }
+
+  /* Full-width responsive search bar on mobile */
+  .transactions-search-form {
+    width: 100% !important;
+  }
+  .transactions-search-form > div {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  .transactions-search-input {
+    width: 100% !important;
   }
 
   /* Compact typography on mobile */
   h1 {
-    font-size: clamp(15px, 4vw, 18px) !important;
+    font-size: clamp(14px, 3.8vw, 17px) !important;
   }
   h2 {
-    font-size: clamp(13.5px, 3.5vw, 16px) !important;
+    font-size: clamp(13px, 3.2vw, 15.5px) !important;
   }
   h3 {
-    font-size: clamp(12.5px, 3vw, 14px) !important;
+    font-size: clamp(12px, 2.8vw, 13.5px) !important;
   }
   h4, h5 {
-    font-size: clamp(11px, 2.5vw, 12.5px) !important;
+    font-size: clamp(10.5px, 2.4vw, 12px) !important;
   }
 
   /* Proportional compact card padding on mobile */
@@ -598,13 +656,17 @@ html:not(.dark) .admin-toast {
   section[style*="border-radius: 20px"],
   article[style*="border-radius: 18px"],
   article[style*="borderRadius: 18px"] {
-    padding: 12px 14px !important;
+    padding: 12px 12px !important;
     border-radius: 12px !important;
   }
 
-  /* Compact hero status banner */
+  /* Compact hero status banners across merchant pages */
   div[style*="padding: 24px 28px"],
-  div[style*="padding: '24px 28px'"] {
+  div[style*="padding: '24px 28px'"],
+  div[style*="padding: 28px 32px"],
+  div[style*="padding: '28px 32px'"],
+  div[style*="padding: 26px 30px"],
+  div[style*="padding: '26px 30px'"] {
     padding: 12px 14px !important;
     gap: 10px !important;
     margin-bottom: 14px !important;
@@ -628,11 +690,13 @@ html:not(.dark) .admin-toast {
     font-size: 11px !important;
   }
 
-  /* Compact login card padding */
+  /* Compact login & modal card padding on mobile */
   .login-card,
   div[style*="max-width: 460px"],
-  div[style*="maxWidth: '460px'"] {
-    padding: 20px 16px !important;
+  div[style*="maxWidth: '460px'"],
+  div[style*="max-width: 520px"],
+  div[style*="maxWidth: '520px'"] {
+    padding: 16px 14px !important;
     border-radius: 16px !important;
   }
 }

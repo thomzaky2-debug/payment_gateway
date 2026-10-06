@@ -380,7 +380,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
           }}
         >
           {/* Left Info with Counter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1, minWidth: '280px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
             {/* Counter Badge */}
             <div
               style={{
@@ -419,7 +419,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
               {cfg.icon}
             </div>
 
-            <div style={{ flex: 1, minWidth: '220px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span
                   style={{
@@ -625,7 +625,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
   const accent = '#38bdf8';
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+    <div className="merchant-page-container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ─── Page Header (Detector Companion Style) ─── */}
       <div
         style={{
@@ -1336,7 +1336,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                       }}
                     >
                       {/* Left Info with Counter */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1, minWidth: '280px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                         {/* Counter Badge */}
                         <div
                           style={{
@@ -1374,7 +1374,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                           <XCircle size={22} style={{ color: '#dc2626' }} />
                         </div>
 
-                        <div style={{ flex: 1, minWidth: '220px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '13.5px', fontWeight: 800, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
                               {isRtl ? 'تحويل بنكي يتيم' : 'Orphaned Bank Transfer'}

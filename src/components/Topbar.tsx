@@ -60,7 +60,7 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
 
   return (
     <header
-      className="flex items-center justify-between"
+      className="merchant-topbar flex items-center justify-between"
       style={{
         paddingTop: 'max(8px, env(safe-area-inset-top, 0px))',
         paddingBottom: '8px',
@@ -130,7 +130,7 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+      <div className="merchant-topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
         {/* Language Switcher */}
         <button
           onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}

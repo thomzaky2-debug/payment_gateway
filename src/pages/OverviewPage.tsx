@@ -208,7 +208,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
     : null;
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+    <div className="merchant-page-container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ─── Page Header (Detector Companion Style) ─── */}
       <div
         style={{
@@ -443,6 +443,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
         {/* Hero Glass Status Metrics */}
         <div style={{ display: 'flex', gap: '12px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
           <div
+            className="hero-glass-metric"
             style={{
               padding: '10px 18px',
               backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.18)',
@@ -461,6 +462,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
             </div>
           </div>
           <div
+            className="hero-glass-metric"
             style={{
               padding: '10px 18px',
               backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.18)',
@@ -750,7 +752,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                     }}
                   >
                     {/* Left: Counter, Status icon & Transaction Details */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '240px', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
                       {/* Counter Badge (#1, #2, ...) */}
                       <div
                         style={{
