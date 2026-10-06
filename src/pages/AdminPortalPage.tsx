@@ -488,11 +488,12 @@ export function AdminPortalPage() {
   const handleAdminLogout = async () => {
     try {
       await adminApi.logout();
+    } catch (err) {
+      console.warn('Admin logout backend error, clearing local state:', err);
+    } finally {
       setIsAdminAuthenticated(false);
       window.location.hash = '';
       showToast('Admin session logged out');
-    } catch {
-      showToast('Logout could not be confirmed. Please try again.', 'error');
     }
   };
 

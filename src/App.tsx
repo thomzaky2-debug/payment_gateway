@@ -181,14 +181,14 @@ function App() {
       onConfirm: async () => {
         try {
           await authApi.logout();
+        } catch (err) {
+          console.warn('Backend logout encountered error, clearing local session:', err);
+        } finally {
           setIsAuthenticated(false);
           setCurrentClient(null);
           navigateTo('overview');
           closeConfirm();
           showToast('info', 'You have been logged out successfully.');
-        } catch {
-          closeConfirm();
-          showToast('error', 'Logout could not be confirmed. Please try again.');
         }
       },
     });
