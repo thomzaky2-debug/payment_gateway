@@ -62,15 +62,19 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
     <header
       className="flex items-center justify-between"
       style={{
-        padding: '12px 16px',
+        paddingTop: 'max(10px, env(safe-area-inset-top, 0px))',
+        paddingBottom: '10px',
+        paddingLeft: 'max(12px, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(12px, env(safe-area-inset-right, 0px))',
         backgroundColor: isDark ? '#0f172a' : 'white',
         borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
         position: 'relative',
         transition: 'background-color 0.25s ease, border-color 0.25s ease',
-        minHeight: '64px',
+        minHeight: '60px',
+        gap: '8px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
         {/* Mobile Hamburger Menu Button */}
         <button
           type="button"
@@ -79,8 +83,8 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           style={{
             alignItems: 'center',
             justifyContent: 'center',
-            width: '38px',
-            height: '38px',
+            width: '36px',
+            height: '36px',
             borderRadius: '9px',
             backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
             border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
@@ -91,12 +95,12 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           title="Open Menu / القائمة"
           aria-label="Open Navigation Menu"
         >
-          <Menu size={20} />
+          <Menu size={18} />
         </button>
 
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <h1 style={{ fontSize: '18px', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <h1 style={{ fontSize: 'clamp(15px, 4vw, 18px)', fontWeight: 'bold', color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {pageTitles[currentPage]?.[lang] || pageTitles[currentPage]?.en}
             </h1>
             {isPending && (
@@ -104,36 +108,39 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 7px',
+                  gap: '3px',
+                  padding: '2px 6px',
                   backgroundColor: isDark ? 'rgba(245, 158, 11, 0.15)' : '#fef3c7',
                   color: isDark ? '#fbbf24' : '#b45309',
-                  fontSize: '10px',
+                  fontSize: '9px',
                   fontWeight: 700,
                   borderRadius: '5px',
                   border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
                   whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
               >
-                <AlertTriangle size={11} /> {isRtl ? 'في انتظار الاعتماد' : 'Pending Approval'}
+                <AlertTriangle size={10} /> {isRtl ? 'قيد المراجعة' : 'Pending'}
               </span>
             )}
           </div>
-          <p style={{ fontSize: '12px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: '2px 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {client?.businessName || 'Merchant Portal'}
           </p>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         {/* Language Switcher */}
         <button
           onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            padding: '7px 12px',
+            justifyContent: 'center',
+            gap: '5px',
+            padding: '6px 10px',
+            minHeight: '34px',
             backgroundColor: isDark ? '#1e293b' : '#f8fafc',
             border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
             borderRadius: '8px',
@@ -146,7 +153,8 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           title="Toggle Language / تغيير اللغة"
         >
           <Globe size={14} color="#38bdf8" />
-          <span>{lang === 'en' ? 'عربي' : 'English'}</span>
+          <span className="topbar-btn-label">{lang === 'en' ? 'عربي' : 'English'}</span>
+          <span className="topbar-btn-short-label">{lang === 'en' ? 'AR' : 'EN'}</span>
         </button>
 
         {/* Dark / Light Theme Switcher */}
@@ -155,8 +163,10 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
-            padding: '7px 12px',
+            justifyContent: 'center',
+            gap: '5px',
+            padding: '6px 10px',
+            minHeight: '34px',
             backgroundColor: isDark ? '#1e293b' : '#f8fafc',
             border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
             borderRadius: '8px',
@@ -169,7 +179,7 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
         >
           {isDark ? <Sun size={14} style={{ color: '#fbbf24' }} /> : <Moon size={14} style={{ color: '#6366f1' }} />}
-          <span>{isDark ? (isRtl ? 'النهاري' : 'Light') : (isRtl ? 'الليلي' : 'Dark')}</span>
+          <span className="topbar-btn-label">{isDark ? (isRtl ? 'النهاري' : 'Light') : (isRtl ? 'الليلي' : 'Dark')}</span>
         </button>
 
         {/* Notifications Dropdown */}
@@ -343,8 +353,9 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           style={{
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '6px',
-            padding: '7px 12px',
+            padding: '7px 10px',
             backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2',
             color: isDark ? '#f87171' : '#991b1b',
             fontSize: '12px',
@@ -355,33 +366,35 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
             transition: 'all 0.2s',
           }}
           aria-label="Logout"
+          title={isRtl ? 'تسجيل الخروج' : 'Logout'}
         >
           <LogOut size={13} />
-          {isRtl ? 'خروج' : 'Logout'}
+          <span className="topbar-btn-label">{isRtl ? 'خروج' : 'Logout'}</span>
         </button>
 
         <div
           onClick={() => onNavigate?.('settings')}
+          className="topbar-profile-chip"
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
-            paddingLeft: isRtl ? '0' : '12px',
-            paddingRight: isRtl ? '12px' : '0',
+            gap: '8px',
+            paddingLeft: isRtl ? '0' : '10px',
+            paddingRight: isRtl ? '10px' : '0',
             borderLeft: isRtl ? 'none' : isDark ? '1px solid #334155' : '1px solid #e2e8f0',
             borderRight: isRtl ? (isDark ? '1px solid #334155' : '1px solid #e2e8f0') : 'none',
             cursor: onNavigate ? 'pointer' : 'default',
           }}
           title={isRtl ? 'إعدادات الحساب' : 'Store Settings'}
         >
-          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px' }}>
-            {client?.businessName ? client.businessName[0].toUpperCase() : <User size={16} />}
+          <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '13px', flexShrink: 0 }}>
+            {client?.businessName ? client.businessName[0].toUpperCase() : <User size={15} />}
           </div>
-          <div>
-            <p style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', margin: 0 }}>
+          <div className="topbar-desktop-only" style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {client?.businessName || 'Merchant'}
             </p>
-            <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: 0, fontFamily: 'monospace' }}>
+            <p style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b', margin: 0, fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {client?.instapayHandle || 'Account'}
             </p>
           </div>

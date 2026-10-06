@@ -2,6 +2,8 @@ import { useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
+  ExternalLink,
   Moon,
   Sun,
   X,
@@ -384,6 +386,49 @@ export function AdminSidebar({
                 </span>
               </div>
               <p style={{ margin: '2px 0 0 16px', color: muted, fontSize: '11px' }}>Admin services operational</p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <a
+                href="/api/apks/admin"
+                download="InstaPay-Admin.apk"
+                style={{
+                  flex: 1,
+                  padding: '7px 8px',
+                  borderRadius: '8px',
+                  border: isDark ? '1px solid rgba(124, 58, 237, 0.4)' : '1px solid #ddd6fe',
+                  backgroundColor: isDark ? 'rgba(124, 58, 237, 0.16)' : '#f5f3ff',
+                  color: isDark ? '#c084fc' : '#6d28d9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                }}
+              >
+                <Download size={13} /> Admin APK
+              </a>
+              <a
+                href="/"
+                style={{
+                  flex: 1,
+                  padding: '7px 8px',
+                  borderRadius: '8px',
+                  border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0f9ff',
+                  color: isDark ? '#38bdf8' : '#0369a1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '5px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                }}
+              >
+                Merchant <ExternalLink size={12} />
+              </a>
             </div>
             <button
               type="button"

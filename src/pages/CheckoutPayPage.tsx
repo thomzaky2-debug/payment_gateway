@@ -499,7 +499,7 @@ export function CheckoutPayPage() {
         }}
       >
         {/* Brand / Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
           <div
             style={{
               width: '38px',
@@ -526,9 +526,9 @@ export function CheckoutPayPage() {
               }}
             />
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '16px', fontWeight: 800, color: textPrimary }}>InstaPay</span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+              <span style={{ fontSize: '16px', fontWeight: 800, color: textPrimary, whiteSpace: 'nowrap' }}>InstaPay</span>
               <span
                 style={{
                   fontSize: '9px',
@@ -538,19 +538,20 @@ export function CheckoutPayPage() {
                   backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
                   color: isDark ? '#38bdf8' : '#0284c7',
                   border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                  flexShrink: 0,
                 }}
               >
                 GATEWAY
               </span>
             </div>
-            <p style={{ fontSize: '11px', color: textSecondary, margin: 0 }}>
+            <p style={{ fontSize: '11px', color: textSecondary, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {isRtl ? 'بوابة الدفع الإلكتروني المباشر' : 'Direct Merchant Transfer'}
             </p>
           </div>
         </div>
 
         {/* Header Right Actions: Badges, Theme, Language, Share */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {/* Subscription Return Link */}
           {checkout.purpose === 'SUBSCRIPTION' && (
             <button

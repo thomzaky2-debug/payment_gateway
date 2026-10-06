@@ -516,13 +516,50 @@ html:not(.dark) .admin-toast {
     min-height: 100dvh !important;
   }
 
+  /* Clean, collision-free topbars on mobile */
+  .topbar-desktop-only,
+  .topbar-btn-label,
+  .admin-btn-label {
+    display: none !important;
+  }
+
+  .topbar-btn-short-label {
+    display: inline !important;
+  }
+
   .admin-topbar {
-    padding: 10px 14px !important;
+    padding: 10px 12px !important;
+    padding-top: max(10px, env(safe-area-inset-top, 0px)) !important;
+    flex-wrap: nowrap !important;
+    min-height: 56px !important;
   }
 
   .admin-topbar-actions {
-    width: 100%;
-    margin-top: 4px;
+    width: auto !important;
+    margin-top: 0 !important;
+    flex-shrink: 0 !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .admin-topbar-secondary-link {
+    display: none !important;
+  }
+
+  .admin-superadmin-badge {
+    display: none !important;
+  }
+
+  .admin-profile-chip {
+    padding-left: 4px !important;
+    border-left: none !important;
+  }
+
+  .topbar-profile-chip {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    border-left: none !important;
+    border-right: none !important;
   }
 
   .admin-portal-content {
@@ -597,22 +634,16 @@ html:not(.dark) .admin-toast {
 }
 
 @media (min-width: 769px) {
+  .topbar-btn-short-label {
+    display: none !important;
+  }
+
   .admin-sidebar-mobile-drawer {
     display: none !important;
   }
 
   .admin-mobile-backdrop {
     display: none !important;
-  }
-}
-
-@media (max-width: 560px) {
-  .admin-topbar-secondary-link {
-    display: none !important;
-  }
-
-  .admin-topbar-actions {
-    gap: 6px !important;
   }
 }
 
