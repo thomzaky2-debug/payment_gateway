@@ -101,15 +101,19 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
     }
   };
 
-  const cardStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
-    backgroundColor: isDark ? '#111827' : '#ffffff',
-    borderRadius: '16px',
-    border: `1px solid ${borderColor}`,
-    boxShadow: isDark
-      ? '0 10px 25px -5px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.25)'
-      : '0 4px 16px rgba(0,0,0,0.05)',
-    ...extra,
-  });
+  const cardStyle = (extra?: React.CSSProperties): React.CSSProperties => {
+    const { padding, borderRadius, ...rest } = extra || {};
+    return {
+      backgroundColor: isDark ? '#111827' : '#ffffff',
+      borderRadius: borderRadius || '14px',
+      border: `1px solid ${borderColor}`,
+      boxShadow: isDark
+        ? '0 10px 25px -5px rgba(0,0,0,0.4), 0 8px 10px -6px rgba(0,0,0,0.25)'
+        : '0 4px 16px rgba(0,0,0,0.05)',
+      padding: padding ? (typeof padding === 'string' && padding.includes('clamp') ? padding : 'clamp(12px, 3.5vw, 22px)') : 'clamp(12px, 3.5vw, 22px)',
+      ...rest,
+    };
+  };
 
   const codeBox = (extra?: React.CSSProperties): React.CSSProperties => ({
     backgroundColor: isDark ? '#070b14' : '#0f172a',
@@ -583,10 +587,10 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  padding: '9px 16px',
-                  borderRadius: '10px',
-                  fontSize: '12.5px',
+                  gap: '6px',
+                  padding: '7px 12px',
+                  borderRadius: '8px',
+                  fontSize: '11.5px',
                   fontWeight: isActive ? 700 : 500,
                   cursor: 'pointer',
                   border: 'none',
@@ -598,7 +602,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                   transition: 'all 0.2s ease',
                 }}
               >
-                <Icon size={15} />
+                <Icon size={13} />
                 {tab.label}
               </button>
             );

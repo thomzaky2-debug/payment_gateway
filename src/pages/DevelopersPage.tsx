@@ -42,16 +42,20 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   const textMuted = isDark ? '#64748b' : '#94a3b8';
   const accent = '#38bdf8';
 
-  const card = (extra?: React.CSSProperties): React.CSSProperties => ({
-    backgroundColor: isDark ? '#111827' : '#ffffff',
-    borderRadius: '20px',
-    border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
-    boxShadow: isDark
-      ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
-      : '0 4px 16px rgba(0,0,0,0.06)',
-    transition: 'all 0.3s ease',
-    ...extra,
-  });
+  const card = (extra?: React.CSSProperties): React.CSSProperties => {
+    const { padding, borderRadius, ...rest } = extra || {};
+    return {
+      backgroundColor: isDark ? '#111827' : '#ffffff',
+      borderRadius: borderRadius || '16px',
+      border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+      boxShadow: isDark
+        ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
+        : '0 4px 16px rgba(0,0,0,0.06)',
+      padding: padding || 'clamp(12px, 3.5vw, 22px)',
+      transition: 'all 0.3s ease',
+      ...rest,
+    };
+  };
 
   const subcard = (extra?: React.CSSProperties): React.CSSProperties => ({
     backgroundColor: isDark ? '#162033' : '#f8fafc',
@@ -217,46 +221,48 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
     iconColor: string;
     valueColor: string;
   }) => (
-    <div style={{ ...card({ padding: '24px', marginBottom: '20px' }) }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div style={{ ...card({ padding: 'clamp(12px, 3.5vw, 20px)', marginBottom: '16px' }) }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
-            width: '42px', height: '42px', borderRadius: '12px',
+            width: '36px', height: '36px', borderRadius: '10px',
             background: iconBg,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: `0 4px 12px ${iconColor}30`,
+            flexShrink: 0,
           }}>
             {icon}
           </div>
           <div>
-            <h3 style={{ fontSize: '15px', fontWeight: 700, color: textPrimary, margin: 0 }}>{label}</h3>
-            <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", letterSpacing: '-0.2px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, color: textPrimary, margin: 0 }}>{label}</h3>
+            <p style={{ fontSize: '11px', color: textSecondary, margin: '2px 0 0 0', fontFamily: "'JetBrains Mono', 'Fira Code', monospace", letterSpacing: '-0.2px' }}>
               {sublabel}
             </p>
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'stretch' }}>
         <div style={{
           flex: 1,
           ...terminalBg,
-          padding: '14px 18px',
+          padding: '9px 12px',
           fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-          fontSize: '13px',
+          fontSize: '11.5px',
           color: valueColor,
           overflowX: 'auto',
           display: 'flex',
           alignItems: 'center',
-          letterSpacing: show ? '0.3px' : '2px',
+          letterSpacing: show ? '0.2px' : '1.5px',
           transition: 'letter-spacing 0.2s ease',
+          wordBreak: 'break-all',
         }}>
-          {show ? value : '•'.repeat(40)}
+          {show ? value : '•'.repeat(28)}
         </div>
         <button
           onClick={() => setShow(!show)}
           style={{
-            padding: '12px 14px',
+            padding: '8px 10px',
             ...subcard(),
             border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
             cursor: 'pointer',
@@ -264,28 +270,33 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
             alignItems: 'center',
             justifyContent: 'center',
             color: textSecondary,
+            borderRadius: '8px',
             transition: 'all 0.2s',
           }}
           title={show ? (isRtl ? 'إخفاء' : 'Hide') : (isRtl ? 'إظهار' : 'Show')}
         >
-          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+          {show ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
         <button
           onClick={onCopy}
           style={{
-            padding: '12px 14px',
-            ...subcard(),
-            border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+            padding: '8px 12px',
+            borderRadius: '8px',
+            backgroundColor: isCopied ? '#10b981' : (isDark ? '#2563eb' : '#3b82f6'),
+            color: '#ffffff',
+            border: 'none',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: isCopied ? '#34d399' : textSecondary,
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: 600,
             transition: 'all 0.2s',
           }}
           title={isRtl ? 'نسخ' : 'Copy'}
         >
-          {isCopied ? <Check size={16} /> : <Copy size={16} />}
+          {isCopied ? <Check size={14} /> : <Copy size={14} />}
+          <span>{isCopied ? (isRtl ? 'تم' : 'Done') : (isRtl ? 'نسخ' : 'Copy')}</span>
         </button>
       </div>
     </div>
@@ -382,13 +393,13 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
           ? 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(6,182,212,0.08))'
           : 'linear-gradient(135deg, #2563eb, #0ea5e9)',
         border: isDark ? '1px solid rgba(37,99,235,0.25)' : 'none',
-        padding: '28px 32px',
-        marginBottom: '24px',
+        padding: 'clamp(14px, 3.5vw, 24px)',
+        marginBottom: '20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '20px',
+        gap: '14px',
         overflow: 'hidden',
         position: 'relative',
       }}>
@@ -397,21 +408,22 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         <div style={{ position: 'absolute', bottom: '-40px', right: isRtl ? 'auto' : '80px', left: isRtl ? '80px' : 'auto', width: '140px', height: '140px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
         <div style={{ position: 'absolute', top: '10px', left: isRtl ? 'auto' : '40%', right: isRtl ? '40%' : 'auto', width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.03)' }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', position: 'relative', zIndex: 1, minWidth: 0, flex: 1 }}>
           <div style={{
-            width: '64px', height: '64px', borderRadius: '18px',
+            width: '42px', height: '42px', borderRadius: '12px',
             background: isDark ? 'rgba(37,99,235,0.25)' : 'rgba(255,255,255,0.2)',
             backdropFilter: 'blur(10px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: isDark ? '1px solid rgba(56,189,248,0.15)' : '1px solid rgba(255,255,255,0.25)',
+            flexShrink: 0,
           }}>
-            <Braces size={30} color={isDark ? '#38bdf8' : 'white'} />
+            <Braces size={22} color={isDark ? '#38bdf8' : 'white'} />
           </div>
-          <div>
-            <h3 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: isDark ? '#e0f2fe' : 'white' }}>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: isDark ? '#e0f2fe' : 'white' }}>
               {isRtl ? 'واجهة برمجة REST API' : 'REST API Integration'}
             </h3>
-            <p style={{ fontSize: '13px', color: isDark ? '#7dd3fc' : 'rgba(255,255,255,0.85)', margin: '6px 0 0 0', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '12px', color: isDark ? '#7dd3fc' : 'rgba(255,255,255,0.85)', margin: '4px 0 0 0', lineHeight: 1.45 }}>
               {isRtl
                 ? 'إنشاء جلسات دفع، تلقي ردود الويب هوك، والتحقق من حالة المعاملات برمجياً.'
                 : 'Create checkout sessions, receive webhook callbacks, and verify transaction status programmatically.'}
@@ -420,24 +432,24 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         </div>
 
         {/* Quick stats */}
-        <div style={{ display: 'flex', gap: '14px', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', gap: '8px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
           {[
             { label: 'API', value: settings?.apiKey ? (isRtl ? 'مُفعّل' : 'Active') : (isRtl ? 'معلّق' : 'Pending'), color: settings?.apiKey ? '#34d399' : '#fbbf24' },
             { label: 'Webhook', value: settings?.webhookSecret ? (isRtl ? 'مُهيّأ' : 'Configured') : (isRtl ? 'معلّق' : 'Pending'), color: settings?.webhookSecret ? '#34d399' : '#fbbf24' },
           ].map((s, i) => (
             <div key={i} style={{
-              padding: '12px 20px',
+              padding: '6px 12px',
               backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.15)',
-              borderRadius: '12px',
+              borderRadius: '8px',
               backdropFilter: 'blur(10px)',
               border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.2)',
               textAlign: 'center',
-              minWidth: '100px',
+              minWidth: '70px',
             }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.7)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.7)', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                 {s.label}
               </div>
-              <div style={{ fontSize: '14px', fontWeight: 800, color: s.color }}>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: s.color }}>
                 {s.value}
               </div>
             </div>
@@ -454,7 +466,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         setShow={setShowApiKey}
         copied={copiedKey}
         onCopy={() => handleCopy(apiKey, 'key')}
-        icon={<Key size={20} color="white" />}
+        icon={<Key size={18} color="white" />}
         iconBg="linear-gradient(135deg, #2563eb, #3b82f6)"
         iconColor="#2563eb"
         valueColor="#4ade80"
@@ -469,30 +481,31 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         setShow={setShowWebhookSecret}
         copied={copiedSecret}
         onCopy={() => handleCopy(webhookSecret, 'secret')}
-        icon={<Lock size={20} color="white" />}
+        icon={<Lock size={18} color="white" />}
         iconBg="linear-gradient(135deg, #d97706, #f59e0b)"
         iconColor="#d97706"
         valueColor="#fbbf24"
       />
 
       {/* ─── Two-column: Simulator + cURL ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 290px), 1fr))', gap: '16px', marginBottom: '20px' }}>
         {/* Simulator */}
-        <div style={{ ...card({ padding: '28px' }) }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '22px' }}>
+        <div style={{ ...card() }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
             <div style={{
-              width: '38px', height: '38px', borderRadius: '11px',
+              width: '34px', height: '34px', borderRadius: '10px',
               background: 'linear-gradient(135deg, #10b981, #059669)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+              flexShrink: 0,
             }}>
-              <Zap size={18} color="white" />
+              <Zap size={16} color="white" />
             </div>
             <div>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: textPrimary, margin: 0 }}>
                 {isRtl ? 'محاكي الدفع التفاعلي' : 'Checkout Simulator'}
               </h3>
-              <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+              <p style={{ fontSize: '11.5px', color: textSecondary, margin: '2px 0 0 0' }}>
                 {isRtl ? 'إنشاء جلسات دفع تجريبية مباشرة' : 'Generate real checkout sessions directly'}
               </p>
             </div>
@@ -665,22 +678,23 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         </div>
 
         {/* cURL Quick Start */}
-        <div style={{ ...card({ padding: '28px' }) }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ ...card() }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{
-                width: '38px', height: '38px', borderRadius: '11px',
+                width: '34px', height: '34px', borderRadius: '10px',
                 background: 'linear-gradient(135deg, #8b5cf6, #a78bfa)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 4px 12px rgba(139,92,246,0.3)',
+                flexShrink: 0,
               }}>
-                <Terminal size={18} color="white" />
+                <Terminal size={16} color="white" />
               </div>
               <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: textPrimary, margin: 0 }}>
                   {isRtl ? 'البدء السريع — cURL' : 'Quick Start — cURL'}
                 </h3>
-                <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                <p style={{ fontSize: '11.5px', color: textSecondary, margin: '2px 0 0 0' }}>
                   {isRtl ? 'إنشاء جلسة دفع عبر الطرفية' : 'Create checkout via terminal'}
                 </p>
               </div>
@@ -690,19 +704,19 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '10px',
+                gap: '4px',
+                padding: '6px 12px',
+                borderRadius: '8px',
                 border: 'none',
                 backgroundColor: isDark ? 'rgba(139,92,246,0.12)' : '#f5f3ff',
                 color: isDark ? '#a78bfa' : '#7c3aed',
-                fontSize: '12px',
+                fontSize: '11px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
             >
-              {copiedSnippet ? <Check size={13} /> : <Clipboard size={13} />}
+              {copiedSnippet ? <Check size={12} /> : <Clipboard size={12} />}
               {copiedSnippet ? (isRtl ? 'تم!' : 'Copied!') : (isRtl ? 'نسخ' : 'Copy')}
             </button>
           </div>
@@ -717,25 +731,25 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '10px 16px',
+              padding: '8px 12px',
               borderBottom: isDark ? '1px solid #1e293b' : '1px solid rgba(255,255,255,0.05)',
               backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.15)',
             }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
-              <span style={{ marginLeft: '10px', fontSize: '11px', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
+              <span style={{ marginLeft: '8px', fontSize: '10.5px', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
                 bash — checkout/create
               </span>
             </div>
             <pre style={{
-              padding: '18px 20px',
-              fontSize: '12px',
+              padding: '12px 14px',
+              fontSize: '11px',
               color: '#cbd5e1',
               fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
               margin: 0,
               overflowX: 'auto',
-              lineHeight: 1.7,
+              lineHeight: 1.6,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
             }}>
@@ -757,11 +771,11 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
           </div>
 
           {/* API Endpoints Reference */}
-          <div style={{ marginTop: '20px' }}>
-            <h4 style={{ fontSize: '13px', fontWeight: 700, color: textSecondary, marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ marginTop: '16px' }}>
+            <h4 style={{ fontSize: '12px', fontWeight: 700, color: textSecondary, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
               {isRtl ? 'نقاط النهاية المتاحة' : 'Available Endpoints'}
             </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {[
                 { method: 'POST', path: '/api/v1/checkout/create', desc: isRtl ? 'إنشاء جلسة دفع' : 'Create checkout session' },
                 { method: 'GET', path: '/api/v1/checkout/status', desc: isRtl ? 'التحقق من حالة الجلسة عبر المعرّف' : 'Check session status by sessionId' },
@@ -771,19 +785,20 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
                 <div
                   key={i}
                   style={{
-                    ...subcard({ padding: '10px 14px' }),
+                    ...subcard({ padding: '8px 12px' }),
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '10px',
+                    gap: '8px',
+                    flexWrap: 'wrap',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <span style={{
-                      fontSize: '10px',
+                      fontSize: '9.5px',
                       fontWeight: 800,
-                      padding: '3px 8px',
-                      borderRadius: '6px',
+                      padding: '2px 6px',
+                      borderRadius: '5px',
                       fontFamily: "'JetBrains Mono', monospace",
                       backgroundColor: ep.method === 'POST'
                         ? (isDark ? 'rgba(16,185,129,0.15)' : '#d1fae5')
@@ -794,11 +809,11 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
                     }}>
                       {ep.method}
                     </span>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: textPrimary, fontFamily: "'JetBrains Mono', monospace" }}>
+                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: textPrimary, fontFamily: "'JetBrains Mono', monospace" }}>
                       {ep.path}
                     </span>
                   </div>
-                  <span style={{ fontSize: '11px', color: textMuted }}>
+                  <span style={{ fontSize: '10.5px', color: textMuted }}>
                     {ep.desc}
                   </span>
                 </div>

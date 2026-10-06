@@ -788,20 +788,68 @@ html:not(.dark) .admin-toast {
   div[style*="borderRadius: 24px"],
   section[style*="border-radius: 20px"],
   article[style*="border-radius: 18px"],
-  article[style*="borderRadius: 18px"] {
-    padding: 10px 10px !important;
+  article[style*="borderRadius: 18px"],
+  div[style*="border-radius: 16px"],
+  div[style*="borderRadius: 16px"],
+  div[style*="border-radius: 15px"],
+  div[style*="borderRadius: 15px"],
+  div[style*="border-radius: 14px"],
+  div[style*="borderRadius: 14px"] {
+    padding: 10px 12px !important;
     border-radius: 10px !important;
   }
 
-  div[style*="border-radius: 16px"],
-  div[style*="borderRadius: 16px"],
-  div[style*="border-radius: 14px"],
-  div[style*="borderRadius: 14px"],
   div[style*="border-radius: 13px"],
   div[style*="borderRadius: 13px"],
   div[style*="border-radius: 12px"],
   div[style*="borderRadius: 12px"] {
     border-radius: 8px !important;
+  }
+
+  /* Override hardcoded desktop card padding on mobile */
+  div[style*="padding: 28px"],
+  div[style*="padding: '28px'"],
+  div[style*="padding: 24px"],
+  div[style*="padding: '24px'"],
+  div[style*="padding: 22px"],
+  div[style*="padding: '22px'"],
+  div[style*="padding: 20px"],
+  div[style*="padding: '20px'"] {
+    padding: 10px 12px !important;
+  }
+
+  /* Mini-size pre, code and monospace blocks */
+  pre,
+  pre[style*="padding"],
+  code {
+    font-size: 11px !important;
+    padding: 8px 10px !important;
+    border-radius: 7px !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Mini-size navigation tabs, subnavs and pills */
+  div[style*="overflowX: 'auto'"] button,
+  div[style*="overflow-x: auto"] button,
+  nav button,
+  .merchant-subnav button {
+    padding: 5px 9px !important;
+    font-size: 10.5px !important;
+    border-radius: 6px !important;
+    gap: 4px !important;
+  }
+
+  /* Mini-size status and tag badges */
+  span[style*="border-radius: 20px"],
+  span[style*="borderRadius: 20px"],
+  span[style*="border-radius: 12px"],
+  span[style*="borderRadius: 12px"],
+  span[style*="border-radius: 10px"],
+  span[style*="borderRadius: 10px"],
+  span[style*="border-radius: 6px"],
+  span[style*="borderRadius: 6px"] {
+    padding: 2px 6px !important;
+    font-size: 9.5px !important;
   }
 
   /* Hero Status Banners Shape & Spacing */
@@ -955,8 +1003,11 @@ html:not(.dark) .admin-toast {
   div[style*="max-width: 460px"],
   div[style*="maxWidth: '460px'"],
   div[style*="max-width: 520px"],
-  div[style*="maxWidth: '520px'"] {
-    padding: 14px 12px !important;
+  div[style*="maxWidth: '520px'"],
+  div[style*="position: fixed"] > div,
+  div[style*="position: 'fixed'"] > div {
+    max-width: calc(100vw - 16px) !important;
+    padding: 12px 14px !important;
     border-radius: 12px !important;
   }
 
@@ -964,9 +1015,12 @@ html:not(.dark) .admin-toast {
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
-    font-size: 12px !important;
+    font-size: 11px !important;
     padding-top: 5px !important;
     padding-bottom: 5px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    border-radius: 6px !important;
   }
 }
 
