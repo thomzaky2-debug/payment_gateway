@@ -3,6 +3,8 @@ import { db } from '../db.js'
 import { generateMerchantKeys } from '../services/authService.js'
 import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
+import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
+import { sendInternalError } from '../lib/safeError.js'
 
 export const settingsRouter = Router()
 
@@ -25,14 +27,14 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
         instapayHandle: client.instapayHandle,
         instapayPaymentUrl: client.instapayPaymentUrl,
         webhookUrl: client.webhookUrl,
-        webhookSecret: client.webhookSecret,
+        webhookSecret: decryptCredential(client.webhookSecret),
         checkoutTtlMin: client.checkoutTtlMin,
         autoAcceptOverpaid: client.autoAcceptOverpaid ?? true,
         overpaidMaxExcessEgp: client.overpaidMaxExcessEgp ?? 100.0,
         underpaidToleranceEnabled: client.underpaidToleranceEnabled ?? false,
         underpaidToleranceEgp: client.underpaidToleranceEgp ?? 5.0,
-        apiKey: client.apiKey,
-        detectToken: client.detectToken,
+        apiKey: decryptCredential(client.apiKey),
+        detectToken: decryptCredential(client.detectToken),
         subscriptionPlan: client.subscriptionPlan,
         isFreeTrial: client.isFreeTrial,
         txLimit: client.txLimit,
@@ -41,11 +43,7 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
       devices,
     })
   } catch (err: unknown) {
-    const error = err as Error
-    console.error('[settings] Error:', error)
-    const isProd = process.env.NODE_ENV === 'production'
-    const message = isProd ? 'Internal server error' : (error.message || 'Internal server error')
-    return res.status(500).json({ ok: false, error: message })
+    return sendInternalError(res, err, 'Failed to retrieve settings')
   }
 })
 
@@ -160,8 +158,7 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
 
     return res.json({ ok: true, settings: updated })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to update settings')
   }
 })
 
@@ -175,9 +172,9 @@ settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: R
     const updated = await db.client.update({
       where: { id: client.id },
       data: {
-        apiKey: keys.apiKey,
-        detectToken: keys.detectToken,
-        webhookSecret: keys.webhookSecret,
+        apiKey: encryptCredential(keys.apiKey),
+        detectToken: encryptCredential(keys.detectToken),
+        webhookSecret: encryptCredential(keys.webhookSecret),
         apiKeyHash: keys.apiKeyHash,
         detectTokenHash: keys.detectTokenHash,
         webhookSecretHash: keys.webhookSecretHash,
@@ -186,13 +183,12 @@ settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: R
 
     return res.json({
       ok: true,
-      apiKey: updated.apiKey,
-      detectToken: updated.detectToken,
-      webhookSecret: updated.webhookSecret,
+      apiKey: keys.apiKey,
+      detectToken: keys.detectToken,
+      webhookSecret: keys.webhookSecret,
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to rotate credentials')
   }
 })
 
@@ -241,7 +237,6 @@ settingsRouter.get('/audit-logs', requireMerchant, async (req: Request, res: Res
       devices,
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to retrieve audit logs')
   }
 })

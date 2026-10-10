@@ -18,6 +18,8 @@ import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
 import { confirmTransactionAsOwner } from '../services/settlementService.js'
 import { verifyTotp } from '../lib/totp.js'
 import { normalizeEmail } from '../lib/emailDelivery.js'
+import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
+import { sendInternalError } from '../lib/safeError.js'
 
 export const adminRouter = Router()
 
@@ -36,6 +38,7 @@ const adminAccountLimiter = createRateLimiterWithKey(
 )
 
 function safeAdminClient(client: any) {
+  if (!client) return client
   const {
     passwordHash: _passwordHash,
     apiKeyHash: _apiKeyHash,
@@ -43,7 +46,12 @@ function safeAdminClient(client: any) {
     webhookSecretHash: _webhookSecretHash,
     ...safe
   } = client
-  return safe
+  return {
+    ...safe,
+    apiKey: decryptCredential(safe.apiKey),
+    detectToken: decryptCredential(safe.detectToken),
+    webhookSecret: decryptCredential(safe.webhookSecret),
+  }
 }
 
 // ─── Admin Login ────────────────────────────────────────────────────
@@ -158,8 +166,7 @@ adminRouter.get('/stats', requireAdmin, async (_req: Request, res: Response) => 
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -184,8 +191,7 @@ adminRouter.get('/transactions', requireAdmin, async (req: Request, res: Respons
     })
     return res.json({ ok: true, transactions })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -225,10 +231,9 @@ adminRouter.get('/clients', requireAdmin, async (_req: Request, res: Response) =
         },
       },
     })
-    return res.json({ ok: true, clients })
+    return res.json({ ok: true, clients: clients.map(safeAdminClient) })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to retrieve merchants')
   }
 })
 
@@ -297,8 +302,7 @@ adminRouter.get('/clients/:id/overview', requireAdmin, async (req: Request, res:
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -324,8 +328,7 @@ adminRouter.patch('/clients/:id/access', requireAdmin, async (req: Request, res:
     })
     return res.json({ ok: true, client: safeAdminClient(client), revokedSessions })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -340,8 +343,7 @@ adminRouter.post('/clients/:id/revoke-sessions', requireAdmin, async (req: Reque
     })
     return res.json({ ok: true, revokedSessions })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -357,9 +359,9 @@ adminRouter.post('/clients/:id/rotate-keys', requireAdmin, async (req: Request, 
     const client = await db.client.update({
       where: { id },
       data: {
-        apiKey: keys.apiKey,
-        detectToken: keys.detectToken,
-        webhookSecret: keys.webhookSecret,
+        apiKey: encryptCredential(keys.apiKey),
+        detectToken: encryptCredential(keys.detectToken),
+        webhookSecret: encryptCredential(keys.webhookSecret),
         apiKeyHash: keys.apiKeyHash,
         detectTokenHash: keys.detectTokenHash,
         webhookSecretHash: keys.webhookSecretHash,
@@ -372,8 +374,7 @@ adminRouter.post('/clients/:id/rotate-keys', requireAdmin, async (req: Request, 
     })
     return res.json({ ok: true, client: safeAdminClient(client) })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to rotate merchant credentials')
   }
 })
 
@@ -387,24 +388,21 @@ adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res:
     }
 
     const keys = generateMerchantKeys()
-    const apiKey = existing.apiKey || keys.apiKey
-    const detectToken = existing.detectToken || keys.detectToken
-    const webhookSecret = existing.webhookSecret || keys.webhookSecret
-    const apiKeyHash = existing.apiKeyHash || keys.apiKeyHash
-    const detectTokenHash = existing.detectTokenHash || keys.detectTokenHash
-    const webhookSecretHash = existing.webhookSecretHash || keys.webhookSecretHash
+    const rawApiKey = decryptCredential(existing.apiKey) || keys.apiKey
+    const rawDetectToken = decryptCredential(existing.detectToken) || keys.detectToken
+    const rawWebhookSecret = decryptCredential(existing.webhookSecret) || keys.webhookSecret
 
     const client = await db.client.update({
       where: { id },
       data: {
         approvalStatus: 'APPROVED',
         isActive: true,
-        apiKey,
-        detectToken,
-        webhookSecret,
-        apiKeyHash,
-        detectTokenHash,
-        webhookSecretHash,
+        apiKey: encryptCredential(rawApiKey),
+        detectToken: encryptCredential(rawDetectToken),
+        webhookSecret: encryptCredential(rawWebhookSecret),
+        apiKeyHash: existing.apiKeyHash || keys.apiKeyHash,
+        detectTokenHash: existing.detectTokenHash || keys.detectTokenHash,
+        webhookSecretHash: existing.webhookSecretHash || keys.webhookSecretHash,
       },
     })
     await revokeAllMerchantSessions(client.id)
@@ -423,20 +421,19 @@ adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res:
     sendMerchantApprovalEmail({
       to: client.email,
       businessName: client.businessName,
-      apiKeyPrefix: apiKey.slice(0, 14) + '...',
+      apiKeyPrefix: rawApiKey.slice(0, 14) + '...',
     }).catch((err) => console.warn('[admin/approve] email error:', err))
 
     await db.auditLog.create({
       data: {
         action: 'APPROVE_MERCHANT',
-        details: `Approved merchant ${client.businessName} (${client.email}) and generated integration tokens (API key: ${apiKey.slice(0, 12)}..., detect token, webhook secret)`,
+        details: `Approved merchant ${client.businessName} (${client.email}) and generated integration tokens (API key: ${rawApiKey.slice(0, 12)}..., detect token, webhook secret)`,
       },
     })
 
     return res.json({ ok: true, client: safeAdminClient(client) })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to approve merchant')
   }
 })
 
@@ -463,8 +460,7 @@ adminRouter.post('/clients/:id/reject', requireAdmin, async (req: Request, res: 
 
     return res.json({ ok: true, client: safeAdminClient(client) })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to reject merchant')
   }
 })
 
@@ -492,7 +488,7 @@ adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: R
 
     // Deliver signed webhook to Merchant server
     if (settlement.newlyConfirmed && updated.client.webhookUrl) {
-      void forwardToClientWebhook(updated.client.id, updated.client.webhookUrl, updated.client.webhookSecret, {
+      void forwardToClientWebhook(updated.client.id, updated.client.webhookUrl, decryptCredential(updated.client.webhookSecret), {
         event: updated.purpose === 'SUBSCRIPTION' ? 'subscription.payment_confirmed' : 'payment.confirmed',
         clientId: updated.client.id,
         businessName: updated.client.businessName,
@@ -524,8 +520,7 @@ adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: R
     const { client: _client, ...safeTransaction } = updated
     return res.json({ ok: true, transaction: safeTransaction })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -539,8 +534,7 @@ adminRouter.get('/audit', requireAdmin, async (_req: Request, res: Response) => 
     })
     return res.json({ ok: true, logs })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -559,8 +553,7 @@ adminRouter.get('/webhooks', requireAdmin, async (_req: Request, res: Response) 
     })
     return res.json({ ok: true, logs })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -580,8 +573,7 @@ adminRouter.get('/plans', requireAdmin, async (_req: Request, res: Response) => 
       })),
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -677,8 +669,7 @@ adminRouter.patch('/plans', requireAdmin, async (req: Request, res: Response) =>
 
     return res.json({ ok: true, plan: updated })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -691,8 +682,7 @@ adminRouter.get('/trial', requireAdmin, async (_req: Request, res: Response) => 
     })
     return res.json({ ok: true, trialPlan })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -788,8 +778,7 @@ adminRouter.patch('/trial', requireAdmin, async (req: Request, res: Response) =>
       trialPlan: updated,
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -840,8 +829,7 @@ adminRouter.post('/clients/:id/plan', requireAdmin, async (req: Request, res: Re
 
     return res.json({ ok: true, client: safeAdminClient(updated) })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -855,8 +843,7 @@ adminRouter.get('/special-offers', requireAdmin, async (_req: Request, res: Resp
     })
     return res.json({ ok: true, offers })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -888,8 +875,7 @@ adminRouter.post('/special-offers', requireAdmin, async (req: Request, res: Resp
     await db.auditLog.create({ data: { action: 'CREATE_SPECIAL_OFFER', details: `Created "${title}" for ${client.businessName}: ${priceEgp} EGP, ${maxTransactions} txs, ${periodDays} days` } })
     return res.status(201).json({ ok: true, offer })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -926,8 +912,7 @@ adminRouter.patch('/special-offers/:id', requireAdmin, async (req: Request, res:
     await db.auditLog.create({ data: { action: 'UPDATE_SPECIAL_OFFER', details: `Updated special offer "${offer.title}" for ${existing.client.businessName}; status: ${offer.status}` } })
     return res.json({ ok: true, offer })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -954,8 +939,7 @@ adminRouter.get('/bundles', requireAdmin, async (_req: Request, res: Response) =
     })
     return res.json({ ok: true, bundles: catalog })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -981,7 +965,7 @@ adminRouter.post('/bundles', requireAdmin, async (req: Request, res: Response) =
   } catch (err: unknown) {
     const error = err as Error & { code?: string }
     if (error.code === 'P2002') return res.status(409).json({ ok: false, error: 'A bundle with this key already exists.' })
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to create top-up bundle')
   }
 })
 
@@ -1022,8 +1006,7 @@ adminRouter.patch('/bundles/:id', requireAdmin, async (req: Request, res: Respon
     await db.auditLog.create({ data: { action: 'UPDATE_TOPUP_BUNDLE', details: `Updated ${bundle.displayName}: ${bundle.priceEgp} EGP, ${bundle.extraTx} extra transactions, active: ${bundle.isActive}` } })
     return res.json({ ok: true, bundle })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -1072,7 +1055,6 @@ adminRouter.post('/notifications', requireAdmin, async (req: Request, res: Respo
 
     return res.json({ ok: true, count: targetClients.length, sentCount: targetClients.length })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
+import { sendInternalError } from '../lib/safeError.js'
 
 export const notificationRouter = Router()
 
@@ -21,8 +22,7 @@ notificationRouter.get('/', requireMerchant, async (req: Request, res: Response)
 
     return res.json({ ok: true, notifications, unreadCount })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to fetch notifications')
   }
 })
 
@@ -40,8 +40,7 @@ notificationRouter.post('/:id/read', requireMerchant, async (req: Request, res: 
 
     return res.json({ ok: true })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to update notification')
   }
 })
 
@@ -58,7 +57,6 @@ notificationRouter.post('/read-all', requireMerchant, async (req: Request, res: 
 
     return res.json({ ok: true })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to update notifications')
   }
 })

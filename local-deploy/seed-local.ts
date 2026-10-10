@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env.local') });
 
 import { db } from '../server/src/db.js';
 import { hashPassword, hashToken } from '../server/src/services/authService.js';
+import { encryptCredential } from '../server/src/lib/credentialCrypto.js';
 
 async function seedLocal() {
   console.log('🌱 Seeding local database for testing and verification...');
@@ -103,9 +104,9 @@ async function seedLocal() {
       instapayPaymentUrl: 'https://ipn.eg/S/mohammedshabana77/instapay/test',
       approvalStatus: 'APPROVED',
       isActive: true,
-      apiKey,
+      apiKey: encryptCredential(apiKey),
       apiKeyHash: hashToken(apiKey),
-      detectToken,
+      detectToken: encryptCredential(detectToken),
       detectTokenHash: hashToken(detectToken),
       subscriptionPlan: 'PRO',
       isFreeTrial: false,
@@ -126,9 +127,9 @@ async function seedLocal() {
       instapayPaymentUrl: 'https://ipn.eg/S/mohammedshabana77/instapay/test',
       approvalStatus: 'APPROVED',
       isActive: true,
-      apiKey,
+      apiKey: encryptCredential(apiKey),
       apiKeyHash: hashToken(apiKey),
-      detectToken,
+      detectToken: encryptCredential(detectToken),
       detectTokenHash: hashToken(detectToken),
       subscriptionPlan: 'PRO',
       isFreeTrial: false,

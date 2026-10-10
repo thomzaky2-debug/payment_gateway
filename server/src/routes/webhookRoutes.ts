@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { authenticateByDetectToken } from '../services/authService.js'
 import { processInstaPayNotification } from '../services/matcherService.js'
 import { getRequestIp } from '../middleware/authToken.js'
+import { safeErrorMessage } from '../lib/safeError.js'
 
 export const webhookRouter = Router()
 
@@ -53,11 +54,10 @@ webhookRouter.post('/instapay', async (req: Request, res: Response) => {
 
     return res.json(result)
   } catch (err: unknown) {
-    const error = err as Error
-    console.error('[webhook/instapay] Processing error:', error)
-    const isProd = process.env.NODE_ENV === 'production'
-    const isInternal = error.message?.includes('Prisma') || error.message?.includes('database') || error.message?.includes('connect')
-    const message = isProd || isInternal ? 'Notification processing failed' : (error.message || 'Notification processing failed')
-    return res.status(400).json({ ok: false, error: message })
+    console.error('[webhook/instapay] Processing error:', err)
+    return res.status(400).json({
+      ok: false,
+      error: safeErrorMessage(err, 'Notification processing failed'),
+    })
   }
 })

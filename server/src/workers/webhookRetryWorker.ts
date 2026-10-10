@@ -1,6 +1,11 @@
 import axios from 'axios'
+import http from 'http'
+import https from 'https'
+import net from 'net'
 import { db } from '../db.js'
 import { generateWebhookSignature } from '../services/webhookService.js'
+import { validateWebhookUrlDns } from '../lib/urlValidator.js'
+import { decryptCredential } from '../lib/credentialCrypto.js'
 
 let workerInterval: NodeJS.Timeout | null = null
 let isProcessing = false
@@ -37,8 +42,9 @@ async function retrySingleWebhook(log: {
     'X-Instapay-Retry-Count': nextAttemptNumber.toString(),
   }
 
-  if (log.client.webhookSecret) {
-    const signature = generateWebhookSignature(log.payload, log.client.webhookSecret, timestamp)
+  const rawSecret = decryptCredential(log.client.webhookSecret)
+  if (rawSecret) {
+    const signature = generateWebhookSignature(log.payload, rawSecret, timestamp)
     headers['X-Instapay-Signature'] = `v1=${signature}`
   }
 
@@ -46,20 +52,41 @@ async function retrySingleWebhook(log: {
   let responseBody: string | null = null
   let isSuccess = false
 
-  try {
-    const res = await axios.post(log.url, log.payload, {
-      headers,
-      timeout: 10000,
-      validateStatus: () => true,
-    })
-
-    statusCode = res.status
-    responseBody = typeof res.data === 'string' ? res.data.slice(0, 2048) : JSON.stringify(res.data).slice(0, 2048)
-    isSuccess = statusCode >= 200 && statusCode < 300
-  } catch (err: unknown) {
-    const error = err as Error
-    responseBody = error.message.slice(0, 1024)
+  // SSRF defense: validate destination and prevent DNS rebinding
+  const urlCheck = await validateWebhookUrlDns(log.url)
+  if (!urlCheck.valid) {
+    statusCode = 400
+    responseBody = `SSRF protection: ${urlCheck.error || 'Destination forbidden'}`
     isSuccess = false
+  } else {
+    try {
+      const pinnedIp = urlCheck.pinnedIp
+      const customLookup = pinnedIp
+        ? (_hostname: string, _opts: any, cb: (err: Error | null, address: string, family: number) => void) => {
+            cb(null, pinnedIp, net.isIPv6(pinnedIp) ? 6 : 4)
+          }
+        : undefined
+
+      const httpAgent = new http.Agent({ lookup: customLookup })
+      const httpsAgent = new https.Agent({ lookup: customLookup })
+
+      const res = await axios.post(log.url, log.payload, {
+        headers,
+        timeout: 10000,
+        maxRedirects: 0,
+        validateStatus: () => true,
+        httpAgent,
+        httpsAgent,
+      })
+
+      statusCode = res.status
+      responseBody = typeof res.data === 'string' ? res.data.slice(0, 2048) : JSON.stringify(res.data).slice(0, 2048)
+      isSuccess = statusCode >= 200 && statusCode < 300
+    } catch (err: unknown) {
+      const error = err as Error
+      responseBody = error.message.slice(0, 1024)
+      isSuccess = false
+    }
   }
 
   const nextAttemptAt =

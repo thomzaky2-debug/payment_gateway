@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { toEgpCents } from '../lib/money.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
+import { sendInternalError } from '../lib/safeError.js'
 
 export const bundleRouter = Router()
 
@@ -15,8 +16,7 @@ bundleRouter.get('/', async (_req: Request, res: Response) => {
     })
     return res.json({ ok: true, bundles })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to list bundles')
   }
 })
 
@@ -125,8 +125,7 @@ bundleRouter.post('/purchase', requireMerchant, async (req: Request, res: Respon
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to purchase bundle')
   }
 })
 
@@ -145,8 +144,7 @@ bundleRouter.get('/history', requireMerchant, async (req: Request, res: Response
 
     return res.json({ ok: true, purchases })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to retrieve bundle purchase history')
   }
 })
 
@@ -179,7 +177,6 @@ bundleRouter.get('/status/:sessionId', requireMerchant, async (req: Request, res
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to check bundle payment status')
   }
 })

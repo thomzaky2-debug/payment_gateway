@@ -4,6 +4,7 @@ import { toEgpCents, fromEgpCents, egpAmountFromRow } from '../lib/money.js'
 import { emitCheckoutUpdate } from './notificationService.js'
 import { forwardToClientWebhook } from './webhookService.js'
 import { confirmOrdinaryCheckout } from './settlementService.js'
+import { decryptCredential } from '../lib/credentialCrypto.js'
 import type { Client } from '@prisma/client'
 
 export interface ProcessNotificationInput {
@@ -202,22 +203,32 @@ export async function processInstaPayNotification(
   } catch (err: any) {
     if (err?.code !== 'P2002') throw err
     const existingEvent = await db.incomingPaymentEvent.findUnique({ where: { eventKey } })
-    return {
-      ok: true,
-      matched: existingEvent?.result === 'CONFIRMED',
-      duplicate: true,
-      reason: 'DUPLICATE_NOTIFICATION',
-      sessionId: existingEvent?.sessionId || undefined,
-      status: existingEvent?.result,
-      received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+
+    // If an earlier attempt ALREADY confirmed a checkout, reject as duplicate replay
+    if (existingEvent?.result === 'CONFIRMED') {
+      return {
+        ok: true,
+        matched: true,
+        duplicate: true,
+        reason: 'DUPLICATE_NOTIFICATION',
+        sessionId: existingEvent.sessionId || undefined,
+        status: 'CONFIRMED',
+        received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+      }
     }
+
+    // If previous attempt was UNMATCHED (e.g. offline detector retry before checkout was created),
+    // allow this retry to re-evaluate matching against currently pending checkouts
+    incomingEventId = existingEvent?.id || ''
   }
 
-  const finalizeIncomingEvent = (result: string, sessionId?: string) =>
-    db.incomingPaymentEvent.update({
+  const finalizeIncomingEvent = (result: string, sessionId?: string) => {
+    if (!incomingEventId) return Promise.resolve(null)
+    return db.incomingPaymentEvent.update({
       where: { id: incomingEventId },
       data: { result, sessionId: sessionId || null },
     }).catch(() => null)
+  }
 
   const now = new Date()
   const GRACE_PERIOD_MS = 30 * 60 * 1000 // 30 minutes grace period
@@ -381,7 +392,7 @@ export async function processInstaPayNotification(
         })
 
         if (client.webhookUrl) {
-          void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
+          void forwardToClientWebhook(client.id, client.webhookUrl, decryptCredential(client.webhookSecret), {
             event: 'payment.underpaid',
             clientId: client.id,
             businessName: client.businessName,
@@ -452,7 +463,7 @@ export async function processInstaPayNotification(
         })
 
         if (client.webhookUrl) {
-          void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
+          void forwardToClientWebhook(client.id, client.webhookUrl, decryptCredential(client.webhookSecret), {
             event: 'payment.overpaid',
             clientId: client.id,
             businessName: client.businessName,
@@ -528,7 +539,7 @@ export async function processInstaPayNotification(
 
   // 11. Deliver signed webhook callback to Merchant server
   if (client.webhookUrl) {
-    void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
+    void forwardToClientWebhook(client.id, client.webhookUrl, decryptCredential(client.webhookSecret), {
       event: 'payment.confirmed',
       clientId: client.id,
       businessName: client.businessName,

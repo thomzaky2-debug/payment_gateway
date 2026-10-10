@@ -5,6 +5,8 @@ import { forwardToClientWebhook } from '../services/webhookService.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
 import { canMerchantResolveTransaction } from '../policies/transactionPolicy.js'
 import { confirmOrdinaryCheckout } from '../services/settlementService.js'
+import { sendInternalError } from '../lib/safeError.js'
+import { decryptCredential } from '../lib/credentialCrypto.js'
 
 export const transactionRouter = Router()
 
@@ -51,8 +53,7 @@ transactionRouter.get('/', requireMerchant, async (req: Request, res: Response) 
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -98,8 +99,7 @@ transactionRouter.get('/stats', requireMerchant, async (req: Request, res: Respo
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -163,8 +163,7 @@ transactionRouter.get('/review-queue', requireMerchant, async (req: Request, res
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -205,8 +204,7 @@ transactionRouter.get('/export', requireMerchant, async (req: Request, res: Resp
     res.setHeader('Content-Disposition', `attachment; filename="transactions_${client.slug}.csv"`)
     return res.send(headers + rows)
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -278,7 +276,7 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
 
     // Deliver signed webhook to Merchant server if configured
     if (client.webhookUrl) {
-      void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
+      void forwardToClientWebhook(client.id, client.webhookUrl, decryptCredential(client.webhookSecret), {
         event: 'payment.confirmed',
         clientId: client.id,
         businessName: client.businessName,
@@ -307,8 +305,7 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
 
     return res.json({ ok: true, transaction: updated })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to manually confirm transaction')
   }
 })
 
@@ -324,8 +321,7 @@ transactionRouter.post('/review-queue/:id/dismiss', requireMerchant, async (req:
     })
     return res.json({ ok: true })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })
 
@@ -373,7 +369,6 @@ transactionRouter.post('/:sessionId/reject', requireMerchant, async (req: Reques
 
     return res.json({ ok: true, transaction: updated })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err)
   }
 })

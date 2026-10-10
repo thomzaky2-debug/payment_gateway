@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express'
 import { authenticateByApiKey } from '../services/authService.js'
 import { createCheckoutSession, getCheckoutSession } from '../services/checkoutService.js'
+import { sendInternalError } from '../lib/safeError.js'
+import { decryptCredential } from '../lib/credentialCrypto.js'
 
 export const v1CheckoutRouter = Router()
 
@@ -81,8 +83,7 @@ v1CheckoutRouter.get('/status', requireApiKey, async (req: Request, res: Respons
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to create checkout')
   }
 })
 
@@ -93,7 +94,7 @@ v1CheckoutRouter.get('/snippets', requireApiKey, (req: Request, res: Response) =
   const host = req.get('host') || 'localhost:3001'
   const protocol = req.protocol
   const baseUrl = `${protocol}://${host}`
-  const apiKey = client.apiKey || 'YOUR_API_KEY'
+  const apiKey = decryptCredential(client.apiKey) || 'YOUR_API_KEY'
 
   const curl = `curl -X POST ${baseUrl}/api/v1/checkout/create \\
   -H "Content-Type: application/json" \\

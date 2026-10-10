@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { getCheckoutSession } from '../services/checkoutService.js'
+import { sendInternalError } from '../lib/safeError.js'
 
 export const checkoutRouter = Router()
 
@@ -124,11 +125,7 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    console.error('[checkout/:sessionId] Error:', error)
-    const isProd = process.env.NODE_ENV === 'production'
-    const message = isProd ? 'Internal server error' : (error.message || 'Internal server error')
-    return res.status(500).json({ ok: false, error: message })
+    return sendInternalError(res, err, 'Failed to retrieve checkout session')
   }
 })
 
@@ -177,7 +174,6 @@ checkoutRouter.patch('/:sessionId/sender', async (req: Request, res: Response) =
       message: 'InstaPay account username updated successfully',
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to update sender account username')
   }
 })

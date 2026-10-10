@@ -1,3 +1,6 @@
+import http from 'http'
+import https from 'https'
+import net from 'net'
 import crypto from 'crypto'
 import axios from 'axios'
 import { db } from '../db.js'
@@ -78,11 +81,23 @@ export async function forwardToClientWebhook(
   let isSuccess = false
 
   try {
+    const pinnedIp = urlCheck.pinnedIp
+    const customLookup = pinnedIp
+      ? (_hostname: string, _opts: any, cb: (err: Error | null, address: string, family: number) => void) => {
+          cb(null, pinnedIp, net.isIPv6(pinnedIp) ? 6 : 4)
+        }
+      : undefined
+
+    const httpAgent = new http.Agent({ lookup: customLookup })
+    const httpsAgent = new https.Agent({ lookup: customLookup })
+
     const res = await axios.post(webhookUrl, bodyStr, {
       headers,
       timeout: 10000, // 10 second timeout
       maxRedirects: 0, // Strict SSRF defense: never follow redirects
       validateStatus: () => true, // capture all status codes
+      httpAgent,
+      httpsAgent,
     })
 
     statusCode = res.status

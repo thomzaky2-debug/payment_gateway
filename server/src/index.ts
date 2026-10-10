@@ -11,7 +11,8 @@ import path from 'path'
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
 import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanupWorker.js'
-import { syncApprovedMerchantsTokens } from './services/authService.js'
+import { syncApprovedMerchantsTokens, migratePlaintextCredentialsAtRest } from './services/authService.js'
+import { safeErrorMessage } from './lib/safeError.js'
 
 import { authRouter } from './routes/authRoutes.js'
 import { webhookRouter } from './routes/webhookRoutes.js'
@@ -112,6 +113,7 @@ startOtpCleanupWorker(60 * 60 * 1000) // Cleanup expired OTPs every hour
 
 // ─── Auto-Sync Integration Tokens for Approved Merchants ───────────
 syncApprovedMerchantsTokens().catch((err) => console.warn('[Startup] Token sync warning:', err))
+migratePlaintextCredentialsAtRest().catch((err) => console.warn('[Startup] Credential migration warning:', err))
 
 // ─── API Routes ────────────────────────────────────────────────────
 
@@ -160,7 +162,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   console.error('[Global Error Handler]', err)
   res.status(err.status || 500).json({
     ok: false,
-    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message || 'Internal server error',
+    error: safeErrorMessage(err, 'Internal server error'),
   })
 })
 

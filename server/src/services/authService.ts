@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { db } from '../db.js'
+import { encryptCredential, decryptCredential, isCredentialEncrypted } from '../lib/credentialCrypto.js'
 import type { Client } from '@prisma/client'
 
 export const MERCHANT_SESSION_COOKIE_NAME = 'instapay_merchant_session'
@@ -448,18 +449,21 @@ export async function ensureMerchantIntegrationTokens(client: any): Promise<any>
 
   const generated = generateMerchantKeys()
   const updateData: Record<string, string> = {}
+  const rawApiKey = decryptCredential(client.apiKey) || (needsApiKey ? generated.apiKey : null)
+  const rawDetectToken = decryptCredential(client.detectToken) || (needsDetectToken ? generated.detectToken : null)
+  const rawWebhookSecret = decryptCredential(client.webhookSecret) || (needsWebhookSecret ? generated.webhookSecret : null)
 
-  if (needsApiKey) {
-    updateData.apiKey = client.apiKey || generated.apiKey
-    updateData.apiKeyHash = client.apiKey ? hashToken(client.apiKey) : generated.apiKeyHash
+  if (needsApiKey && rawApiKey) {
+    updateData.apiKey = encryptCredential(rawApiKey)!
+    updateData.apiKeyHash = hashToken(rawApiKey)
   }
-  if (needsDetectToken) {
-    updateData.detectToken = client.detectToken || generated.detectToken
-    updateData.detectTokenHash = client.detectToken ? hashToken(client.detectToken) : generated.detectTokenHash
+  if (needsDetectToken && rawDetectToken) {
+    updateData.detectToken = encryptCredential(rawDetectToken)!
+    updateData.detectTokenHash = hashToken(rawDetectToken)
   }
-  if (needsWebhookSecret) {
-    updateData.webhookSecret = client.webhookSecret || generated.webhookSecret
-    updateData.webhookSecretHash = client.webhookSecret ? hashToken(client.webhookSecret) : generated.webhookSecretHash
+  if (needsWebhookSecret && rawWebhookSecret) {
+    updateData.webhookSecret = encryptCredential(rawWebhookSecret)!
+    updateData.webhookSecretHash = hashToken(rawWebhookSecret)
   }
 
   const updatedClient = await db.client.update({
@@ -505,9 +509,80 @@ export async function syncApprovedMerchantsTokens(): Promise<number> {
     }
 
     console.info(`[authService] Successfully generated integration tokens for ${updatedCount} approved merchant(s).`)
+    await migratePlaintextCredentialsAtRest()
     return updatedCount
   } catch (err) {
     console.warn('[authService] Failed to sync approved merchant tokens:', err)
+    return 0
+  }
+}
+
+/**
+ * Migrates any stored merchant credentials from plaintext to AES-256-GCM envelope encryption at rest.
+ * Idempotent: Skips credentials already encrypted with the "enc:v1:" envelope.
+ */
+export async function migratePlaintextCredentialsAtRest(): Promise<number> {
+  try {
+    const clients = await db.client.findMany({
+      where: {
+        OR: [
+          { apiKey: { not: null } },
+          { detectToken: { not: null } },
+          { webhookSecret: { not: null } },
+        ],
+      },
+    })
+
+    let migrated = 0
+    for (const client of clients) {
+      let needsUpdate = false
+      const updateData: Record<string, string> = {}
+
+      if (client.apiKey && !isCredentialEncrypted(client.apiKey)) {
+        const raw = client.apiKey
+        const encrypted = encryptCredential(raw)
+        if (encrypted) {
+          updateData.apiKey = encrypted
+          updateData.apiKeyHash = hashToken(raw)
+          needsUpdate = true
+        }
+      }
+
+      if (client.detectToken && !isCredentialEncrypted(client.detectToken)) {
+        const raw = client.detectToken
+        const encrypted = encryptCredential(raw)
+        if (encrypted) {
+          updateData.detectToken = encrypted
+          updateData.detectTokenHash = hashToken(raw)
+          needsUpdate = true
+        }
+      }
+
+      if (client.webhookSecret && !isCredentialEncrypted(client.webhookSecret)) {
+        const raw = client.webhookSecret
+        const encrypted = encryptCredential(raw)
+        if (encrypted) {
+          updateData.webhookSecret = encrypted
+          updateData.webhookSecretHash = hashToken(raw)
+          needsUpdate = true
+        }
+      }
+
+      if (needsUpdate) {
+        await db.client.update({
+          where: { id: client.id },
+          data: updateData,
+        })
+        migrated++
+      }
+    }
+
+    if (migrated > 0) {
+      console.info(`[authService] Migrated ${migrated} client credential records to AES-256-GCM encryption at rest.`)
+    }
+    return migrated
+  } catch (err) {
+    console.warn('[authService] Migration of credentials at rest warning:', err)
     return 0
   }
 }

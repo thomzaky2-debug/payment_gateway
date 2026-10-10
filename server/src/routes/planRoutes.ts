@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { toEgpCents } from '../lib/money.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
+import { sendInternalError } from '../lib/safeError.js'
 
 export const planRouter = Router()
 export const planCatalogRouter = Router()
@@ -134,8 +135,7 @@ planRouter.get('/special-offers', requireMerchant, async (req: Request, res: Res
     })
     return res.json({ ok: true, offers })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to list special offers')
   }
 })
 
@@ -317,8 +317,7 @@ planRouter.patch('/checkout/:sessionId/sender', requireMerchant, async (req: Req
       message: 'InstaPay account username updated successfully',
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to update InstaPay account handle')
   }
 })
 
@@ -348,7 +347,6 @@ planRouter.get('/status/:sessionId', requireMerchant, async (req: Request, res: 
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    return sendInternalError(res, err, 'Failed to check subscription status')
   }
 })
