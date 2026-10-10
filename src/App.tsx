@@ -335,7 +335,13 @@ function App() {
           confirmLabel={confirmDialog.confirmLabel}
           cancelLabel={confirmDialog.cancelLabel}
           variant={confirmDialog.variant}
-          onConfirm={confirmDialog.onConfirm}
+          onConfirm={async () => {
+            try {
+              await confirmDialog.onConfirm();
+            } finally {
+              closeConfirm();
+            }
+          }}
           onCancel={closeConfirm}
         />
       )}

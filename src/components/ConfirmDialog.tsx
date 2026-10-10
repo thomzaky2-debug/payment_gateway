@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertTriangle, ShieldAlert, Info, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, ShieldAlert, Info, X, RefreshCw } from 'lucide-react';
 
 interface ConfirmDialogProps {
   title: string;
@@ -7,7 +7,7 @@ interface ConfirmDialogProps {
   confirmLabel: string;
   cancelLabel: string;
   variant: 'danger' | 'warning' | 'info';
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -46,6 +46,16 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const config = variantConfig[variant];
   const Icon = config.Icon;
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    try {
+      await onConfirm();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div
@@ -69,7 +79,7 @@ export function ConfirmDialog({
           backgroundColor: 'rgba(0,0,0,0.5)',
           animation: 'fadeIn 0.2s ease-out',
         }}
-        onClick={onCancel}
+        onClick={loading ? undefined : onCancel}
       />
       <div
         style={{
@@ -85,6 +95,7 @@ export function ConfirmDialog({
       >
         <button
           onClick={onCancel}
+          disabled={loading}
           style={{
             position: 'absolute',
             top: '16px',
@@ -92,8 +103,9 @@ export function ConfirmDialog({
             padding: '4px',
             backgroundColor: 'transparent',
             border: 'none',
-            cursor: 'pointer',
+            cursor: loading ? 'not-allowed' : 'pointer',
             color: '#94a3b8',
+            opacity: loading ? 0.4 : 1,
           }}
           aria-label="Close dialog"
         >
@@ -126,6 +138,7 @@ export function ConfirmDialog({
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
           <button
             onClick={onCancel}
+            disabled={loading}
             style={{
               padding: '10px 20px',
               backgroundColor: '#f1f5f9',
@@ -134,13 +147,15 @@ export function ConfirmDialog({
               fontWeight: 500,
               borderRadius: '12px',
               border: 'none',
-              cursor: 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.5 : 1,
             }}
           >
             {cancelLabel}
           </button>
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
+            disabled={loading}
             style={{
               padding: '10px 20px',
               backgroundColor: config.buttonBg,
@@ -149,10 +164,15 @@ export function ConfirmDialog({
               fontWeight: 500,
               borderRadius: '12px',
               border: 'none',
-              cursor: 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
               boxShadow: `0 10px 15px -3px ${config.buttonBg}33`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              opacity: loading ? 0.7 : 1,
             }}
           >
+            {loading && <RefreshCw size={14} className="animate-spin" />}
             {confirmLabel}
           </button>
         </div>
@@ -160,3 +180,4 @@ export function ConfirmDialog({
     </div>
   );
 }
+
