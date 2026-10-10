@@ -1112,8 +1112,8 @@ html[dir="rtl"] .merchant-auth-input.has-icon-left.has-icon-right,
     border-radius: 12px !important;
   }
 
-  /* Inputs, selects, and textareas (except merchant auth forms) */
-  input:not([type="checkbox"]):not([type="radio"]):not(.merchant-auth-input):not(.merchant-otp-input),
+  /* Inputs, selects, and textareas (except merchant auth forms and dedicated search bars) */
+  input:not([type="checkbox"]):not([type="radio"]):not(.merchant-auth-input):not(.merchant-otp-input):not(.review-search-input):not(.transactions-search-input),
   select,
   textarea {
     font-size: 11px !important;
@@ -1451,73 +1451,12 @@ th, td {
     margin-bottom: 16px !important;
   }
 
-  .review-header-actions {
-    display: flex !important;
-    align-items: center !important;
+  .review-stats-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 8px !important;
-    width: 100% !important;
-  }
-
-  .review-header-actions button {
-    flex: 1 !important;
-    justify-content: center !important;
-  }
-
-  .review-hero-card {
-    padding: 16px 14px !important;
-    border-radius: 16px !important;
-    margin-bottom: 16px !important;
-    gap: 14px !important;
-  }
-
-  .review-hero-icon {
-    width: 44px !important;
-    height: 44px !important;
-    border-radius: 12px !important;
-  }
-
-  .review-hero-icon svg {
-    width: 22px !important;
-    height: 22px !important;
-  }
-
-  .review-hero-title {
-    font-size: 16px !important;
-  }
-
-  .review-hero-desc {
-    font-size: 11.5px !important;
-    line-height: 1.4 !important;
-  }
-
-  .review-hero-metrics {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
-    width: 100% !important;
-  }
-
-  .review-hero-metric-pill {
-    padding: 8px 10px !important;
-    min-width: 0 !important;
-    border-radius: 10px !important;
-  }
-
-  .review-guidance-card {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    padding: 12px 14px !important;
-    gap: 10px !important;
     margin-bottom: 16px !important;
   }
 
-  .review-guidance-btn {
-    width: 100% !important;
-    text-align: center !important;
-    justify-content: center !important;
-  }
-
-  /* Review Category Filter Touch Tabs */
   .review-categories-scroll {
     display: flex !important;
     gap: 6px !important;
@@ -1525,7 +1464,7 @@ th, td {
     -webkit-overflow-scrolling: touch !important;
     scrollbar-width: none !important;
     padding-bottom: 4px !important;
-    margin-bottom: 16px !important;
+    margin-bottom: 12px !important;
   }
 
   .review-categories-scroll::-webkit-scrollbar {
@@ -1533,74 +1472,67 @@ th, td {
   }
 
   .review-category-btn {
-    padding: 7px 11px !important;
-    font-size: 11.5px !important;
-    border-radius: 10px !important;
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    border-radius: 9px !important;
     flex-shrink: 0 !important;
   }
 
-  /* Review Transaction Card Android Redesign */
-  .review-tx-card {
-    border-radius: 16px !important;
-  }
-
-  .review-card-header {
-    display: flex !important;
+  .review-controls-row {
     flex-direction: column !important;
-    padding: 12px 14px !important;
+    align-items: stretch !important;
     gap: 10px !important;
   }
 
-  .review-card-identity {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: space-between !important;
+  .review-search-box {
     width: 100% !important;
-    gap: 8px !important;
   }
 
-  .review-card-amounts-grid {
-    display: grid !important;
-    grid-template-columns: repeat(3, 1fr) !important;
-    gap: 6px !important;
-    padding: 10px 12px !important;
-    background-color: rgba(0, 0, 0, 0.15) !important;
-    border-radius: 10px !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
+  .review-cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
   }
 
-  .review-card-meta-row {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 4px !important;
-    padding: 8px 14px !important;
-    font-size: 11px !important;
-  }
-
-  .review-card-actions {
-    display: flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-    padding: 10px 14px !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  .review-btn-confirm {
-    flex: 2 !important;
-    min-height: 42px !important;
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    justify-content: center !important;
-  }
-
-  .review-btn-reject {
-    flex: 1 !important;
-    min-height: 42px !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    justify-content: center !important;
+  .review-tx-card {
+    border-radius: 14px !important;
   }
 }
+
+/* ─── Manual Review Desktop & Global Layout ─── */
+.review-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .review-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.review-search-input {
+  padding-left: 36px !important;
+  padding-right: 12px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[dir="rtl"] .review-search-input {
+  padding-left: 12px !important;
+  padding-right: 36px !important;
+}
+
+.review-search-input:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2) !important;
+}
+
+.review-tx-card:hover {
+  border-color: rgba(56, 189, 248, 0.4) !important;
+}
+
+.review-stats-strip > div:hover {
+  border-color: rgba(56, 189, 248, 0.4) !important;
+}
+
 
