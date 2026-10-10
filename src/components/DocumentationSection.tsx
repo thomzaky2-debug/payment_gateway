@@ -26,7 +26,7 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedEndpoint, setSelectedEndpoint] = useState<'create' | 'status' | 'snippets'>('create');
   const [codeType, setCodeType] = useState<'webhook' | 'create'>('webhook');
-  const [selectedLang, setSelectedLang] = useState<'node' | 'python' | 'php'>('node');
+  const [selectedLang, setSelectedLang] = useState<'node' | 'python' | 'php' | 'go' | 'curl'>('node');
   const [selectedEvent, setSelectedEvent] = useState<'confirmed' | 'underpaid' | 'overpaid' | 'subscription'>('confirmed');
 
   // Interactive Webhook Signature Tester State
@@ -294,6 +294,95 @@ $tx = $data['transaction'] ?? [];
 http_response_code(200);
 echo json_encode(['received' => true]);`;
 
+  const goVerificationCode = `package main
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const webhookSecret = "${displayWebhookSecret}"
+
+func webhookHandler(w http.ResponseWriter, r *http.Request) {
+	sigHeader := r.Header.Get("X-Instapay-Signature")
+	tsHeader := r.Header.Get("X-Instapay-Timestamp")
+	if sigHeader == "" || tsHeader == "" {
+		http.Error(w, "Missing required signature headers", http.StatusBadRequest)
+		return
+	}
+
+	// 1. Anti-Replay: 300 second (5 min) tolerance window
+	timestamp, err := strconv.ParseInt(tsHeader, 10, 64)
+	if err != nil || math.Abs(float64(time.Now().Unix()-timestamp)) > 300 {
+		http.Error(w, "Timestamp outside 5-minute tolerance", http.StatusBadRequest)
+		return
+	}
+
+	// 2. Read raw unparsed body bytes
+	rawBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+		return
+	}
+
+	// 3. Compute HMAC-SHA256 over "<timestamp>.<rawBody>"
+	baseString := append([]byte(tsHeader+"."), rawBody...)
+	mac := hmac.New(sha256.New, []byte(webhookSecret))
+	mac.Write(baseString)
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+	incomingSig := strings.TrimPrefix(sigHeader, "v1=")
+
+	// 4. Constant-time comparison (prevents timing attacks)
+	if subtle.ConstantTimeCompare([]byte(incomingSig), []byte(expectedSig)) != 1 {
+		http.Error(w, "Signature mismatch", http.StatusUnauthorized)
+		return
+	}
+
+	// 5. Signature verified! Parse and process event idempotently
+	var payload map[string]interface{}
+	if err := json.Unmarshal(rawBody, &payload); err == nil {
+		fmt.Printf("Verified Event: %v\\n", payload["event"])
+	}
+
+	// Acknowledge receipt with 200 OK within 10 seconds
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(\`{"received":true}\`))
+}
+
+func main() {
+	http.HandleFunc("/api/webhook", webhookHandler)
+	fmt.Println("Listening for InstaPay webhooks on :8080...")
+	http.ListenAndServe(":8080", nil)
+}`;
+
+  const curlVerificationCode = `# Simulate an inbound signed webhook delivery to your local endpoint:
+TIMESTAMP=$(date +%s)
+SECRET="${displayWebhookSecret}"
+PAYLOAD='{"event":"payment.confirmed","transaction":{"sessionId":"cmt_test_8f1b2c","amountEgp":150.00,"status":"CONFIRMED","detectedRef":"REF20261010"}}'
+
+# Compute HMAC-SHA256 signature over "<timestamp>.<rawJsonBody>"
+SIG=$(echo -n "\${TIMESTAMP}.\${PAYLOAD}" | openssl dgst -sha256 -hmac "\${SECRET}" | sed 's/^.* //')
+
+# Dispatch webhook test request:
+curl -X POST "http://localhost:8080/api/webhook" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Instapay-Timestamp: \${TIMESTAMP}" \\
+  -H "X-Instapay-Signature: v1=\${SIG}" \\
+  -H "X-Instapay-Event-Id: evt_manual_test_01" \\
+  -d "\${PAYLOAD}"`;
+
   /* ──────────────── Checkout Creation Code Snippets ──────────────── */
   const nodeCreateCode = `import axios from 'axios';
 
@@ -391,6 +480,85 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
     $result = json_decode($response, true);
     return $result['checkout'];
 }`;
+
+  const goCreateCode = `package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"time"
+)
+
+const apiKey = "${displayApiKey}"
+const baseURL = "${baseUrl}"
+
+type CreateCheckoutRequest struct {
+	AmountEgp    float64 \`json:"amountEgp"\`
+	SenderHandle string  \`json:"senderHandle"\`
+	Note         string  \`json:"note"\`
+}
+
+type CheckoutResponse struct {
+	Ok       bool \`json:"ok"\`
+	Checkout struct {
+		SessionId   string  \`json:"sessionId"\`
+		CheckoutUrl string  \`json:"checkoutUrl"\`
+		DeepLinkUrl string  \`json:"deepLinkUrl"\`
+		AmountEgp   float64 \`json:"amountEgp"\`
+	} \`json:"checkout"\`
+}
+
+func createCheckout(amount float64, orderID string) (*CheckoutResponse, error) {
+	reqBody, _ := json.Marshal(CreateCheckoutRequest{
+		AmountEgp:    amount,
+		SenderHandle: "customer@instapay",
+		Note:         "Order #" + orderID,
+	})
+
+	req, err := http.NewRequest("POST", baseURL+"/api/v1/checkout/create", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result CheckoutResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func main() {
+	res, err := createCheckout(150.00, "1042")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Payment URL: %s\\n", res.Checkout.CheckoutUrl)
+}`;
+
+  const curlCreateCode = `# Create a new checkout session using cURL:
+curl -X POST "${baseUrl}/api/v1/checkout/create" \\
+  -H "Authorization: Bearer ${displayApiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "amountEgp": 150.00,
+    "senderHandle": "customer@instapay",
+    "note": "Order #1042"
+  }'
+
+# Query checkout status:
+# curl -X GET "${baseUrl}/api/v1/checkout/status?sessionId=cmt_..." \\
+#   -H "Authorization: Bearer ${displayApiKey}"`;
 
   /* ──────────────── Webhook Payloads ──────────────── */
   const webhookPayloadExamples = {
@@ -557,6 +725,32 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                   : (isRtl ? 'إدراج مفاتيحي الحقيقية في الكود' : 'Insert My Live Keys')}
               </span>
             </button>
+
+            <a
+              href="/api/docs/integration-guide"
+              target="_blank"
+              rel="noopener noreferrer"
+              download="InstaPay_Gateway_API_Integration_Guide.md"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 14px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                textDecoration: 'none',
+                cursor: 'pointer',
+                backgroundColor: isDark ? 'rgba(56,189,248,0.15)' : '#e0f2fe',
+                color: isDark ? '#38bdf8' : '#0284c7',
+                border: isDark ? '1px solid rgba(56,189,248,0.3)' : '1px solid #bae6fd',
+                transition: 'all 0.2s ease',
+              }}
+              title={isRtl ? 'تحميل دليل التكامل الشامل بصيغة Markdown' : 'Download Complete API Integration Guide (.md)'}
+            >
+              <ExternalLink size={14} />
+              <span>{isRtl ? 'دليل التكامل الشامل (.md)' : 'Full Integration Guide (.md)'}</span>
+            </a>
           </div>
         </div>
 
@@ -1469,6 +1663,8 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
                     { id: 'node', label: 'Node.js' },
                     { id: 'python', label: 'Python' },
                     { id: 'php', label: 'PHP' },
+                    { id: 'go', label: 'Go' },
+                    { id: 'curl', label: 'cURL (CLI)' },
                   ].map((l) => (
                     <button
                       key={l.id}
@@ -1492,9 +1688,20 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
 
               <button
                 onClick={() => {
-                  const code = codeType === 'webhook'
-                    ? (selectedLang === 'node' ? nodeVerificationCode : selectedLang === 'python' ? pythonVerificationCode : phpVerificationCode)
-                    : (selectedLang === 'node' ? nodeCreateCode : selectedLang === 'python' ? pythonCreateCode : phpCreateCode);
+                  let code = '';
+                  if (codeType === 'webhook') {
+                    if (selectedLang === 'node') code = nodeVerificationCode;
+                    else if (selectedLang === 'python') code = pythonVerificationCode;
+                    else if (selectedLang === 'php') code = phpVerificationCode;
+                    else if (selectedLang === 'go') code = goVerificationCode;
+                    else if (selectedLang === 'curl') code = curlVerificationCode;
+                  } else {
+                    if (selectedLang === 'node') code = nodeCreateCode;
+                    else if (selectedLang === 'python') code = pythonCreateCode;
+                    else if (selectedLang === 'php') code = phpCreateCode;
+                    else if (selectedLang === 'go') code = goCreateCode;
+                    else if (selectedLang === 'curl') code = curlCreateCode;
+                  }
                   copyToClipboard(code, `code_${codeType}_${selectedLang}`);
                 }}
                 style={{
@@ -1533,9 +1740,13 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
               {codeType === 'webhook' && selectedLang === 'node' && nodeVerificationCode}
               {codeType === 'webhook' && selectedLang === 'python' && pythonVerificationCode}
               {codeType === 'webhook' && selectedLang === 'php' && phpVerificationCode}
+              {codeType === 'webhook' && selectedLang === 'go' && goVerificationCode}
+              {codeType === 'webhook' && selectedLang === 'curl' && curlVerificationCode}
               {codeType === 'create' && selectedLang === 'node' && nodeCreateCode}
               {codeType === 'create' && selectedLang === 'python' && pythonCreateCode}
               {codeType === 'create' && selectedLang === 'php' && phpCreateCode}
+              {codeType === 'create' && selectedLang === 'go' && goCreateCode}
+              {codeType === 'create' && selectedLang === 'curl' && curlCreateCode}
             </pre>
           </div>
         </div>

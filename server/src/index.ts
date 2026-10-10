@@ -5,6 +5,8 @@ import express from 'express'
 import http from 'http'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
+import fs from 'fs'
+import path from 'path'
 
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
@@ -120,6 +122,16 @@ app.get('/api/health', (_req, res) => {
     service: 'InstaPay Gateway Backend',
     version: '2.0.0',
   })
+})
+
+app.get('/api/docs/integration-guide', (_req, res) => {
+  const guidePath = path.resolve(process.cwd(), 'docs/API_INTEGRATION_GUIDE.md')
+  if (fs.existsSync(guidePath)) {
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
+    res.setHeader('Content-Disposition', 'inline; filename="API_INTEGRATION_GUIDE.md"')
+    return res.sendFile(guidePath)
+  }
+  return res.status(404).json({ ok: false, error: 'Documentation file not found' })
 })
 
 app.use('/api/auth', authLimiter, authRouter)
