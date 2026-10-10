@@ -62,3 +62,32 @@ test('SSRF validator accepts valid public HTTPS destination and resolves IP', as
   assert.equal(res.valid, true)
   assert.equal(res.pinnedIp, '1.1.1.1')
 })
+
+test('Node 22 DNS customLookup compatibility supports { all: true } and scalar modes', (t, done) => {
+  const pinnedIp = '93.184.216.34'
+  const isIPv6 = false
+  const customLookup = (_hostname: string, opts: any, cb: any) => {
+    const family = isIPv6 ? 6 : 4
+    if (opts?.all) {
+      cb(null, [{ address: pinnedIp, family }])
+    } else {
+      cb(null, pinnedIp, family)
+    }
+  }
+
+  // Test Node 22 { all: true } invocation
+  customLookup('example.com', { all: true }, (err: any, addresses: any) => {
+    assert.equal(err, null)
+    assert.equal(Array.isArray(addresses), true)
+    assert.deepEqual(addresses, [{ address: '93.184.216.34', family: 4 }])
+
+    // Test standard/scalar invocation
+    customLookup('example.com', { all: false }, (err2: any, address: any, family: any) => {
+      assert.equal(err2, null)
+      assert.equal(address, '93.184.216.34')
+      assert.equal(family, 4)
+      done()
+    })
+  })
+})
+

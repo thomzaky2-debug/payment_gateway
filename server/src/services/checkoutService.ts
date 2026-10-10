@@ -62,17 +62,21 @@ async function runSerializableCheckout<T>(
   throw new Error('Checkout capacity is busy. Please retry your request.')
 }
 
+export class CheckoutValidationError extends Error {
+  status = 400
+}
+
 export async function createCheckoutSession(
   input: CreateCheckoutInput
 ): Promise<CheckoutResult> {
   const { client, amountEgp, note, purpose = 'CHECKOUT', subscriptionPlanName } = input
 
   if (!amountEgp || !Number.isFinite(amountEgp) || amountEgp <= 0) {
-    throw new Error('amountEgp must be a positive finite number')
+    throw new CheckoutValidationError('amountEgp must be a positive finite number')
   }
 
   if (amountEgp > 10_000_000) {
-    throw new Error('amountEgp exceeds the maximum allowed transaction limit (10,000,000 EGP)')
+    throw new CheckoutValidationError('amountEgp exceeds the maximum allowed transaction limit (10,000,000 EGP)')
   }
 
   const cleanAmountEgp = Math.round(amountEgp * 100) / 100
@@ -121,16 +125,16 @@ export async function createCheckoutSession(
         const freshClient = await transactionDb.client.findUnique({ where: { id: client.id } })
 
         if (!freshClient || freshClient.approvalStatus !== 'APPROVED' || !freshClient.isActive) {
-          throw new Error('Merchant account is inactive or not approved.')
+          throw new CheckoutValidationError('Merchant account is inactive or not approved.')
         }
         if (
           (freshClient.isFreeTrial || freshClient.subscriptionPlan === 'FREE_TRIAL') &&
           !freshClient.subscriptionEndsAt
         ) {
-          throw new Error('Activate your free trial before creating checkout sessions.')
+          throw new CheckoutValidationError('Activate your free trial before creating checkout sessions.')
         }
         if (freshClient.subscriptionEndsAt && freshClient.subscriptionEndsAt.getTime() < now.getTime()) {
-          throw new Error('Subscription expired. Please upgrade or renew your plan.')
+          throw new CheckoutValidationError('Subscription expired. Please upgrade or renew your plan.')
         }
 
         const activeReservations = await transactionDb.transaction.count({
@@ -143,7 +147,7 @@ export async function createCheckoutSession(
         })
         const usedAndReserved = freshClient.txCount + activeReservations
         if (usedAndReserved >= freshClient.txLimit) {
-          throw new Error(
+          throw new CheckoutValidationError(
             `Transaction limit reached (${freshClient.txCount} confirmed + ${activeReservations} pending / ${freshClient.txLimit}). Upgrade your plan.`
           )
         }

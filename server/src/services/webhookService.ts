@@ -83,8 +83,13 @@ export async function forwardToClientWebhook(
   try {
     const pinnedIp = urlCheck.pinnedIp
     const customLookup = pinnedIp
-      ? (_hostname: string, _opts: any, cb: (err: Error | null, address: string, family: number) => void) => {
-          cb(null, pinnedIp, net.isIPv6(pinnedIp) ? 6 : 4)
+      ? (_hostname: string, opts: any, cb: any) => {
+          const family = net.isIPv6(pinnedIp) ? 6 : 4
+          if (opts?.all) {
+            cb(null, [{ address: pinnedIp, family }])
+          } else {
+            cb(null, pinnedIp, family)
+          }
         }
       : undefined
 

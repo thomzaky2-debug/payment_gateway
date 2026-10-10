@@ -23,6 +23,8 @@ import {
 import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
 import { validateMerchantSignupEmail } from '../lib/emailValidation.js'
 import { clearMerchantSessionCookie, setMerchantSessionCookie } from '../lib/authCookies.js'
+import { decryptCredential } from '../lib/credentialCrypto.js'
+import { sendInternalError } from '../lib/safeError.js'
 import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
 
 export const authRouter = Router()
@@ -500,7 +502,7 @@ authRouter.post('/apk-login', credentialAttemptLimiter, async (req: Request, res
     return res.json({
       ok: true,
       ...(token ? { token } : {}),
-      detectToken: provisionedClient.detectToken,
+      detectToken: decryptCredential(provisionedClient.detectToken),
       client: {
         id: provisionedClient.id,
         businessName: provisionedClient.businessName,
@@ -515,8 +517,7 @@ authRouter.post('/apk-login', credentialAttemptLimiter, async (req: Request, res
       },
     })
   } catch (err) {
-    console.error('[auth/apk-login] error:', err)
-    return res.status(500).json({ ok: false, error: 'APK Login error' })
+    return sendInternalError(res, err, 'APK Login error')
   }
 })
 

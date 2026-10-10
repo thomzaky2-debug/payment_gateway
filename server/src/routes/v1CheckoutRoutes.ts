@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { authenticateByApiKey } from '../services/authService.js'
-import { createCheckoutSession, getCheckoutSession } from '../services/checkoutService.js'
+import { createCheckoutSession, getCheckoutSession, CheckoutValidationError } from '../services/checkoutService.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { decryptCredential } from '../lib/credentialCrypto.js'
 
@@ -42,11 +42,10 @@ v1CheckoutRouter.post('/create', requireApiKey, async (req: Request, res: Respon
       checkout,
     })
   } catch (err: unknown) {
-    const error = err as Error
-    console.error('[v1/checkout/create] Error:', error)
-    const isInternal = error.message?.includes('Prisma') || error.message?.includes('database') || error.message?.includes('connect')
-    const message = isInternal ? 'Unable to create checkout session' : (error.message || 'Invalid checkout request')
-    return res.status(400).json({ ok: false, error: message })
+    if (err instanceof CheckoutValidationError) {
+      return res.status(err.status).json({ ok: false, error: err.message })
+    }
+    return sendInternalError(res, err, 'Unable to create checkout session')
   }
 })
 
@@ -83,7 +82,7 @@ v1CheckoutRouter.get('/status', requireApiKey, async (req: Request, res: Respons
       },
     })
   } catch (err: unknown) {
-    return sendInternalError(res, err, 'Failed to create checkout')
+    return sendInternalError(res, err, 'Failed to retrieve checkout status')
   }
 })
 

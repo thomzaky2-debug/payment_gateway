@@ -33,6 +33,29 @@ function publicPlanWithOffer(plan: any, now = new Date()) {
   }
 }
 
+function safeMerchantClient(client: any) {
+  if (!client) return null
+  return {
+    id: client.id,
+    businessName: client.businessName,
+    businessType: client.businessType,
+    email: client.email,
+    slug: client.slug,
+    instapayHandle: client.instapayHandle,
+    instapayPaymentUrl: client.instapayPaymentUrl,
+    approvalStatus: client.approvalStatus,
+    isActive: client.isActive,
+    subscriptionPlan: client.subscriptionPlan,
+    subscriptionEndsAt: client.subscriptionEndsAt,
+    isFreeTrial: client.isFreeTrial,
+    txLimit: client.txLimit,
+    txCount: client.txCount,
+    checkoutTtlMin: client.checkoutTtlMin,
+    createdAt: client.createdAt,
+    updatedAt: client.updatedAt,
+  }
+}
+
 async function activateFreeTrial(client: any) {
   if (client.trialRedeemedAt || client.subscriptionEndsAt) {
     throw new PlanRequestError('You have already utilized your introductory Free Trial. Please choose a subscription tier.')
@@ -83,8 +106,10 @@ planCatalogRouter.get('/', async (_req: Request, res: Response) => {
     const now = new Date()
     return res.json({ ok: true, plans: plans.map((plan: any) => publicPlanWithOffer(plan, now)) })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(err instanceof PlanRequestError ? err.status : 500).json({ ok: false, error: error.message })
+    if (err instanceof PlanRequestError) {
+      return res.status(err.status).json({ ok: false, error: err.message })
+    }
+    return sendInternalError(res, err, 'Failed to list subscription plans')
   }
 })
 
@@ -116,11 +141,13 @@ planRouter.post('/trial/activate', requireMerchant, async (req: Request, res: Re
       ok: true,
       message: `Free trial activated successfully for ${periodDays} days with ${maxTransactions} transactions limit!`,
       plan: trialPlan,
-      client: updated,
+      client: safeMerchantClient(updated),
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(err instanceof PlanRequestError ? err.status : 500).json({ ok: false, error: error.message })
+    if (err instanceof PlanRequestError) {
+      return res.status(err.status).json({ ok: false, error: err.message })
+    }
+    return sendInternalError(res, err, 'Failed to activate free trial')
   }
 })
 
@@ -165,7 +192,7 @@ planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response
         isTrial: true,
         message: `Free trial activated successfully for ${periodDays} days (${maxTransactions} transactions limit)!`,
         plan: trialPlan,
-        client: updated,
+        client: safeMerchantClient(updated),
       })
     }
 
@@ -274,8 +301,10 @@ planRouter.post('/checkout', requireMerchant, async (req: Request, res: Response
       },
     })
   } catch (err: unknown) {
-    const error = err as Error
-    return res.status(err instanceof PlanRequestError ? err.status : 500).json({ ok: false, error: error.message })
+    if (err instanceof PlanRequestError) {
+      return res.status(err.status).json({ ok: false, error: err.message })
+    }
+    return sendInternalError(res, err, 'Failed to create subscription checkout')
   }
 })
 
