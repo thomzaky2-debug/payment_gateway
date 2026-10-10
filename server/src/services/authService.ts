@@ -365,23 +365,12 @@ export async function authenticateByApiKey(rawKey: string): Promise<Client | nul
   if (!cleanKey) return null
 
   const keyHash = hashToken(cleanKey)
-  // Try hashed lookup first
-  let client = await db.client.findFirst({
+  // Strict cryptographically hashed lookup
+  const client = await db.client.findFirst({
     where: { apiKeyHash: keyHash, isActive: true, approvalStatus: 'APPROVED' },
   })
 
-  // Fallback to legacy plaintext lookup if not yet migrated
-  if (!client) {
-    client = await db.client.findFirst({
-      where: { apiKey: cleanKey, isActive: true, approvalStatus: 'APPROVED' },
-    })
-    if (client && !client.apiKeyHash) {
-      await db.client.update({
-        where: { id: client.id },
-        data: { apiKeyHash: keyHash, apiKeyLastUsedAt: new Date() },
-      })
-    }
-  } else {
+  if (client) {
     // Record usage asynchronously
     void db.client.update({
       where: { id: client.id },
@@ -397,21 +386,12 @@ export async function authenticateByDetectToken(rawToken: string): Promise<Clien
   if (!cleanToken) return null
 
   const tokenHash = hashToken(cleanToken)
-  let client = await db.client.findFirst({
+  // Strict cryptographically hashed lookup
+  const client = await db.client.findFirst({
     where: { detectTokenHash: tokenHash, isActive: true, approvalStatus: 'APPROVED' },
   })
 
-  if (!client) {
-    client = await db.client.findFirst({
-      where: { detectToken: cleanToken, isActive: true, approvalStatus: 'APPROVED' },
-    })
-    if (client && !client.detectTokenHash) {
-      await db.client.update({
-        where: { id: client.id },
-        data: { detectTokenHash: tokenHash, detectTokenLastUsedAt: new Date() },
-      })
-    }
-  } else {
+  if (client) {
     void db.client.update({
       where: { id: client.id },
       data: { detectTokenLastUsedAt: new Date() },

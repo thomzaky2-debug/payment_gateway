@@ -55,6 +55,9 @@ webhookRouter.post('/instapay', async (req: Request, res: Response) => {
   } catch (err: unknown) {
     const error = err as Error
     console.error('[webhook/instapay] Processing error:', error)
-    return res.status(400).json({ ok: false, error: error.message || 'Notification processing failed' })
+    const isProd = process.env.NODE_ENV === 'production'
+    const isInternal = error.message?.includes('Prisma') || error.message?.includes('database') || error.message?.includes('connect')
+    const message = isProd || isInternal ? 'Notification processing failed' : (error.message || 'Notification processing failed')
+    return res.status(400).json({ ok: false, error: message })
   }
 })

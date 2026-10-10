@@ -37,15 +37,41 @@ function totpAt(secret: Buffer, counter: number): string {
   return String(binary % 1_000_000).padStart(6, '0')
 }
 
+// Tracks consumed TOTP counters to prevent replay attacks within the 90-second window.
+const consumedTotpCounters = new Map<string, number>()
+
+function pruneConsumedCounters(nowMs: number) {
+  for (const [key, expiresAt] of consumedTotpCounters.entries()) {
+    if (expiresAt <= nowMs) {
+      consumedTotpCounters.delete(key)
+    }
+  }
+}
+
 export function verifyTotp(code: unknown, base32Secret: string, nowMs = Date.now()): boolean {
   if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return false
   const secret = decodeBase32(base32Secret)
   if (!secret || secret.length < 10) return false
 
+  pruneConsumedCounters(nowMs)
+
+  const secretFingerprint = crypto.createHash('sha256').update(secret).digest('hex').slice(0, 16)
   const counter = Math.floor(nowMs / 30_000)
+
   for (let drift = -1; drift <= 1; drift += 1) {
-    const expected = totpAt(secret, counter + drift)
-    if (crypto.timingSafeEqual(Buffer.from(code), Buffer.from(expected))) return true
+    const targetCounter = counter + drift
+    const replayKey = `${secretFingerprint}:${targetCounter}`
+
+    if (consumedTotpCounters.has(replayKey)) {
+      continue // Reject replayed TOTP within the active window
+    }
+
+    const expected = totpAt(secret, targetCounter)
+    if (crypto.timingSafeEqual(Buffer.from(code), Buffer.from(expected))) {
+      // Mark step consumed for 180 seconds (exceeds drift window)
+      consumedTotpCounters.set(replayKey, nowMs + 180_000)
+      return true
+    }
   }
   return false
 }

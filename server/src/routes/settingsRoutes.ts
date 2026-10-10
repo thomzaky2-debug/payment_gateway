@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { generateMerchantKeys } from '../services/authService.js'
-import { validateWebhookUrl } from '../lib/urlValidator.js'
+import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
 
 export const settingsRouter = Router()
@@ -42,7 +42,10 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
     })
   } catch (err: unknown) {
     const error = err as Error
-    return res.status(500).json({ ok: false, error: error.message })
+    console.error('[settings] Error:', error)
+    const isProd = process.env.NODE_ENV === 'production'
+    const message = isProd ? 'Internal server error' : (error.message || 'Internal server error')
+    return res.status(500).json({ ok: false, error: message })
   }
 })
 
@@ -66,7 +69,7 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
 
     const cleanWebhookUrl = webhookUrl !== undefined ? webhookUrl?.trim() || null : undefined
     if (cleanWebhookUrl) {
-      const check = validateWebhookUrl(cleanWebhookUrl)
+      const check = await validateWebhookUrlDns(cleanWebhookUrl)
       if (!check.valid) {
         return res.status(400).json({ ok: false, error: check.error })
       }

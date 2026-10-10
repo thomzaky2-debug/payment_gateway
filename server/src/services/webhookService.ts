@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import axios from 'axios'
 import { db } from '../db.js'
-import { validateWebhookUrl } from '../lib/urlValidator.js'
+import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.js'
 
 export interface WebhookPayload {
   event: string
@@ -50,8 +50,9 @@ export async function forwardToClientWebhook(
     return { success: false, error: 'No webhookUrl configured' }
   }
 
-  const urlCheck = validateWebhookUrl(webhookUrl)
+  const urlCheck = await validateWebhookUrlDns(webhookUrl)
   if (!urlCheck.valid) {
+    console.warn(`[webhook] Blocked SSRF attempt to ${webhookUrl}: ${urlCheck.error}`)
     return { success: false, error: `Invalid webhookUrl: ${urlCheck.error}` }
   }
 
@@ -80,6 +81,7 @@ export async function forwardToClientWebhook(
     const res = await axios.post(webhookUrl, bodyStr, {
       headers,
       timeout: 10000, // 10 second timeout
+      maxRedirects: 0, // Strict SSRF defense: never follow redirects
       validateStatus: () => true, // capture all status codes
     })
 

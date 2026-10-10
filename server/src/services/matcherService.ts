@@ -142,19 +142,47 @@ export async function processInstaPayNotification(
     throw new Error('notificationTimestamp must be a valid timestamp.')
   }
 
+  // ─── Enforce One Confirmed Checkout Per Bank Reference Per Client ───
+  if (reference) {
+    const existingConfirmedTx = await db.transaction.findFirst({
+      where: {
+        clientId: client.id,
+        detectedRef: reference,
+        status: 'CONFIRMED',
+      },
+    })
+    if (existingConfirmedTx) {
+      console.warn(`[matcher] Replay blocked: Bank reference "${reference}" already confirmed session ${existingConfirmedTx.sessionId}`)
+      return {
+        ok: true,
+        matched: false,
+        duplicate: true,
+        reason: 'DUPLICATE_REFERENCE_ALREADY_CONFIRMED',
+        sessionId: existingConfirmedTx.sessionId,
+        received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+      }
+    }
+  }
+
   const sourceIdentity = (input.eventId || reference || '').trim()
   if (!sourceIdentity && !occurredAt) {
     throw new Error('A payment reference, eventId, or notificationTimestamp is required for replay protection.')
   }
+
+  // Deduplicate on bank reference when available to prevent replay attacks with changed timestamps
   const eventKey = crypto
     .createHash('sha256')
-    .update([
-      client.id,
-      sourceIdentity || 'timestamp-event',
-      senderHandle,
-      String(receivedAmountCents),
-      occurredAt?.toISOString() || '',
-    ].join('|'))
+    .update(
+      reference
+        ? [client.id, 'bank-ref', reference].join('|')
+        : [
+            client.id,
+            sourceIdentity || 'timestamp-event',
+            senderHandle,
+            String(receivedAmountCents),
+            occurredAt?.toISOString() || '',
+          ].join('|')
+    )
     .digest('hex')
 
   let incomingEventId: string
@@ -261,8 +289,27 @@ export async function processInstaPayNotification(
       },
     })
     if (potentialMatches.length === 1) {
-      match = potentialMatches[0]
-      console.log(`[matcher] Fallback matched exactly 1 checkout: ${match.sessionId}`)
+      const candidate = potentialMatches[0]
+      // Only match open checkouts where customer handle was not pre-assigned
+      if (candidate.senderHandle === 'pending@instapay') {
+        match = candidate
+        console.log(`[matcher] Fallback matched open checkout: ${match.sessionId}`)
+      } else {
+        // Cross-payer protection: Expected a specific sender but received from someone else
+        console.warn(`[matcher] Tier 4 mismatch: ${candidate.sessionId} expected ${candidate.senderHandle} but payment received from ${senderHandle}`)
+        try {
+          await db.mismatchedPayment.create({
+            data: {
+              clientId: client.id,
+              senderHandle,
+              amountEgp: receivedAmountRounded,
+              amountCents: receivedAmountCents,
+              reference,
+              status: 'SENDER_MISMATCH',
+            },
+          })
+        } catch {}
+      }
     }
   }
 

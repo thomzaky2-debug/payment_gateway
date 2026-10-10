@@ -25,3 +25,8 @@ local-deploy/*.log
 
 # Scratch scripts
 scratch/
+
+# Keystores & sensitive signing keys
+*.keystore
+*.jks
+apks/*.apk

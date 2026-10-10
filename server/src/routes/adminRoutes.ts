@@ -32,7 +32,7 @@ const adminAccountLimiter = createRateLimiterWithKey(
   15 * 60 * 1000,
   10,
   'Too many admin login attempts.',
-  () => 'platform-owner'
+  (req) => `${getRequestIp(req) || 'unknown'}:platform-owner`
 )
 
 function safeAdminClient(client: any) {

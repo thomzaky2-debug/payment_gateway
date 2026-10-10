@@ -41,7 +41,10 @@ v1CheckoutRouter.post('/create', requireApiKey, async (req: Request, res: Respon
     })
   } catch (err: unknown) {
     const error = err as Error
-    return res.status(400).json({ ok: false, error: error.message })
+    console.error('[v1/checkout/create] Error:', error)
+    const isInternal = error.message?.includes('Prisma') || error.message?.includes('database') || error.message?.includes('connect')
+    const message = isInternal ? 'Unable to create checkout session' : (error.message || 'Invalid checkout request')
+    return res.status(400).json({ ok: false, error: message })
   }
 })
 
