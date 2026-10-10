@@ -1535,4 +1535,126 @@ th, td {
   border-color: rgba(56, 189, 248, 0.4) !important;
 }
 
+/* ─── Security & Access Policies Button System ─── */
+.security-inline-form select,
+.security-inline-form input {
+  min-width: 0 !important;
+}
+
+.security-inline-form button {
+  flex-shrink: 0 !important;
+}
+
+.security-refresh-btn:hover:not(:disabled) {
+  background-color: rgba(51, 65, 85, 0.15) !important;
+  border-color: #38bdf8 !important;
+  transform: translateY(-1px);
+}
+
+.security-refresh-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+html.dark .security-refresh-btn:hover:not(:disabled) {
+  background-color: #334155 !important;
+  border-color: #38bdf8 !important;
+}
+
+.security-btn-enable-2fa:hover {
+  background-color: #059669 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.45) !important;
+}
+
+.security-btn-enable-2fa:active {
+  transform: translateY(0);
+}
+
+.security-btn-disable-2fa:hover {
+  background-color: rgba(239, 68, 68, 0.18) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+.security-btn-disable-2fa:active {
+  transform: translateY(0);
+}
+
+.security-btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.security-btn-primary:active {
+  transform: translateY(0);
+}
+
+.security-btn-revoke:hover {
+  background-color: rgba(239, 68, 68, 0.22) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  transform: translateY(-1px);
+}
+
+.security-btn-revoke:active {
+  transform: translateY(0);
+}
+
+.security-btn-revoke-all:hover {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+.security-btn-revoke-all:active {
+  transform: translateY(0);
+}
+
+.security-btn-add-ip:hover {
+  background-color: #047857 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.45) !important;
+}
+
+.security-btn-add-ip:active {
+  transform: translateY(0);
+}
+
+.security-btn-remove-ip:hover {
+  background-color: rgba(239, 68, 68, 0.25) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  transform: translateY(-1px);
+}
+
+.security-btn-remove-ip:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 640px) {
+  .security-header-actions {
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .security-header-actions > * {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .security-ip-form {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .security-ip-form input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .security-btn-add-ip {
+    width: 100% !important;
+  }
+}
+
 

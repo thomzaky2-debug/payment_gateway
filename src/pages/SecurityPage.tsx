@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Shield, Globe, Lock, Smartphone, CheckCircle2,
-  Plus, Trash2, RefreshCw, Clock, ShieldCheck, Terminal
+  Plus, Trash2, RefreshCw, Clock, ShieldCheck, Terminal,
+  ShieldOff, LogOut, Check, X
 } from 'lucide-react';
 import { settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -202,13 +203,14 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
         </div>
 
         {/* Header Actions & Live Last Synced Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="security-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <div style={{
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            padding: '8px 14px',
-            borderRadius: '12px',
+            height: '40px',
+            padding: '0 14px',
+            borderRadius: '11px',
             backgroundColor: isDark ? 'rgba(16,185,129,0.1)' : '#f0fdf4',
             border: isDark ? '1px solid rgba(16,185,129,0.25)' : '1px solid #bbf7d0',
             fontSize: '12px',
@@ -228,29 +230,36 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
           </div>
 
           <button
+            type="button"
             onClick={handleRefresh}
             disabled={refreshing}
+            className="security-refresh-btn"
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '8px',
-              padding: '10px 18px',
+              height: '40px',
+              padding: '0 18px',
               backgroundColor: isDark ? '#1e293b' : '#ffffff',
               border: `1px solid ${borderColor}`,
-              borderRadius: '12px',
-              fontSize: '13px',
+              borderRadius: '11px',
+              fontSize: '12.5px',
               fontWeight: 600,
               cursor: refreshing ? 'wait' : 'pointer',
               color: textPrimary,
-              transition: 'all 0.25s ease',
+              transition: 'all 0.2s ease',
               opacity: refreshing ? 0.7 : 1,
-              boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
+              boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.04)',
+              whiteSpace: 'nowrap',
             }}
           >
-            <RefreshCw size={15} style={refreshing ? { animation: 'spin 1s linear infinite' } : {}} />
-            {refreshing
-              ? (isRtl ? 'جاري التحديث...' : 'Refreshing...')
-              : (isRtl ? 'تحديث الحالة' : 'Refresh Status')}
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <span>
+              {refreshing
+                ? (isRtl ? 'جاري التحديث...' : 'Refreshing...')
+                : (isRtl ? 'تحديث الحالة' : 'Refresh Status')}
+            </span>
           </button>
         </div>
       </div>
@@ -381,30 +390,48 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
           </p>
 
           <button
+            type="button"
             onClick={() => {
               setTwoFAEnabled(!twoFAEnabled);
               showToast('success', twoFAEnabled
                 ? (isRtl ? 'تم تعطيل المصادقة الثنائية' : '2FA has been disabled')
                 : (isRtl ? 'تم تفعيل المصادقة الثنائية بنجاح' : '2FA has been enabled successfully'));
             }}
+            className={twoFAEnabled ? 'security-btn-disable-2fa' : 'security-btn-enable-2fa'}
             style={{
               width: '100%',
-              padding: '11px',
+              height: '42px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '0 16px',
               backgroundColor: twoFAEnabled
-                ? (isDark ? 'rgba(239,68,68,0.15)' : '#fef2f2')
-                : (isDark ? 'rgba(16,185,129,0.15)' : '#dcfce7'),
-              color: twoFAEnabled ? '#ef4444' : '#10b981',
+                ? (isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2')
+                : '#10b981',
+              color: twoFAEnabled ? '#ef4444' : '#ffffff',
               border: twoFAEnabled
-                ? (isDark ? '1px solid rgba(239,68,68,0.3)' : '1px solid #fecaca')
-                : (isDark ? '1px solid rgba(16,185,129,0.3)' : '1px solid #bbf7d0'),
+                ? (isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid #fecaca')
+                : 'none',
               fontSize: '13px',
               fontWeight: 700,
-              borderRadius: '10px',
+              borderRadius: '11px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
+              boxShadow: twoFAEnabled ? 'none' : '0 4px 12px rgba(16, 185, 129, 0.35)',
+              transition: 'all 0.2s ease',
             }}
           >
-            {twoFAEnabled ? (isRtl ? 'تعطيل المصادقة الثنائية' : 'Disable 2FA') : (isRtl ? 'تفعيل المصادقة الثنائية' : 'Enable 2FA')}
+            {twoFAEnabled ? (
+              <>
+                <ShieldOff size={16} />
+                <span>{isRtl ? 'تعطيل المصادقة الثنائية' : 'Disable Two-Factor Auth'}</span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck size={16} />
+                <span>{isRtl ? 'تفعيل المصادقة الثنائية' : 'Enable Two-Factor Auth'}</span>
+              </>
+            )}
           </button>
         </div>
 
@@ -435,16 +462,18 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
               : 'Terminates active dashboard sessions after the selected period of inactivity to prevent unattended access.'}
           </p>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="security-inline-form" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select
               value={sessionTimeout}
               onChange={(e) => setSessionTimeout(e.target.value)}
               style={{
                 flex: 1,
-                padding: '10px 14px',
+                minWidth: 0,
+                height: '42px',
+                padding: '0 12px',
                 backgroundColor: isDark ? '#162033' : '#f8fafc',
                 border: `1px solid ${borderColor}`,
-                borderRadius: '10px',
+                borderRadius: '11px',
                 fontSize: '13px',
                 fontWeight: 600,
                 color: textPrimary,
@@ -452,27 +481,37 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
               }}
             >
               <option value="15">{isRtl ? '15 دقيقة' : '15 minutes'}</option>
-              <option value="30">{isRtl ? '30 دقيقة (مستحسن)' : '30 minutes (Recommended)'}</option>
+              <option value="30">{isRtl ? '30 دقيقة (مستحسن)' : '30 mins (Recommended)'}</option>
               <option value="60">{isRtl ? 'ساعة واحدة' : '1 hour'}</option>
               <option value="120">{isRtl ? 'ساعتان' : '2 hours'}</option>
             </select>
 
             <button
+              type="button"
               onClick={() => showToast('success', isRtl ? 'تم تحديث مهلة الجلسة بنجاح' : 'Session timeout updated successfully')}
+              className="security-btn-primary"
               style={{
-                padding: '10px 18px',
+                height: '42px',
+                padding: '0 16px',
                 backgroundColor: '#2563eb',
                 color: 'white',
                 fontSize: '13px',
                 fontWeight: 700,
-                borderRadius: '10px',
+                borderRadius: '11px',
                 border: 'none',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                transition: 'all 0.2s',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                flexShrink: 0,
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+                transition: 'all 0.2s ease',
               }}
             >
-              {isRtl ? 'حفظ المهلة' : 'Update'}
+              <Check size={15} />
+              <span>{isRtl ? 'حفظ المهلة' : 'Update'}</span>
             </button>
           </div>
         </div>
@@ -504,7 +543,7 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
               : 'Restricts excessive API calls per minute from individual client IPs to prevent resource exhaustion and abuse.'}
           </p>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="security-inline-form" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <input
               type="number"
               min="10"
@@ -513,10 +552,12 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
               onChange={(e) => setRateLimit(e.target.value)}
               style={{
                 flex: 1,
-                padding: '10px 14px',
+                minWidth: 0,
+                height: '42px',
+                padding: '0 14px',
                 backgroundColor: isDark ? '#162033' : '#f8fafc',
                 border: `1px solid ${borderColor}`,
-                borderRadius: '10px',
+                borderRadius: '11px',
                 fontSize: '13px',
                 fontWeight: 600,
                 color: textPrimary,
@@ -525,21 +566,31 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
               }}
             />
             <button
+              type="button"
               onClick={() => showToast('success', isRtl ? `تم ضبط الحد إلى ${rateLimit} طلب/دقيقة` : `Rate limit set to ${rateLimit} req/min`)}
+              className="security-btn-primary"
               style={{
-                padding: '10px 18px',
+                height: '42px',
+                padding: '0 18px',
                 backgroundColor: '#7c3aed',
                 color: 'white',
                 fontSize: '13px',
                 fontWeight: 700,
-                borderRadius: '10px',
+                borderRadius: '11px',
                 border: 'none',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
-                transition: 'all 0.2s',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                flexShrink: 0,
+                boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                transition: 'all 0.2s ease',
               }}
             >
-              {isRtl ? 'تطبيق الحد' : 'Apply'}
+              <Check size={15} />
+              <span>{isRtl ? 'تطبيق الحد' : 'Apply'}</span>
             </button>
           </div>
         </div>
@@ -593,31 +644,45 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
 
                 {session.current ? (
                   <span style={{
-                    fontSize: '10px',
-                    fontWeight: 800,
+                    fontSize: '11px',
+                    fontWeight: 700,
                     color: '#10b981',
-                    backgroundColor: isDark ? 'rgba(16,185,129,0.2)' : '#dcfce7',
-                    padding: '2px 8px',
+                    backgroundColor: isDark ? 'rgba(16,185,129,0.18)' : '#dcfce7',
+                    border: isDark ? '1px solid rgba(16,185,129,0.3)' : '1px solid #bbf7d0',
+                    padding: '3px 10px',
                     borderRadius: '20px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
                   }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
                     {isRtl ? 'الجلسة الحالية' : 'Current'}
                   </span>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => {
                       setActiveSessions(activeSessions.filter(s => s.id !== session.id));
                       showToast('info', isRtl ? 'تم إلغاء الجلسة بنجاح' : 'Session terminated');
                     }}
+                    className="security-btn-revoke"
                     style={{
-                      fontSize: '11px',
-                      color: '#ef4444',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
                       fontWeight: 700,
+                      color: '#ef4444',
+                      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fee2e2',
+                      border: isDark ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid #fecaca',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
                     }}
                   >
-                    {isRtl ? 'إلغاء' : 'Revoke'}
+                    <X size={13} />
+                    <span>{isRtl ? 'إلغاء الجلسة' : 'Revoke'}</span>
                   </button>
                 )}
               </div>
@@ -626,21 +691,29 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
 
           {activeSessions.length > 1 && (
             <button
+              type="button"
               onClick={handleRevokeOtherSessions}
+              className="security-btn-revoke-all"
               style={{
                 width: '100%',
-                padding: '10px',
-                backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#fef2f2',
+                height: '42px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '0 16px',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fef2f2',
                 color: isDark ? '#f87171' : '#dc2626',
-                border: isDark ? '1px solid rgba(239,68,68,0.25)' : '1px solid #fecaca',
+                border: isDark ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid #fecaca',
                 fontSize: '13px',
                 fontWeight: 700,
-                borderRadius: '10px',
+                borderRadius: '11px',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'all 0.2s ease',
               }}
             >
-              {isRtl ? 'تسجيل الخروج من كافة الأجهزة الأخرى' : 'Revoke All Other Sessions'}
+              <LogOut size={15} />
+              <span>{isRtl ? 'تسجيل الخروج من كافة الأجهزة الأخرى' : 'Revoke All Other Sessions'}</span>
             </button>
           )}
         </div>
@@ -680,7 +753,7 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
         </div>
 
         {/* Add IP Form */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <div className="security-ip-form" style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
           <input
             type="text"
             value={newIp}
@@ -689,10 +762,11 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
             style={{
               flex: 1,
               minWidth: 'min(100%, 150px)',
-              padding: '11px 14px',
+              height: '42px',
+              padding: '0 14px',
               backgroundColor: isDark ? '#162033' : '#f8fafc',
               border: `1px solid ${borderColor}`,
-              borderRadius: '10px',
+              borderRadius: '11px',
               fontSize: '13px',
               color: textPrimary,
               outline: 'none',
@@ -707,31 +781,37 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
             style={{
               flex: 1,
               minWidth: 'min(100%, 150px)',
-              padding: '11px 14px',
+              height: '42px',
+              padding: '0 14px',
               backgroundColor: isDark ? '#162033' : '#f8fafc',
               border: `1px solid ${borderColor}`,
-              borderRadius: '10px',
+              borderRadius: '11px',
               fontSize: '13px',
               color: textPrimary,
               outline: 'none',
             }}
           />
           <button
+            type="button"
             onClick={handleAddIp}
+            className="security-btn-add-ip"
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: '6px',
-              padding: '11px 20px',
+              height: '42px',
+              padding: '0 20px',
               backgroundColor: '#059669',
               color: 'white',
               fontSize: '13px',
               fontWeight: 700,
-              borderRadius: '10px',
+              borderRadius: '11px',
               border: 'none',
               cursor: 'pointer',
               boxShadow: '0 4px 12px rgba(5,150,105,0.3)',
-              transition: 'all 0.2s',
+              transition: 'all 0.2s ease',
+              whiteSpace: 'nowrap',
             }}
           >
             <Plus size={16} />
@@ -778,20 +858,22 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
               </div>
 
               <button
+                type="button"
                 onClick={() => handleRemoveIp(entry.id, entry.ip)}
+                className="security-btn-remove-ip"
                 style={{
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '6px 12px',
+                  gap: '5px',
+                  padding: '7px 14px',
                   backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : '#fee2e2',
                   color: isDark ? '#f87171' : '#dc2626',
                   fontSize: '12px',
                   fontWeight: 600,
-                  borderRadius: '8px',
+                  borderRadius: '9px',
                   border: isDark ? '1px solid rgba(239,68,68,0.3)' : '1px solid #fecaca',
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
+                  transition: 'all 0.2s ease',
                 }}
               >
                 <Trash2 size={13} />
