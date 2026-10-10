@@ -150,7 +150,7 @@ async function runSystemVerification() {
       throw new Error('Failed to create checkout session');
     }
   } catch (err: any) {
-    console.error('❌ [6/10] Merchant API Checkout Creation Failed:', err.message);
+    console.error('❌ [6/10] Merchant API Checkout Creation Failed:', err.response?.data?.error || err.message);
   }
 
   // ─── Test 7: Hosted Checkout Retrieval ────────────────────────────
