@@ -727,6 +727,31 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
             </button>
 
             <a
+              href="/docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 14px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: 700,
+                textDecoration: 'none',
+                cursor: 'pointer',
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                boxShadow: '0 2px 10px rgba(2, 132, 199, 0.35)',
+                transition: 'all 0.2s ease',
+              }}
+              title={isRtl ? 'فتح صفحة التوثيق التفاعلية المستقلة' : 'Open Interactive Documentation Webpage'}
+            >
+              <ExternalLink size={14} />
+              <span>{isRtl ? 'صفحة التوثيق الشاملة (Webpage)' : 'Full Documentation Webpage'}</span>
+            </a>
+
+            <a
               href="/api/docs/integration-guide"
               target="_blank"
               rel="noopener noreferrer"
@@ -748,8 +773,8 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
               }}
               title={isRtl ? 'تحميل دليل التكامل الشامل بصيغة Markdown' : 'Download Complete API Integration Guide (.md)'}
             >
-              <ExternalLink size={14} />
-              <span>{isRtl ? 'دليل التكامل الشامل (.md)' : 'Full Integration Guide (.md)'}</span>
+              <FileCode2 size={14} />
+              <span>{isRtl ? 'تحميل (.md)' : 'Download .md'}</span>
             </a>
           </div>
         </div>

@@ -15,8 +15,9 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { BillingPage } from './pages/BillingPage';
+import { ApiDocsPage } from './pages/ApiDocsPage';
 
-export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'detector' | 'developers' | 'settings' | 'audit' | 'security';
+export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'detector' | 'developers' | 'settings' | 'audit' | 'security' | 'docs';
 
 export interface ToastMessage {
   id: string;
@@ -58,6 +59,10 @@ export function parseRouteFromHash(hashString?: string): { page: Page; subPath?:
     settings: 'settings',
     audit: 'audit',
     security: 'security',
+    docs: 'docs',
+    doc: 'docs',
+    documentation: 'docs',
+    'api-docs': 'docs',
   };
 
   const page = validPages[rawPage] || 'overview';
@@ -274,6 +279,8 @@ function App() {
         return <AuditLogPage showToast={showToast} />;
       case 'security':
         return <SecurityPage showToast={showToast} showConfirm={showConfirm} />;
+      case 'docs':
+        return <ApiDocsPage inApp={true} showToast={showToast} showConfirm={showConfirm} />;
       default:
         return <OverviewPage showToast={showToast} onNavigate={navigateTo} />;
     }

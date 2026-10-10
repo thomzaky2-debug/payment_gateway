@@ -23,6 +23,7 @@ const pageTitles: Record<Page, { en: string; ar: string }> = {
   settings: { en: 'Settings', ar: 'إعدادات المتجر' },
   audit: { en: 'Audit Log', ar: 'سجل العمليات' },
   security: { en: 'Security', ar: 'إعدادات الأمان' },
+  docs: { en: 'API Documentation', ar: 'دليل التكامل البرمجي' },
 };
 
 export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobileMenu }: TopbarProps) {

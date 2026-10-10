@@ -124,7 +124,10 @@ app.get('/api/health', (_req, res) => {
   })
 })
 
-app.get('/api/docs/integration-guide', (_req, res) => {
+app.get('/api/docs/integration-guide', (req, res) => {
+  if (req.query.format === 'html' || req.query.view === 'web') {
+    return res.redirect(`${CLIENT_URL}/docs`)
+  }
   const guidePath = path.resolve(process.cwd(), 'docs/API_INTEGRATION_GUIDE.md')
   if (fs.existsSync(guidePath)) {
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8')
@@ -132,6 +135,10 @@ app.get('/api/docs/integration-guide', (_req, res) => {
     return res.sendFile(guidePath)
   }
   return res.status(404).json({ ok: false, error: 'Documentation file not found' })
+})
+
+app.get(['/docs', '/api/docs', '/api-docs'], (_req, res) => {
+  res.redirect(`${CLIENT_URL}/docs`)
 })
 
 app.use('/api/auth', authLimiter, authRouter)
