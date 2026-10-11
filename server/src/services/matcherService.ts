@@ -4,7 +4,6 @@ import { toEgpCents, fromEgpCents, egpAmountFromRow } from '../lib/money.js'
 import { emitCheckoutUpdate } from './notificationService.js'
 import { forwardToClientWebhook } from './webhookService.js'
 import { confirmOrdinaryCheckout } from './settlementService.js'
-import { decryptCredential } from '../lib/credentialCrypto.js'
 import type { Client } from '@prisma/client'
 
 export interface ProcessNotificationInput {

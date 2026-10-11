@@ -131,6 +131,10 @@ export const settingsApi = {
     const res = await api.get('/settings/audit-logs')
     return res.data
   },
+  async resendWebhook(id: string) {
+    const res = await api.post(`/settings/webhooks/${id}/resend`)
+    return res.data
+  },
 }
 
 // ─── Admin API ──────────────────────────────────────────────────────
@@ -176,6 +180,10 @@ export const adminApi = {
     const res = await adminHttp.post(`/admin/clients/${id}/rotate-keys`, {})
     return res.data
   },
+  async revealClientCredentials(id: string) {
+    const res = await adminHttp.post(`/admin/clients/${id}/reveal-credentials`, {})
+    return res.data
+  },
   async approveClient(id: string) {
     const res = await adminHttp.post(`/admin/clients/${id}/approve`, {})
     return res.data
@@ -194,6 +202,10 @@ export const adminApi = {
   },
   async getWebhooks() {
     const res = await adminHttp.get('/admin/webhooks')
+    return res.data
+  },
+  async resendWebhook(id: string) {
+    const res = await adminHttp.post(`/admin/webhooks/${id}/resend`, {})
     return res.data
   },
   async getPlans() {

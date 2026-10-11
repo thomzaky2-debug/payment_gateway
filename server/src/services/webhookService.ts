@@ -80,6 +80,24 @@ export function generateWebhookSignature(
  * Dispatches an event to the merchant's configured webhook URL,
  * creates an audit record in WebhookLog, and schedules retry if failed.
  */
+export const STANDARD_BACKOFF_DELAYS_MS = [
+  60 * 1000,        // 1 min
+  5 * 60 * 1000,    // 5 min
+  15 * 60 * 1000,   // 15 min
+  60 * 60 * 1000,   // 1 hour
+  6 * 60 * 60 * 1000 // 6 hours
+]
+
+export const DECRYPT_FAILURE_BACKOFF_DELAYS_MS = [
+  60 * 1000,          // 1 min
+  5 * 60 * 1000,      // 5 min
+  15 * 60 * 1000,     // 15 min
+  60 * 60 * 1000,     // 1 hour
+  6 * 60 * 60 * 1000,  // 6 hours
+  12 * 60 * 60 * 1000, // 12 hours
+  24 * 60 * 60 * 1000, // 24 hours (extends total recovery window to ~43.5 hours)
+]
+
 export async function forwardToClientWebhook(
   clientId: string,
   webhookUrl: string,
@@ -94,16 +112,15 @@ export async function forwardToClientWebhook(
   const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`
   const timestamp = Math.floor(Date.now() / 1000)
   const bodyStr = JSON.stringify(payload)
-  const backoffDelaysMs = [60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 60 * 60 * 1000, 6 * 60 * 60 * 1000]
 
   const secretResolution = resolveWebhookSigningSecret(webhookSecret)
   if (!secretResolution.ok) {
     console.error(
-      `[SECURITY ALERT] [webhookService] Webhook secret resolution failed for merchant ${clientId}: ${secretResolution.error}. Recording failed delivery and scheduling retry.`
+      `[SECURITY ALERT] [webhookService] Webhook secret resolution failed for merchant ${clientId}: ${secretResolution.error}. Recording failed delivery and scheduling extended retry.`
     )
     const nextAttemptAt =
-      attemptNumber <= backoffDelaysMs.length
-        ? new Date(Date.now() + backoffDelaysMs[attemptNumber - 1])
+      attemptNumber <= DECRYPT_FAILURE_BACKOFF_DELAYS_MS.length
+        ? new Date(Date.now() + DECRYPT_FAILURE_BACKOFF_DELAYS_MS[attemptNumber - 1])
         : null
 
     try {
@@ -177,8 +194,8 @@ export async function forwardToClientWebhook(
   // Calculate next retry timestamp using exponential backoff:
   // attempt 1: 1 min, attempt 2: 5 min, attempt 3: 15 min, attempt 4: 1 hr, attempt 5: 6 hrs
   const nextAttemptAt =
-    !isSuccess && attemptNumber <= backoffDelaysMs.length
-      ? new Date(Date.now() + backoffDelaysMs[attemptNumber - 1])
+    !isSuccess && attemptNumber <= STANDARD_BACKOFF_DELAYS_MS.length
+      ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
       : null
 
   try {

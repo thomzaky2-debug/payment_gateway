@@ -2,19 +2,16 @@ import axios from 'axios'
 import http from 'http'
 import https from 'https'
 import { db } from '../db.js'
-import { generateWebhookSignature, resolveWebhookSigningSecret } from '../services/webhookService.js'
+import {
+  generateWebhookSignature,
+  resolveWebhookSigningSecret,
+  STANDARD_BACKOFF_DELAYS_MS,
+  DECRYPT_FAILURE_BACKOFF_DELAYS_MS,
+} from '../services/webhookService.js'
 import { validateWebhookUrlDns, createPinnedDnsLookup } from '../lib/urlValidator.js'
 
 let workerInterval: NodeJS.Timeout | null = null
 let isProcessing = false
-
-const BACKOFF_DELAYS_MS = [
-  60 * 1000,        // 1 min
-  5 * 60 * 1000,    // 5 min
-  15 * 60 * 1000,   // 15 min
-  60 * 60 * 1000,   // 1 hour
-  6 * 60 * 60 * 1000 // 6 hours
-]
 
 /**
  * Retries a single failed webhook delivery record
@@ -23,6 +20,7 @@ async function retrySingleWebhook(log: {
   id: string
   clientId: string
   url: string
+  event?: string
   payload: string
   attempt: number
   client: { webhookSecret: string | null }
@@ -46,8 +44,8 @@ async function retrySingleWebhook(log: {
       `[SECURITY ALERT] [webhookRetryWorker] Failed to resolve webhookSecret for retry ${log.id}: ${secretResolution.error}. Aborting retry to prevent unsigned payload.`
     )
     const nextAttemptAt =
-      nextAttemptNumber <= BACKOFF_DELAYS_MS.length
-        ? new Date(Date.now() + BACKOFF_DELAYS_MS[nextAttemptNumber - 1])
+      nextAttemptNumber <= DECRYPT_FAILURE_BACKOFF_DELAYS_MS.length
+        ? new Date(Date.now() + DECRYPT_FAILURE_BACKOFF_DELAYS_MS[nextAttemptNumber - 1])
         : null
 
     await db.webhookLog.update({
@@ -60,6 +58,12 @@ async function retrySingleWebhook(log: {
         nextAttemptAt,
       },
     })
+
+    if (!nextAttemptAt) {
+      console.error(
+        `[SECURITY ALERT] [webhookRetryWorker] Webhook delivery permanently exhausted all retries on secret resolution failure for log ${log.id} (client ${log.clientId}, url ${log.url}, event ${log.event || 'unknown'}). Manual key repair and resend required.`
+      )
+    }
     return
   }
 
@@ -104,8 +108,8 @@ async function retrySingleWebhook(log: {
   }
 
   const nextAttemptAt =
-    !isSuccess && nextAttemptNumber <= BACKOFF_DELAYS_MS.length
-      ? new Date(Date.now() + BACKOFF_DELAYS_MS[nextAttemptNumber - 1])
+    !isSuccess && nextAttemptNumber <= STANDARD_BACKOFF_DELAYS_MS.length
+      ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[nextAttemptNumber - 1])
       : null
 
   await db.webhookLog.update({
@@ -118,6 +122,12 @@ async function retrySingleWebhook(log: {
       nextAttemptAt,
     },
   })
+
+  if (!isSuccess && !nextAttemptAt) {
+    console.error(
+      `[SECURITY ALERT] [webhookRetryWorker] Webhook delivery permanently exhausted all retries for log ${log.id} (client ${log.clientId}, url ${log.url}, event ${log.event || 'unknown'}). Manual resend required.`
+    )
+  }
 
   console.log(
     `[Webhook Worker] Retried log ${log.id} (attempt ${nextAttemptNumber}) to ${log.url} -> ${
@@ -139,7 +149,7 @@ export async function processDueWebhookRetries() {
       where: {
         isSuccess: false,
         nextAttemptAt: { lte: now },
-        attempt: { lt: 6 }, // Max 5 retries
+        attempt: { lt: DECRYPT_FAILURE_BACKOFF_DELAYS_MS.length + 1 }, // Supports extended recovery window
       },
       include: {
         client: {

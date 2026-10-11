@@ -234,6 +234,40 @@ export function AdminPortalPage() {
   const [merchantPlan, setMerchantPlan] = useState('FREE_TRIAL');
   const [merchantTxLimit, setMerchantTxLimit] = useState<number | string>(50);
   const [merchantExtendDays, setMerchantExtendDays] = useState<number | string>(30);
+  const [revealedCreds, setRevealedCreds] = useState<Record<string, { apiKey?: string | null; detectToken?: string | null; webhookSecret?: string | null }>>({});
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [resendingWebhookId, setResendingWebhookId] = useState<string | null>(null);
+
+  const handleRevealCredentials = async (clientId: string) => {
+    try {
+      setIsRevealing(true);
+      const res = await adminApi.revealClientCredentials(clientId);
+      if (res?.ok && res.credentials) {
+        setRevealedCreds((prev) => ({ ...prev, [clientId]: res.credentials }));
+        showToast('Credentials decrypted and action audit-logged.', 'success');
+        void fetchData();
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to reveal credentials', 'error');
+    } finally {
+      setIsRevealing(false);
+    }
+  };
+
+  const handleResendWebhook = async (logId: string) => {
+    try {
+      setResendingWebhookId(logId);
+      const res = await adminApi.resendWebhook(logId);
+      if (res?.ok) {
+        showToast(res.message || 'Webhook redelivery attempted.', 'success');
+        void fetchData();
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to resend webhook', 'error');
+    } finally {
+      setResendingWebhookId(null);
+    }
+  };
 
   // Navigation and Hash Handlers
   const navigateToTab = (tab: AdminTab, subPath?: string) => {
@@ -2080,7 +2114,7 @@ export function AdminPortalPage() {
                     <div
                       style={{
                         display: 'flex',
-                        justifyContent: 'flex-end',
+                        justifyContent: 'space-between',
                         alignItems: 'center',
                         paddingTop: '6px',
                         borderTop: '1px solid rgba(255, 255, 255, 0.05)',
@@ -2089,6 +2123,27 @@ export function AdminPortalPage() {
                       <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
                         {new Date(w.createdAt).toLocaleString()}
                       </span>
+                      {!w.isSuccess && (
+                        <button
+                          onClick={() => handleResendWebhook(w.id)}
+                          disabled={resendingWebhookId === w.id}
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '11px',
+                            borderRadius: '6px',
+                            backgroundColor: '#7c3aed',
+                            color: '#fff',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <RefreshCw size={11} className={resendingWebhookId === w.id ? 'animate-spin' : ''} />
+                          {resendingWebhookId === w.id ? 'Resending...' : 'Resend'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -3162,7 +3217,34 @@ export function AdminPortalPage() {
                 </>
               )}
 
-              <h4 style={{ margin: '0 0 10px', fontSize: '12px', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '.06em' }}>Integration credentials</h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 10px' }}>
+                <h4 style={{ margin: 0, fontSize: '12px', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '.06em' }}>Integration credentials</h4>
+                {revealedCreds[selectedMerchant.id] ? (
+                  <span style={{ fontSize: '11px', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <CheckCircle2 size={13} /> Decrypted (Audit-Logged)
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleRevealCredentials(selectedMerchant.id)}
+                    disabled={isRevealing}
+                    style={{
+                      background: 'rgba(99, 102, 241, 0.15)',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                      color: '#a5b4fc',
+                      fontSize: '11px',
+                      padding: '4px 9px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <Eye size={13} />
+                    {isRevealing ? 'Revealing...' : 'Reveal Plaintext (Audit Logged)'}
+                  </button>
+                )}
+              </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
@@ -3180,11 +3262,11 @@ export function AdminPortalPage() {
                     }}
                   >
                     <span style={{ fontFamily: 'monospace', fontSize: '12px', flex: 1, wordBreak: 'break-all' }}>
-                      {selectedMerchant.apiKey || 'Not generated yet (Approve merchant first)'}
+                      {revealedCreds[selectedMerchant.id]?.apiKey || selectedMerchant.apiKey || 'Not generated yet (Approve merchant first)'}
                     </span>
-                    {selectedMerchant.apiKey && (
+                    {(revealedCreds[selectedMerchant.id]?.apiKey || selectedMerchant.apiKey) && (
                       <button
-                        onClick={() => copyToClipboard(selectedMerchant.apiKey!, 'apiKey')}
+                        onClick={() => copyToClipboard(revealedCreds[selectedMerchant.id]?.apiKey || selectedMerchant.apiKey!, 'apiKey')}
                         style={{
                           background: 'none',
                           border: 'none',
@@ -3213,11 +3295,11 @@ export function AdminPortalPage() {
                     }}
                   >
                     <span style={{ fontFamily: 'monospace', fontSize: '12px', flex: 1, wordBreak: 'break-all' }}>
-                      {selectedMerchant.detectToken || 'Not generated yet'}
+                      {revealedCreds[selectedMerchant.id]?.detectToken || selectedMerchant.detectToken || 'Not generated yet'}
                     </span>
-                    {selectedMerchant.detectToken && (
+                    {(revealedCreds[selectedMerchant.id]?.detectToken || selectedMerchant.detectToken) && (
                       <button
-                        onClick={() => copyToClipboard(selectedMerchant.detectToken!, 'detectToken')}
+                        onClick={() => copyToClipboard(revealedCreds[selectedMerchant.id]?.detectToken || selectedMerchant.detectToken!, 'detectToken')}
                         style={{
                           background: 'none',
                           border: 'none',
@@ -3246,11 +3328,11 @@ export function AdminPortalPage() {
                     }}
                   >
                     <span style={{ fontFamily: 'monospace', fontSize: '12px', flex: 1, wordBreak: 'break-all' }}>
-                      {selectedMerchant.webhookSecret || 'Not configured'}
+                      {revealedCreds[selectedMerchant.id]?.webhookSecret || selectedMerchant.webhookSecret || 'Not configured'}
                     </span>
-                    {selectedMerchant.webhookSecret && (
+                    {(revealedCreds[selectedMerchant.id]?.webhookSecret || selectedMerchant.webhookSecret) && (
                       <button
-                        onClick={() => copyToClipboard(selectedMerchant.webhookSecret!, 'webhookSecret')}
+                        onClick={() => copyToClipboard(revealedCreds[selectedMerchant.id]?.webhookSecret || selectedMerchant.webhookSecret!, 'webhookSecret')}
                         style={{
                           background: 'none',
                           border: 'none',

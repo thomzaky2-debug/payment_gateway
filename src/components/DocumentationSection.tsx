@@ -32,7 +32,7 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
   // Interactive Webhook Signature Tester State
   const [testPayload, setTestPayload] = useState('{\n  "event": "payment.confirmed",\n  "transaction": {\n    "sessionId": "cmt_8f1b2c3d4e5f6a7b",\n    "amountEgp": 150.00,\n    "status": "PAID"\n  }\n}');
   const [testTimestamp, setTestTimestamp] = useState(Math.floor(Date.now() / 1000).toString());
-  const [testSecret, setTestSecret] = useState(webhookSecret || 'whsec_e8f2a1b9c3d4e5f6a7b8c9d0');
+  const [testSecret, setTestSecret] = useState(webhookSecret || 'whsec_EXAMPLE_SECRET');
   const [calculatedBaseString, setCalculatedBaseString] = useState('');
   const [calculatedSignature, setCalculatedSignature] = useState('');
   const [verifyInputSig, setVerifyInputSig] = useState('');
@@ -47,8 +47,8 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
   const isValidApiKey = typeof apiKey === 'string' && apiKey.startsWith('egp_');
   const isValidWebhookSecret = typeof webhookSecret === 'string' && webhookSecret.startsWith('whsec_');
 
-  const displayApiKey = useRealKeys && isValidApiKey ? apiKey : 'egp_live_9a7b3c2d1e0f8a4b6c8d0e2f';
-  const displayWebhookSecret = useRealKeys && isValidWebhookSecret ? webhookSecret : 'whsec_e8f2a1b9c3d4e5f6a7b8c9d0';
+  const displayApiKey = useRealKeys && isValidApiKey ? apiKey : 'egp_live_EXAMPLE_KEY';
+  const displayWebhookSecret = useRealKeys && isValidWebhookSecret ? webhookSecret : 'whsec_EXAMPLE_SECRET';
   const baseUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3001` : 'http://localhost:3001';
 
   // Update tester secret when real secret is received

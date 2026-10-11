@@ -54,7 +54,7 @@ export function ApiDocsPage({ inApp = false }: ApiDocsPageProps) {
     }
   }, null, 2);
 
-  const [testerSecret, setTesterSecret] = useState('whsec_e8f2a1b9c3d4e5f6a7b8c9d0');
+  const [testerSecret, setTesterSecret] = useState('whsec_EXAMPLE_SECRET');
   const [testerTimestamp, setTesterTimestamp] = useState(Math.floor(Date.now() / 1000).toString());
   const [testerPayload, setTesterPayload] = useState(defaultPayload);
   const [calculatedBaseString, setCalculatedBaseString] = useState('');
@@ -157,7 +157,7 @@ export function ApiDocsPage({ inApp = false }: ApiDocsPageProps) {
   /* ──────────────── Code Snippets ──────────────── */
   const nodeCreateSnippet = `import axios from 'axios';
 
-const API_KEY = process.env.INSTAPAY_API_KEY || 'egp_live_9a7b3c2d1e0f8a4b6c8d0e2f';
+const API_KEY = process.env.INSTAPAY_API_KEY || 'egp_live_EXAMPLE_KEY';
 const BASE_URL = '${baseUrl}';
 
 export async function createCheckout(amountEgp: number, orderId: string) {
@@ -193,7 +193,7 @@ export async function createCheckout(amountEgp: number, orderId: string) {
   const pythonCreateSnippet = `import requests
 import uuid
 
-API_KEY = "egp_live_9a7b3c2d1e0f8a4b6c8d0e2f"
+API_KEY = "egp_live_EXAMPLE_KEY"
 BASE_URL = "${baseUrl}"
 
 def create_checkout(amount_egp: float, order_id: str) -> dict:
@@ -222,7 +222,7 @@ def create_checkout(amount_egp: float, order_id: str) -> dict:
 declare(strict_types=1);
 
 function createCheckoutSession(float $amountEgp, string $orderId): array {
-    $apiKey  = getenv('INSTAPAY_API_KEY') ?: 'egp_live_9a7b3c2d1e0f8a4b6c8d0e2f';
+    $apiKey  = getenv('INSTAPAY_API_KEY') ?: 'egp_live_EXAMPLE_KEY';
     $baseUrl = '${baseUrl}';
 
     $payload = json_encode([
@@ -267,7 +267,7 @@ import (
 )
 
 const (
-	apiKey  = "egp_live_9a7b3c2d1e0f8a4b6c8d0e2f"
+	apiKey  = "egp_live_EXAMPLE_KEY"
 	baseURL = "${baseUrl}"
 )
 
@@ -326,7 +326,7 @@ func main() {
 
   const curlCreateSnippet = `# 1. Create a Checkout Session
 curl -X POST "${baseUrl}/api/v1/checkout/create" \\
-  -H "Authorization: Bearer egp_live_9a7b3c2d1e0f8a4b6c8d0e2f" \\
+  -H "Authorization: Bearer egp_live_EXAMPLE_KEY" \\
   -H "Content-Type: application/json" \\
   -H "Idempotency-Key: test_$(date +%s)" \\
   -d '{
@@ -337,13 +337,13 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
 
 # 2. Check Session Status
 curl -X GET "${baseUrl}/api/v1/checkout/status?sessionId=cmt_test_8f1b2c" \\
-  -H "Authorization: Bearer egp_live_9a7b3c2d1e0f8a4b6c8d0e2f"`;
+  -H "Authorization: Bearer egp_live_EXAMPLE_KEY"`;
 
   const nodeWebhookSnippet = `import express from 'express';
 import crypto from 'crypto';
 
 const app = express();
-const WEBHOOK_SECRET = process.env.INSTAPAY_WEBHOOK_SECRET || 'whsec_e8f2a1b9c3d4e5f6a7b8c9d0';
+const WEBHOOK_SECRET = process.env.INSTAPAY_WEBHOOK_SECRET || 'whsec_EXAMPLE_SECRET';
 
 // CRITICAL: Preserve the exact raw body Buffer for HMAC verification
 app.post(
@@ -427,7 +427,7 @@ import time
 import json
 
 app = FastAPI()
-WEBHOOK_SECRET = "whsec_e8f2a1b9c3d4e5f6a7b8c9d0"
+WEBHOOK_SECRET = "whsec_EXAMPLE_SECRET"
 
 @app.post("/api/webhook/instapay")
 async def handle_instapay_webhook(
@@ -478,7 +478,7 @@ async def handle_instapay_webhook(
   const phpWebhookSnippet = `<?php
 declare(strict_types=1);
 
-$secret = getenv('INSTAPAY_WEBHOOK_SECRET') ?: 'whsec_e8f2a1b9c3d4e5f6a7b8c9d0';
+$secret = getenv('INSTAPAY_WEBHOOK_SECRET') ?: 'whsec_EXAMPLE_SECRET';
 
 // 1. Read exact RAW payload from standard input
 $rawBody = file_get_contents('php://input');
@@ -539,7 +539,7 @@ import (
 	"time"
 )
 
-const webhookSecret = "whsec_e8f2a1b9c3d4e5f6a7b8c9d0"
+const webhookSecret = "whsec_EXAMPLE_SECRET"
 
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -598,7 +598,7 @@ func main() {
 
   const curlWebhookSnippet = `# Simulate an inbound signed webhook test to your local server:
 TIMESTAMP=$(date +%s)
-SECRET="whsec_e8f2a1b9c3d4e5f6a7b8c9d0"
+SECRET="whsec_EXAMPLE_SECRET"
 PAYLOAD='{"event":"payment.confirmed","transaction":{"sessionId":"cmt_test_8f1b2c","amountEgp":150.00,"status":"CONFIRMED","detectedRef":"REF20261010"}}'
 
 # Compute HMAC-SHA256 signature over "<timestamp>.<rawJsonBody>"
@@ -1419,12 +1419,12 @@ curl -X POST "http://localhost:8080/api/webhook" \\
               }}
             >
               <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#38bdf8' }}>
-                <span style={{ color: '#94a3b8' }}>Authorization:</span> Bearer egp_live_9a7b3c2d1e0f8a4b6c8d0e2f<br />
+                <span style={{ color: '#94a3b8' }}>Authorization:</span> Bearer egp_live_EXAMPLE_KEY<br />
                 <span style={{ color: '#94a3b8' }}>Content-Type:</span> application/json<br />
                 <span style={{ color: '#94a3b8' }}>Idempotency-Key:</span> order_1042_a9b8c7
               </div>
               <button
-                onClick={() => copyToClipboard('Authorization: Bearer egp_live_9a7b3c2d1e0f8a4b6c8d0e2f\nContent-Type: application/json', 'auth_header')}
+                onClick={() => copyToClipboard('Authorization: Bearer egp_live_EXAMPLE_KEY\nContent-Type: application/json', 'auth_header')}
                 style={{
                   padding: '6px 10px',
                   borderRadius: '6px',

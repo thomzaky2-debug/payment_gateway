@@ -5,6 +5,7 @@ import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.j
 import { requireMerchant } from '../middleware/requireMerchant.js'
 import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
+import { forwardToClientWebhook } from '../services/webhookService.js'
 
 export const settingsRouter = Router()
 
@@ -245,3 +246,49 @@ settingsRouter.get('/audit-logs', requireMerchant, async (req: Request, res: Res
     return sendInternalError(res, err, 'Failed to retrieve audit logs')
   }
 })
+
+// Merchant self-service manual resend for failed webhooks.
+settingsRouter.post('/webhooks/:id/resend', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const id = String(req.params.id)
+
+    const log = await db.webhookLog.findFirst({
+      where: { id, clientId: client.id },
+    })
+
+    if (!log) {
+      return res.status(404).json({ ok: false, error: 'Webhook log not found' })
+    }
+
+    let payload: any
+    try {
+      payload = JSON.parse(log.payload)
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Invalid stored webhook payload JSON' })
+    }
+
+    const currentClient = await db.client.findUnique({
+      where: { id: client.id },
+      select: { webhookUrl: true, webhookSecret: true },
+    })
+
+    const targetUrl = currentClient?.webhookUrl || log.url
+    const result = await forwardToClientWebhook(
+      client.id,
+      targetUrl,
+      currentClient?.webhookSecret ?? null,
+      payload,
+      1
+    )
+
+    return res.json({
+      ok: true,
+      result,
+      message: result.success ? 'Webhook redelivered successfully' : `Delivery attempted: ${result.error}`,
+    })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to resend webhook')
+  }
+})
+

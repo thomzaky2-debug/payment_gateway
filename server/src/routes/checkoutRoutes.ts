@@ -112,7 +112,6 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
         checkoutTtlMin: merchantTtlMin,
         detectedRef: tx.detectedRef,
         detectedAt: tx.detectedAt?.toISOString() ?? null,
-        note: tx.note,
         purpose: tx.purpose,
         subscriptionPlanName: tx.subscriptionPlanName,
         bundleInfo,

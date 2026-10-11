@@ -171,7 +171,7 @@ test('processDueWebhookRetries stops retrying when max attempts are exhausted on
         clientId: 'client_retry_1',
         url: 'https://merchant.example.com/webhook',
         payload: JSON.stringify({ event: 'payment.confirmed' }),
-        attempt: 5, // 5th attempt, so nextAttemptNumber is 6
+        attempt: 7, // 7th attempt, so nextAttemptNumber is 8 (exceeding DECRYPT_FAILURE_BACKOFF_DELAYS_MS.length of 7)
         client: {
           webhookSecret: 'enc:v1:fakeKey:00112233445566778899aabb:00112233445566778899aabbccddeeff:deadbeef',
         },
@@ -191,7 +191,7 @@ test('processDueWebhookRetries stops retrying when max attempts are exhausted on
   await processDueWebhookRetries()
 
   assert.ok(updatedData, 'Expected WebhookLog.update to be called')
-  assert.equal(updatedData.attempt, 6)
+  assert.equal(updatedData.attempt, 8)
   assert.equal(updatedData.isSuccess, false)
   assert.equal(updatedData.statusCode, 500)
   assert.equal(updatedData.nextAttemptAt, null, 'Expected nextAttemptAt to be null when attempts run out')

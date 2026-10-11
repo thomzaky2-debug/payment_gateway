@@ -37,6 +37,14 @@ const adminAccountLimiter = createRateLimiterWithKey(
   (req) => `${getRequestIp(req) || 'unknown'}:platform-owner`
 )
 
+function maskCredentialValue(val: string | null | undefined): string | null {
+  if (!val) return null
+  const clear = decryptCredential(val)
+  if (!clear) return null
+  if (clear.length <= 4) return '••••'
+  return `••••••••${clear.slice(-4)}`
+}
+
 function safeAdminClient(client: any) {
   if (!client) return client
   const {
@@ -48,9 +56,9 @@ function safeAdminClient(client: any) {
   } = client
   return {
     ...safe,
-    apiKey: decryptCredential(safe.apiKey),
-    detectToken: decryptCredential(safe.detectToken),
-    webhookSecret: decryptCredential(safe.webhookSecret),
+    apiKey: maskCredentialValue(safe.apiKey),
+    detectToken: maskCredentialValue(safe.detectToken),
+    webhookSecret: maskCredentialValue(safe.webhookSecret),
   }
 }
 
@@ -378,6 +386,42 @@ adminRouter.post('/clients/:id/rotate-keys', requireAdmin, async (req: Request, 
   }
 })
 
+// Dedicated audit-logged action to reveal plaintext merchant credentials.
+adminRouter.post('/clients/:id/reveal-credentials', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const client = await db.client.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        businessName: true,
+        apiKey: true,
+        detectToken: true,
+        webhookSecret: true,
+      },
+    })
+    if (!client) return res.status(404).json({ ok: false, error: 'Merchant not found.' })
+
+    await db.auditLog.create({
+      data: {
+        action: 'REVEAL_MERCHANT_CREDENTIALS',
+        details: `Superadmin revealed plaintext integration credentials for merchant ${client.businessName} (${client.id})`,
+      },
+    })
+
+    return res.json({
+      ok: true,
+      credentials: {
+        apiKey: decryptCredential(client.apiKey),
+        detectToken: decryptCredential(client.detectToken),
+        webhookSecret: decryptCredential(client.webhookSecret),
+      },
+    })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to reveal merchant credentials')
+  }
+})
+
 // Approve a new or previously rejected merchant.
 adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res: Response) => {
   try {
@@ -554,6 +598,62 @@ adminRouter.get('/webhooks', requireAdmin, async (_req: Request, res: Response) 
     return res.json({ ok: true, logs })
   } catch (err: unknown) {
     return sendInternalError(res, err)
+  }
+})
+
+// Manual resend action for failed or exhausted webhook deliveries.
+adminRouter.post('/webhooks/:id/resend', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const log = await db.webhookLog.findUnique({
+      where: { id },
+      include: {
+        client: {
+          select: { id: true, businessName: true, webhookUrl: true, webhookSecret: true },
+        },
+      },
+    })
+
+    if (!log) {
+      return res.status(404).json({ ok: false, error: 'Webhook log not found' })
+    }
+
+    if (!log.client) {
+      return res.status(400).json({ ok: false, error: 'Associated merchant no longer exists' })
+    }
+
+    let payload: any
+    try {
+      payload = JSON.parse(log.payload)
+    } catch {
+      return res.status(400).json({ ok: false, error: 'Invalid stored webhook payload JSON' })
+    }
+
+    const targetUrl = log.client.webhookUrl || log.url
+    const result = await forwardToClientWebhook(
+      log.client.id,
+      targetUrl,
+      log.client.webhookSecret,
+      payload,
+      1
+    )
+
+    await db.auditLog.create({
+      data: {
+        action: 'RESEND_WEBHOOK',
+        details: `Manual admin resend for webhook log ${log.id} (${log.event}) to ${targetUrl}: ${
+          result.success ? 'SUCCESS' : `FAILED (${result.error || result.statusCode})`
+        }`,
+      },
+    })
+
+    return res.json({
+      ok: true,
+      result,
+      message: result.success ? 'Webhook redelivered successfully' : `Delivery attempted: ${result.error}`,
+    })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to resend webhook')
   }
 })
 

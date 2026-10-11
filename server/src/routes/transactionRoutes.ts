@@ -6,7 +6,6 @@ import { requireMerchant } from '../middleware/requireMerchant.js'
 import { canMerchantResolveTransaction } from '../policies/transactionPolicy.js'
 import { confirmOrdinaryCheckout } from '../services/settlementService.js'
 import { sendInternalError } from '../lib/safeError.js'
-import { decryptCredential } from '../lib/credentialCrypto.js'
 
 export const transactionRouter = Router()
 
