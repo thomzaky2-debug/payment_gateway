@@ -29,6 +29,15 @@ function getKeyId(key: Buffer): string {
   return crypto.createHash('sha256').update(key).digest('hex').slice(0, 8)
 }
 
+let ephemeralDevSecret: string | null = null
+
+function getEphemeralDevSecret(): string {
+  if (!ephemeralDevSecret) {
+    ephemeralDevSecret = crypto.randomBytes(32).toString('hex')
+  }
+  return ephemeralDevSecret
+}
+
 /**
  * Resolves active encryption key.
  * Throws in production if no secret is configured.
@@ -50,7 +59,7 @@ function getActiveKeyDescriptor(): KeyDescriptor {
         'CREDENTIAL_ENCRYPTION_KEY or TOKEN_PEPPER must be configured for credential encryption in production'
       )
     }
-    const devKey = deriveKeyFromSecret('dev-local-credential-pepper-key-only')
+    const devKey = deriveKeyFromSecret(getEphemeralDevSecret())
     return { id: getKeyId(devKey), key: devKey }
   }
 
@@ -59,39 +68,69 @@ function getActiveKeyDescriptor(): KeyDescriptor {
 }
 
 /**
- * Returns all candidate decryption keys (active key, legacy keys, and rotated previous keys).
+ * Returns all candidate decryption keys (active key, legacy keys, TOKEN_PEPPER keys, and rotated keys).
  */
 function getAllCandidateKeys(): KeyDescriptor[] {
   const candidates: KeyDescriptor[] = []
+  const seenIds = new Set<string>()
+
+  function addKey(key: Buffer) {
+    const id = getKeyId(key)
+    if (!seenIds.has(id)) {
+      seenIds.add(id)
+      candidates.push({ id, key })
+    }
+  }
+
+  // 1. Always prioritize the active key
   try {
-    candidates.push(getActiveKeyDescriptor())
+    const active = getActiveKeyDescriptor()
+    seenIds.add(active.id)
+    candidates.push(active)
   } catch {
-    // If active key resolution fails in prod without secret, continue with available candidates
+    // If active resolution fails in prod, continue with candidates
   }
 
-  // Also include legacy derivation from primary secret for seamless backward compatibility
-  const primarySecret =
-    process.env.CREDENTIAL_ENCRYPTION_KEY?.trim() ||
-    process.env.TOKEN_PEPPER?.trim() ||
-    process.env.SESSION_SECRET?.trim() ||
-    (process.env.NODE_ENV !== 'production' ? 'dev-local-credential-pepper-key-only' : '')
-
-  if (primarySecret) {
-    const legacyKey = deriveLegacyKey(primarySecret)
-    candidates.push({ id: getKeyId(legacyKey), key: legacyKey })
+  // 2. If CREDENTIAL_ENCRYPTION_KEY is configured, include its derived forms
+  const explicitKey = process.env.CREDENTIAL_ENCRYPTION_KEY?.trim()
+  if (explicitKey) {
+    addKey(crypto.createHash('sha256').update(explicitKey).digest())
+    addKey(deriveKeyFromSecret(explicitKey))
+    addKey(deriveLegacyKey(explicitKey))
   }
 
-  // Include rotated previous keys if provided in PREVIOUS_CREDENTIAL_ENCRYPTION_KEYS
+  // 3. ALWAYS include TOKEN_PEPPER-derived keys if TOKEN_PEPPER is set.
+  // This ensures that existing credentials encrypted prior to CREDENTIAL_ENCRYPTION_KEY
+  // rotation (both HMAC v1 and legacy SHA-256) decrypt seamlessly without data loss.
+  const tokenPepper = process.env.TOKEN_PEPPER?.trim()
+  if (tokenPepper) {
+    addKey(deriveKeyFromSecret(tokenPepper))
+    addKey(deriveLegacyKey(tokenPepper))
+  }
+
+  // 4. Also check SESSION_SECRET if present
+  const sessionSecret = process.env.SESSION_SECRET?.trim()
+  if (sessionSecret) {
+    addKey(deriveKeyFromSecret(sessionSecret))
+    addKey(deriveLegacyKey(sessionSecret))
+  }
+
+  // 5. In non-production, include ephemeral dev key if created
+  if (ephemeralDevSecret) {
+    addKey(deriveKeyFromSecret(ephemeralDevSecret))
+    addKey(deriveLegacyKey(ephemeralDevSecret))
+  }
+
+  // 6. Include rotated previous keys if provided in PREVIOUS_CREDENTIAL_ENCRYPTION_KEYS
   const previousSecrets = (process.env.PREVIOUS_CREDENTIAL_ENCRYPTION_KEYS || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
 
   for (const prev of previousSecrets) {
-    const separatedKey = deriveKeyFromSecret(prev)
-    candidates.push({ id: getKeyId(separatedKey), key: separatedKey })
-    const legacyKey = deriveLegacyKey(prev)
-    candidates.push({ id: getKeyId(legacyKey), key: legacyKey })
+    addKey(crypto.createHash('sha256').update(prev).digest())
+    addKey(deriveKeyFromSecret(prev))
+    addKey(deriveLegacyKey(prev))
   }
 
   return candidates
@@ -167,16 +206,49 @@ export function decryptCredential(ciphertext: string | null | undefined): string
   }
 
   console.error(
-    `[credentialCrypto] Decryption failed: MAC verification failed${
+    `[SECURITY ALERT] [credentialCrypto] Decryption failed: MAC verification failed${
       keyId ? ` for keyId ${keyId}` : ''
-    }. Check CREDENTIAL_ENCRYPTION_KEY or PREVIOUS_CREDENTIAL_ENCRYPTION_KEYS.`
+    }. Ciphertext may be corrupted, tampered, or encrypted under an unlisted key.`
   )
   return null
 }
 
 /**
- * Checks whether a given string is encrypted at rest with the active envelope.
+ * Checks whether a given string is encrypted at rest with the AES-256-GCM envelope.
  */
 export function isCredentialEncrypted(val: string | null | undefined): boolean {
   return typeof val === 'string' && val.startsWith(PREFIX)
 }
+
+/**
+ * Checks whether an encrypted credential was created with a legacy envelope or older key ID,
+ * indicating it should be re-encrypted under the active key.
+ */
+export function needsReencryption(ciphertext: string | null | undefined): boolean {
+  if (!ciphertext || typeof ciphertext !== 'string' || !ciphertext.startsWith(PREFIX)) {
+    return false
+  }
+  try {
+    const { id: activeKeyId } = getActiveKeyDescriptor()
+    const parts = ciphertext.slice(PREFIX.length).split(':')
+    // Legacy 3-part format or versioned 4-part with non-matching key ID
+    return parts.length !== 4 || parts[0] !== activeKeyId
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Re-encrypts an existing encrypted credential under the current active key.
+ * Returns the re-encrypted ciphertext, or unchanged if already active, or null if decryption failed.
+ */
+export function reencryptCredential(ciphertext: string | null | undefined): string | null {
+  if (!ciphertext || !needsReencryption(ciphertext)) return ciphertext
+  const decrypted = decryptCredential(ciphertext)
+  if (decrypted === null) {
+    console.error('[SECURITY ALERT] [credentialCrypto] Re-encryption skipped: cannot decrypt credential.')
+    return null
+  }
+  return encryptCredential(decrypted)
+}
+

@@ -53,17 +53,21 @@ async function runSerializableCheckout<T>(
     } catch (error) {
       if (!isSerializableConflict(error)) throw error
       if (attempt === SERIALIZABLE_RETRY_LIMIT - 1) {
-        throw new Error('Checkout capacity is busy. Please retry your request.')
+        throw new CheckoutCapacityBusyError('Checkout capacity is busy. Please retry your request.')
       }
       await waitForSerializableRetry(attempt)
     }
   }
 
-  throw new Error('Checkout capacity is busy. Please retry your request.')
+  throw new CheckoutCapacityBusyError('Checkout capacity is busy. Please retry your request.')
 }
 
 export class CheckoutValidationError extends Error {
   status = 400
+}
+
+export class CheckoutCapacityBusyError extends CheckoutValidationError {
+  status = 503
 }
 
 export async function createCheckoutSession(

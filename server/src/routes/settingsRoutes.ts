@@ -8,6 +8,30 @@ import { sendInternalError } from '../lib/safeError.js'
 
 export const settingsRouter = Router()
 
+export function safeMerchantSettings(client: any) {
+  if (!client) return null
+  return {
+    id: client.id,
+    businessName: client.businessName,
+    email: client.email,
+    instapayHandle: client.instapayHandle,
+    instapayPaymentUrl: client.instapayPaymentUrl,
+    webhookUrl: client.webhookUrl,
+    webhookSecret: decryptCredential(client.webhookSecret),
+    checkoutTtlMin: client.checkoutTtlMin,
+    autoAcceptOverpaid: client.autoAcceptOverpaid ?? true,
+    overpaidMaxExcessEgp: client.overpaidMaxExcessEgp ?? 100.0,
+    underpaidToleranceEnabled: client.underpaidToleranceEnabled ?? false,
+    underpaidToleranceEgp: client.underpaidToleranceEgp ?? 5.0,
+    apiKey: decryptCredential(client.apiKey),
+    detectToken: decryptCredential(client.detectToken),
+    subscriptionPlan: client.subscriptionPlan,
+    isFreeTrial: client.isFreeTrial,
+    txLimit: client.txLimit,
+    txCount: client.txCount,
+  }
+}
+
 // ─── Get Settings & Detector Status ─────────────────────────────────
 
 settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => {
@@ -20,26 +44,7 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
 
     return res.json({
       ok: true,
-      settings: {
-        id: client.id,
-        businessName: client.businessName,
-        email: client.email,
-        instapayHandle: client.instapayHandle,
-        instapayPaymentUrl: client.instapayPaymentUrl,
-        webhookUrl: client.webhookUrl,
-        webhookSecret: decryptCredential(client.webhookSecret),
-        checkoutTtlMin: client.checkoutTtlMin,
-        autoAcceptOverpaid: client.autoAcceptOverpaid ?? true,
-        overpaidMaxExcessEgp: client.overpaidMaxExcessEgp ?? 100.0,
-        underpaidToleranceEnabled: client.underpaidToleranceEnabled ?? false,
-        underpaidToleranceEgp: client.underpaidToleranceEgp ?? 5.0,
-        apiKey: decryptCredential(client.apiKey),
-        detectToken: decryptCredential(client.detectToken),
-        subscriptionPlan: client.subscriptionPlan,
-        isFreeTrial: client.isFreeTrial,
-        txLimit: client.txLimit,
-        txCount: client.txCount,
-      },
+      settings: safeMerchantSettings(client),
       devices,
     })
   } catch (err: unknown) {
@@ -156,7 +161,7 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
         .catch(() => {})
     }
 
-    return res.json({ ok: true, settings: updated })
+    return res.json({ ok: true, settings: safeMerchantSettings(updated) })
   } catch (err: unknown) {
     return sendInternalError(res, err, 'Failed to update settings')
   }

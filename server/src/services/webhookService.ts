@@ -4,7 +4,8 @@ import net from 'net'
 import crypto from 'crypto'
 import axios from 'axios'
 import { db } from '../db.js'
-import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.js'
+import { validateWebhookUrl, validateWebhookUrlDns, createPinnedDnsLookup } from '../lib/urlValidator.js'
+import { isCredentialEncrypted, decryptCredential } from '../lib/credentialCrypto.js'
 
 export interface WebhookPayload {
   event: string
@@ -71,8 +72,19 @@ export async function forwardToClientWebhook(
     'X-Instapay-Signature-Version': 'v1',
   }
 
-  if (webhookSecret) {
-    const signature = generateWebhookSignature(bodyStr, webhookSecret, timestamp)
+  let resolvedSecret = webhookSecret
+  if (webhookSecret && isCredentialEncrypted(webhookSecret)) {
+    resolvedSecret = decryptCredential(webhookSecret)
+    if (!resolvedSecret) {
+      console.error(
+        `[SECURITY ALERT] [webhookService] Failed to decrypt webhookSecret for merchant ${clientId}. Aborting delivery to prevent unsigned payload.`
+      )
+      return { success: false, error: 'Webhook secret decryption failed' }
+    }
+  }
+
+  if (resolvedSecret) {
+    const signature = generateWebhookSignature(bodyStr, resolvedSecret, timestamp)
     headers['X-Instapay-Signature'] = `v1=${signature}`
   }
 
@@ -81,18 +93,7 @@ export async function forwardToClientWebhook(
   let isSuccess = false
 
   try {
-    const pinnedIp = urlCheck.pinnedIp
-    const customLookup = pinnedIp
-      ? (_hostname: string, opts: any, cb: any) => {
-          const family = net.isIPv6(pinnedIp) ? 6 : 4
-          if (opts?.all) {
-            cb(null, [{ address: pinnedIp, family }])
-          } else {
-            cb(null, pinnedIp, family)
-          }
-        }
-      : undefined
-
+    const customLookup = createPinnedDnsLookup(urlCheck.pinnedIp)
     const httpAgent = new http.Agent({ lookup: customLookup })
     const httpsAgent = new https.Agent({ lookup: customLookup })
 

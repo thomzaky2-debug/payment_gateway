@@ -499,10 +499,16 @@ authRouter.post('/apk-login', credentialAttemptLimiter, async (req: Request, res
         })
       : null
 
+    const decryptedDetectToken = decryptCredential(provisionedClient.detectToken)
+    if (provisionedClient.detectToken && !decryptedDetectToken) {
+      console.error(`[SECURITY ALERT] [apk-login] Failed to decrypt detectToken for merchant ${provisionedClient.id}`)
+      return sendInternalError(res, new Error('Merchant integration token could not be decrypted'), 'Integration token error')
+    }
+
     return res.json({
       ok: true,
       ...(token ? { token } : {}),
-      detectToken: decryptCredential(provisionedClient.detectToken),
+      detectToken: decryptedDetectToken,
       client: {
         id: provisionedClient.id,
         businessName: provisionedClient.businessName,

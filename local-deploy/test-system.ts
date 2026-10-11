@@ -117,7 +117,22 @@ async function runSystemVerification() {
       apiKey = settingsRes.data?.settings?.apiKey || '';
       detectToken = settingsRes.data?.settings?.detectToken || '';
       if (!apiKey || !detectToken) throw new Error('Merchant integration credentials unavailable');
-      console.log(`✅ [5/11] Merchant Two-Step OTP Login: Passed (${res.data.client.businessName})`);
+
+      // Verify settings update strips sensitive passwordHash and credential hashes
+      const updateRes = await axios.put(
+        `${BACKEND_URL}/api/settings`,
+        { businessName: res.data.client.businessName },
+        { headers: { Authorization: `Bearer ${merchantToken}` } }
+      );
+      if (
+        updateRes.data?.settings?.passwordHash ||
+        updateRes.data?.settings?.apiKeyHash ||
+        updateRes.data?.settings?.detectTokenHash
+      ) {
+        throw new Error('Settings update leaked passwordHash or credential hashes');
+      }
+
+      console.log(`✅ [5/11] Merchant Two-Step OTP Login & Secure Settings: Passed (${res.data.client.businessName})`);
       passed++;
     } else {
       throw new Error('Merchant login unsuccessful');

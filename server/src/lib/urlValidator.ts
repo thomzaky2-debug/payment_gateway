@@ -265,3 +265,20 @@ export async function validateWebhookUrlDns(rawUrl: string): Promise<DnsValidati
     return { valid: false, error: `DNS resolution failed: ${error.message}` }
   }
 }
+
+/**
+ * Creates a custom DNS lookup callback function for http(s).Agent that pins outbound connections
+ * to the verified IP address, preventing DNS rebinding attacks while maintaining Node 22 compatibility.
+ */
+export function createPinnedDnsLookup(pinnedIp: string | null | undefined) {
+  if (!pinnedIp) return undefined
+  return (_hostname: string, opts: any, cb: (err: Error | null, addressOrAddresses: any, family?: number) => void) => {
+    const family = net.isIPv6(pinnedIp) ? 6 : 4
+    if (opts?.all) {
+      cb(null, [{ address: pinnedIp, family }])
+    } else {
+      cb(null, pinnedIp, family)
+    }
+  }
+}
+

@@ -4,7 +4,7 @@ import https from 'https'
 import net from 'net'
 import { db } from '../db.js'
 import { generateWebhookSignature } from '../services/webhookService.js'
-import { validateWebhookUrlDns } from '../lib/urlValidator.js'
+import { validateWebhookUrlDns, createPinnedDnsLookup } from '../lib/urlValidator.js'
 import { decryptCredential } from '../lib/credentialCrypto.js'
 
 let workerInterval: NodeJS.Timeout | null = null
@@ -42,8 +42,24 @@ async function retrySingleWebhook(log: {
     'X-Instapay-Retry-Count': nextAttemptNumber.toString(),
   }
 
-  const rawSecret = decryptCredential(log.client.webhookSecret)
-  if (rawSecret) {
+  if (log.client.webhookSecret) {
+    const rawSecret = decryptCredential(log.client.webhookSecret)
+    if (!rawSecret) {
+      console.error(
+        `[SECURITY ALERT] [webhookRetryWorker] Failed to decrypt webhookSecret for retry ${log.id}. Aborting retry to prevent unsigned payload.`
+      )
+      await db.webhookLog.update({
+        where: { id: log.id },
+        data: {
+          attempt: nextAttemptNumber,
+          statusCode: 500,
+          response: 'Decryption failed for webhookSecret',
+          isSuccess: false,
+          nextAttemptAt: null,
+        },
+      })
+      return
+    }
     const signature = generateWebhookSignature(log.payload, rawSecret, timestamp)
     headers['X-Instapay-Signature'] = `v1=${signature}`
   }
@@ -60,18 +76,7 @@ async function retrySingleWebhook(log: {
     isSuccess = false
   } else {
     try {
-      const pinnedIp = urlCheck.pinnedIp
-      const customLookup = pinnedIp
-        ? (_hostname: string, opts: any, cb: any) => {
-            const family = net.isIPv6(pinnedIp) ? 6 : 4
-            if (opts?.all) {
-              cb(null, [{ address: pinnedIp, family }])
-            } else {
-              cb(null, pinnedIp, family)
-            }
-          }
-        : undefined
-
+      const customLookup = createPinnedDnsLookup(urlCheck.pinnedIp)
       const httpAgent = new http.Agent({ lookup: customLookup })
       const httpsAgent = new https.Agent({ lookup: customLookup })
 

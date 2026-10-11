@@ -1,6 +1,12 @@
 import crypto from 'crypto'
 import { db } from '../db.js'
-import { encryptCredential, decryptCredential, isCredentialEncrypted } from '../lib/credentialCrypto.js'
+import {
+  encryptCredential,
+  decryptCredential,
+  isCredentialEncrypted,
+  needsReencryption,
+  reencryptCredential,
+} from '../lib/credentialCrypto.js'
 import type { Client } from '@prisma/client'
 
 export const MERCHANT_SESSION_COOKIE_NAME = 'instapay_merchant_session'
@@ -538,33 +544,57 @@ export async function migratePlaintextCredentialsAtRest(): Promise<number> {
       let needsUpdate = false
       const updateData: Record<string, string> = {}
 
-      if (client.apiKey && !isCredentialEncrypted(client.apiKey)) {
-        const raw = client.apiKey
-        const encrypted = encryptCredential(raw)
-        if (encrypted) {
-          updateData.apiKey = encrypted
-          updateData.apiKeyHash = hashToken(raw)
-          needsUpdate = true
+      if (client.apiKey) {
+        if (!isCredentialEncrypted(client.apiKey)) {
+          const raw = client.apiKey
+          const encrypted = encryptCredential(raw)
+          if (encrypted) {
+            updateData.apiKey = encrypted
+            updateData.apiKeyHash = hashToken(raw)
+            needsUpdate = true
+          }
+        } else if (needsReencryption(client.apiKey)) {
+          const reencrypted = reencryptCredential(client.apiKey)
+          if (reencrypted) {
+            updateData.apiKey = reencrypted
+            needsUpdate = true
+          }
         }
       }
 
-      if (client.detectToken && !isCredentialEncrypted(client.detectToken)) {
-        const raw = client.detectToken
-        const encrypted = encryptCredential(raw)
-        if (encrypted) {
-          updateData.detectToken = encrypted
-          updateData.detectTokenHash = hashToken(raw)
-          needsUpdate = true
+      if (client.detectToken) {
+        if (!isCredentialEncrypted(client.detectToken)) {
+          const raw = client.detectToken
+          const encrypted = encryptCredential(raw)
+          if (encrypted) {
+            updateData.detectToken = encrypted
+            updateData.detectTokenHash = hashToken(raw)
+            needsUpdate = true
+          }
+        } else if (needsReencryption(client.detectToken)) {
+          const reencrypted = reencryptCredential(client.detectToken)
+          if (reencrypted) {
+            updateData.detectToken = reencrypted
+            needsUpdate = true
+          }
         }
       }
 
-      if (client.webhookSecret && !isCredentialEncrypted(client.webhookSecret)) {
-        const raw = client.webhookSecret
-        const encrypted = encryptCredential(raw)
-        if (encrypted) {
-          updateData.webhookSecret = encrypted
-          updateData.webhookSecretHash = hashToken(raw)
-          needsUpdate = true
+      if (client.webhookSecret) {
+        if (!isCredentialEncrypted(client.webhookSecret)) {
+          const raw = client.webhookSecret
+          const encrypted = encryptCredential(raw)
+          if (encrypted) {
+            updateData.webhookSecret = encrypted
+            updateData.webhookSecretHash = hashToken(raw)
+            needsUpdate = true
+          }
+        } else if (needsReencryption(client.webhookSecret)) {
+          const reencrypted = reencryptCredential(client.webhookSecret)
+          if (reencrypted) {
+            updateData.webhookSecret = reencrypted
+            needsUpdate = true
+          }
         }
       }
 

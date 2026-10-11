@@ -5,6 +5,7 @@ import {
   isPrivateIp,
   validateWebhookUrl,
   validateWebhookUrlDns,
+  createPinnedDnsLookup,
 } from './urlValidator.js'
 
 test('SSRF validator unconditionally blocks cloud metadata in any environment', () => {
@@ -65,15 +66,8 @@ test('SSRF validator accepts valid public HTTPS destination and resolves IP', as
 
 test('Node 22 DNS customLookup compatibility supports { all: true } and scalar modes', (t, done) => {
   const pinnedIp = '93.184.216.34'
-  const isIPv6 = false
-  const customLookup = (_hostname: string, opts: any, cb: any) => {
-    const family = isIPv6 ? 6 : 4
-    if (opts?.all) {
-      cb(null, [{ address: pinnedIp, family }])
-    } else {
-      cb(null, pinnedIp, family)
-    }
-  }
+  const customLookup = createPinnedDnsLookup(pinnedIp)!
+  assert.ok(customLookup, 'createPinnedDnsLookup must return a function')
 
   // Test Node 22 { all: true } invocation
   customLookup('example.com', { all: true }, (err: any, addresses: any) => {
@@ -90,4 +84,5 @@ test('Node 22 DNS customLookup compatibility supports { all: true } and scalar m
     })
   })
 })
+
 

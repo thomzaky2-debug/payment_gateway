@@ -5,6 +5,8 @@ import {
   encryptCredential,
   decryptCredential,
   isCredentialEncrypted,
+  needsReencryption,
+  reencryptCredential,
 } from './credentialCrypto.js'
 
 test('encryptCredential encrypts data with AES-256-GCM envelope including key ID', () => {
@@ -46,19 +48,74 @@ test('decryptCredential returns null on tampered ciphertext', () => {
 
 test('decryptCredential handles legacy 3-part envelope from commit 347ebf0', () => {
   // Legacy format: enc:v1:<iv>:<tag>:<data>
-  // Encrypted with single sha256(pepper)
-  const pepper = process.env.TOKEN_PEPPER || 'dev-local-credential-pepper-key-only'
-  const legacyKey = crypto.createHash('sha256').update(pepper).digest()
-  const iv = crypto.randomBytes(12)
-  const cipher = crypto.createCipheriv('aes-256-gcm', legacyKey, iv)
-  const plaintext = 'dtk_legacy_test_secret_123'
-  let encrypted = cipher.update(plaintext, 'utf8', 'hex')
-  encrypted += cipher.final('hex')
-  const tag = cipher.getAuthTag().toString('hex')
+  // Encrypted with single sha256(TOKEN_PEPPER)
+  const pepper = 'legacy-test-pepper-token-0123456789'
+  const oldPepper = process.env.TOKEN_PEPPER
+  try {
+    process.env.TOKEN_PEPPER = pepper
+    const legacyKey = crypto.createHash('sha256').update(pepper).digest()
+    const iv = crypto.randomBytes(12)
+    const cipher = crypto.createCipheriv('aes-256-gcm', legacyKey, iv)
+    const plaintext = 'dtk_legacy_test_secret_123'
+    let encrypted = cipher.update(plaintext, 'utf8', 'hex')
+    encrypted += cipher.final('hex')
+    const tag = cipher.getAuthTag().toString('hex')
 
-  const legacyEnvelope = `enc:v1:${iv.toString('hex')}:${tag}:${encrypted}`
-  const decrypted = decryptCredential(legacyEnvelope)
-  assert.equal(decrypted, plaintext)
+    const legacyEnvelope = `enc:v1:${iv.toString('hex')}:${tag}:${encrypted}`
+    const decrypted = decryptCredential(legacyEnvelope)
+    assert.equal(decrypted, plaintext)
+  } finally {
+    process.env.TOKEN_PEPPER = oldPepper
+  }
+})
+
+test('decryptCredential seamlessly decrypts TOKEN_PEPPER data after CREDENTIAL_ENCRYPTION_KEY is configured', () => {
+  const pepper = 'original-deployment-token-pepper-32bytes-secret'
+  const newKey = 'brand-new-credential-encryption-key-32bytes'
+
+  const oldPepper = process.env.TOKEN_PEPPER
+  const oldCek = process.env.CREDENTIAL_ENCRYPTION_KEY
+  try {
+    // 1. Initial state: only TOKEN_PEPPER configured
+    process.env.TOKEN_PEPPER = pepper
+    delete process.env.CREDENTIAL_ENCRYPTION_KEY
+
+    const plaintext = 'dtk_merchant_secret_data_before_switch'
+    const encryptedUnderPepper = encryptCredential(plaintext)!
+    assert.ok(encryptedUnderPepper.startsWith('enc:v1:'))
+
+    // Legacy 3-part envelope from commit 347ebf0
+    const legacyKey = crypto.createHash('sha256').update(pepper).digest()
+    const iv = crypto.randomBytes(12)
+    const cipher = crypto.createCipheriv('aes-256-gcm', legacyKey, iv)
+    let legacyEnc = cipher.update('dtk_legacy_data_before_switch', 'utf8', 'hex')
+    legacyEnc += cipher.final('hex')
+    const tag = cipher.getAuthTag().toString('hex')
+    const legacyEnvelope = `enc:v1:${iv.toString('hex')}:${tag}:${legacyEnc}`
+
+    // 2. Operator switches to CREDENTIAL_ENCRYPTION_KEY
+    process.env.CREDENTIAL_ENCRYPTION_KEY = newKey
+
+    // Both should still decrypt successfully through candidates!
+    const decrypted1 = decryptCredential(encryptedUnderPepper)
+    assert.equal(decrypted1, plaintext)
+
+    const decrypted2 = decryptCredential(legacyEnvelope)
+    assert.equal(decrypted2, 'dtk_legacy_data_before_switch')
+
+    // 3. Both should be flagged as needing re-encryption
+    assert.equal(needsReencryption(encryptedUnderPepper), true)
+    assert.equal(needsReencryption(legacyEnvelope), true)
+
+    // 4. Re-encrypting migrates them to the new active key ID
+    const reencrypted = reencryptCredential(encryptedUnderPepper)!
+    assert.ok(reencrypted)
+    assert.equal(needsReencryption(reencrypted), false)
+    assert.equal(decryptCredential(reencrypted), plaintext)
+  } finally {
+    process.env.TOKEN_PEPPER = oldPepper
+    process.env.CREDENTIAL_ENCRYPTION_KEY = oldCek
+  }
 })
 
 test('decryptCredential supports rotated keys via PREVIOUS_CREDENTIAL_ENCRYPTION_KEYS', () => {
@@ -92,3 +149,5 @@ test('decryptCredential supports rotated keys via PREVIOUS_CREDENTIAL_ENCRYPTION
     process.env.PREVIOUS_CREDENTIAL_ENCRYPTION_KEYS = oldEnv
   }
 })
+
+
