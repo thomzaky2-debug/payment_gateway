@@ -98,13 +98,24 @@ export const DECRYPT_FAILURE_BACKOFF_DELAYS_MS = [
   24 * 60 * 60 * 1000, // 24 hours (extends total recovery window to ~43.5 hours)
 ]
 
-async function persistWebhookLog(existingLogId: string | undefined, data: any): Promise<void> {
-  try {
-    if (existingLogId) await db.webhookLog.update({ where: { id: existingLogId }, data })
-    else await db.webhookLog.create({ data })
-  } catch (dbErr) {
-    console.error('[webhook] Failed to write WebhookLog record:', dbErr)
+async function persistWebhookLog(existingLogId: string | undefined, data: any): Promise<boolean> {
+  // A delivery result must survive a transient database failure; otherwise a
+  // successfully sent event can be retried after its short-lived lock expires.
+  for (let writeAttempt = 1; writeAttempt <= 3; writeAttempt += 1) {
+    try {
+      if (existingLogId) await db.webhookLog.update({ where: { id: existingLogId }, data })
+      else await db.webhookLog.create({ data })
+      return true
+    } catch (dbErr) {
+      if (writeAttempt === 3) {
+        console.error('[webhook] Failed to write WebhookLog record after 3 attempts:', dbErr)
+        return false
+      }
+      console.warn(`[webhook] WebhookLog write attempt ${writeAttempt} failed; retrying`, dbErr)
+      await new Promise<void>((resolve) => setTimeout(resolve, writeAttempt * 50))
+    }
   }
+  return false
 }
 
 export async function forwardToClientWebhook(

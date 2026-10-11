@@ -13,6 +13,7 @@ import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webho
 import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanupWorker.js'
 import { syncApprovedMerchantsTokens, migratePlaintextCredentialsAtRest } from './services/authService.js'
 import { safeErrorMessage } from './lib/safeError.js'
+import { parseTrustProxy } from './lib/proxyTrust.js'
 
 import { authRouter } from './routes/authRoutes.js'
 import { webhookRouter } from './routes/webhookRoutes.js'
@@ -53,10 +54,7 @@ const allowedOrigins = [
 ]
 const allowedOriginSet = new Set(allowedOrigins)
 
-const trustProxy = process.env.TRUST_PROXY
-if (trustProxy === 'true') app.set('trust proxy', 1)
-else if (trustProxy && /^\d+$/.test(trustProxy)) app.set('trust proxy', Number(trustProxy))
-else app.set('trust proxy', false)
+app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY, !isLocalRuntime))
 
 // Disable fingerprinting
 app.disable('x-powered-by')

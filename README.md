@@ -104,9 +104,12 @@ TOKEN_PEPPER="generate-with-openssl-rand-hex-32"
 ### 3. Generate Database Client & Seed Plans
 ```bash
 npm run db:generate
-npm run db:push
+npm run db:migrate
 npm run db:seed
 ```
+
+For an existing database created before migration tracking, mark the baseline
+once before deploying migrations: `npx prisma migrate resolve --applied 20261011180000_baseline`.
 
 ### 4. Start Development Servers
 Run both backend API (port 3001) and Vite frontend (port 3000) concurrently:

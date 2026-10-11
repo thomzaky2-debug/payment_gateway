@@ -1,4 +1,5 @@
 import { isValidTotpSecret } from './lib/totp.js'
+import { parseTrustProxy } from './lib/proxyTrust.js'
 
 const INSECURE_MARKERS = [
   'changeme',
@@ -53,9 +54,6 @@ export function validateRuntimeConfig() {
 
     // Make the client-IP trust boundary explicit. Use 0/false for a direct
     // deployment, true/1 only behind one known reverse proxy hop.
-    const trustProxy = process.env.TRUST_PROXY?.trim()
-    if (!trustProxy || !(/^(true|false)$/i.test(trustProxy) || /^\d+$/.test(trustProxy))) {
-      throw new Error('TRUST_PROXY must be explicitly set to true, false, or a non-negative proxy hop count outside local development')
-    }
+    parseTrustProxy(process.env.TRUST_PROXY, true)
   }
 }
