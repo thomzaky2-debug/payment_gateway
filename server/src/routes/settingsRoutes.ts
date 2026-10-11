@@ -6,8 +6,17 @@ import { requireMerchant } from '../middleware/requireMerchant.js'
 import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
+import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
+import { getRequestIp } from '../middleware/authToken.js'
 
 export const settingsRouter = Router()
+
+const merchantWebhookResendLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  10,
+  'Too many webhook resend attempts. Please wait before trying again.',
+  (req) => `merchant-webhook-resend:${(req as any).client?.id || getRequestIp(req) || 'unknown'}`
+)
 
 export function safeMerchantSettings(client: any) {
   if (!client) return null
@@ -248,7 +257,7 @@ settingsRouter.get('/audit-logs', requireMerchant, async (req: Request, res: Res
 })
 
 // Merchant self-service manual resend for failed webhooks.
-settingsRouter.post('/webhooks/:id/resend', requireMerchant, async (req: Request, res: Response) => {
+settingsRouter.post('/webhooks/:id/resend', requireMerchant, merchantWebhookResendLimiter, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
     const id = String(req.params.id)
@@ -261,12 +270,18 @@ settingsRouter.post('/webhooks/:id/resend', requireMerchant, async (req: Request
       return res.status(404).json({ ok: false, error: 'Webhook log not found' })
     }
 
+    if (log.isSuccess) {
+      return res.status(409).json({ ok: false, error: 'Successful webhook deliveries cannot be resent.' })
+    }
+
     let payload: any
     try {
       payload = JSON.parse(log.payload)
     } catch {
       return res.status(400).json({ ok: false, error: 'Invalid stored webhook payload JSON' })
     }
+
+    await db.webhookLog.updateMany({ where: { id: log.id, clientId: client.id, isSuccess: false }, data: { nextAttemptAt: null } })
 
     const currentClient = await db.client.findUnique({
       where: { id: client.id },
@@ -279,8 +294,17 @@ settingsRouter.post('/webhooks/:id/resend', requireMerchant, async (req: Request
       targetUrl,
       currentClient?.webhookSecret ?? null,
       payload,
-      1
+      1,
+      log.id,
+      log.eventId || undefined
     )
+
+    await db.auditLog.create({
+      data: {
+        action: 'MERCHANT_RESEND_WEBHOOK',
+        details: `Merchant ${client.id} manually resent webhook log ${log.id} from ${getRequestIp(req) || 'unknown-ip'}: ${result.success ? 'SUCCESS' : 'FAILED'}`,
+      },
+    }).catch(() => {})
 
     return res.json({
       ok: true,
@@ -291,4 +315,3 @@ settingsRouter.post('/webhooks/:id/resend', requireMerchant, async (req: Request
     return sendInternalError(res, err, 'Failed to resend webhook')
   }
 })
-

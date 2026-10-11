@@ -103,13 +103,17 @@ export async function forwardToClientWebhook(
   webhookUrl: string,
   webhookSecret: string | null,
   payload: WebhookPayload,
-  attemptNumber = 1
+  attemptNumber = 1,
+  existingLogId?: string,
+  existingEventId?: string
 ): Promise<{ success: boolean; statusCode?: number; error?: string }> {
   if (!webhookUrl) {
     return { success: false, error: 'No webhookUrl configured' }
   }
 
-  const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`
+  // Manual resend reuses the original event ID so merchant deduplication works
+  // and the original delivery record remains the single source of truth.
+  const eventId = existingEventId || `evt_${crypto.randomBytes(16).toString('hex')}`
   const timestamp = Math.floor(Date.now() / 1000)
   const bodyStr = JSON.stringify(payload)
 
@@ -124,20 +128,20 @@ export async function forwardToClientWebhook(
         : null
 
     try {
-      await db.webhookLog.create({
-        data: {
-          clientId,
-          url: webhookUrl,
-          event: payload.event,
-          eventId,
-          payload: bodyStr,
-          statusCode: 500,
-          response: `Webhook signing error: ${secretResolution.error}`,
-          isSuccess: false,
-          attempt: attemptNumber,
-          nextAttemptAt,
-        },
-      })
+      const data = {
+        clientId,
+        url: webhookUrl,
+        event: payload.event,
+        eventId,
+        payload: bodyStr,
+        statusCode: 500,
+        response: `Webhook signing error: ${secretResolution.error}`,
+        isSuccess: false,
+        attempt: attemptNumber,
+        nextAttemptAt,
+      }
+      if (existingLogId) await db.webhookLog.update({ where: { id: existingLogId }, data })
+      else await db.webhookLog.create({ data })
     } catch (dbErr) {
       console.error('[webhook] Failed to write WebhookLog record:', dbErr)
     }
@@ -199,20 +203,20 @@ export async function forwardToClientWebhook(
       : null
 
   try {
-    await db.webhookLog.create({
-      data: {
-        clientId,
-        url: webhookUrl,
-        event: payload.event,
-        eventId,
-        payload: bodyStr,
-        statusCode,
-        response: responseBody,
-        isSuccess,
-        attempt: attemptNumber,
-        nextAttemptAt,
-      },
-    })
+    const data = {
+      clientId,
+      url: webhookUrl,
+      event: payload.event,
+      eventId,
+      payload: bodyStr,
+      statusCode,
+      response: responseBody,
+      isSuccess,
+      attempt: attemptNumber,
+      nextAttemptAt,
+    }
+    if (existingLogId) await db.webhookLog.update({ where: { id: existingLogId }, data })
+    else await db.webhookLog.create({ data })
   } catch (dbErr) {
     console.error('[webhook] Failed to write WebhookLog record:', dbErr)
   }

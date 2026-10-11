@@ -180,8 +180,8 @@ export const adminApi = {
     const res = await adminHttp.post(`/admin/clients/${id}/rotate-keys`, {})
     return res.data
   },
-  async revealClientCredentials(id: string) {
-    const res = await adminHttp.post(`/admin/clients/${id}/reveal-credentials`, {})
+  async revealClientCredentials(id: string, totp: string) {
+    const res = await adminHttp.post(`/admin/clients/${id}/reveal-credentials`, { totp })
     return res.data
   },
   async approveClient(id: string) {

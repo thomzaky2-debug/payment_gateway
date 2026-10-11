@@ -239,9 +239,14 @@ export function AdminPortalPage() {
   const [resendingWebhookId, setResendingWebhookId] = useState<string | null>(null);
 
   const handleRevealCredentials = async (clientId: string) => {
+    const totp = window.prompt('Enter a fresh 6-digit authenticator code to reveal credentials:')?.trim() || '';
+    if (!/^\d{6}$/.test(totp)) {
+      showToast('A fresh 6-digit authenticator code is required.', 'error');
+      return;
+    }
     try {
       setIsRevealing(true);
-      const res = await adminApi.revealClientCredentials(clientId);
+      const res = await adminApi.revealClientCredentials(clientId, totp);
       if (res?.ok && res.credentials) {
         setRevealedCreds((prev) => ({ ...prev, [clientId]: res.credentials }));
         showToast('Credentials decrypted and action audit-logged.', 'success');

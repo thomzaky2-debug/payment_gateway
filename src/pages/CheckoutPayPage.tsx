@@ -47,7 +47,6 @@ interface CheckoutData {
   detectedRef?: string | null;
   detectedAt?: string | null;
   detectedAmountEgp?: number | null;
-  note?: string | null;
   purpose?: string | null;
   subscriptionPlanName?: string | null;
   bundleInfo?: { name: string; displayName: string; extraTx: number; priceEgp: number } | null;
@@ -1142,11 +1141,6 @@ export function CheckoutPayPage() {
                       </div>
                     ) : null}
                   </>
-                )}
-                {checkout.note && (
-                  <p style={{ fontSize: '13px', color: textSecondary, margin: '4px 0 0 0' }}>
-                    {checkout.note}
-                  </p>
                 )}
               </div>
 

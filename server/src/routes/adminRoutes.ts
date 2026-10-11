@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import { db } from '../db.js'
 import {
   createOwnerSessionToken,
@@ -36,6 +36,32 @@ const adminAccountLimiter = createRateLimiterWithKey(
   'Too many admin login attempts.',
   (req) => `${getRequestIp(req) || 'unknown'}:platform-owner`
 )
+const adminSensitiveActionLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  5,
+  'Too many sensitive admin actions. Please wait before trying again.',
+  (req) => `admin-sensitive:${getRequestIp(req) || 'unknown'}`
+)
+const adminWebhookResendLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  20,
+  'Too many webhook resend attempts. Please wait before trying again.',
+  (req) => `admin-webhook-resend:${getRequestIp(req) || 'unknown'}`
+)
+
+function adminAuditActor(req: Request): string {
+  return `${process.env.ADMIN_EMAIL || 'platform-owner'} from ${getRequestIp(req) || 'unknown-ip'}`
+}
+
+function requireAdminStepUp(req: Request, res: Response, next: NextFunction) {
+  const code = req.body?.totp || req.get('x-admin-totp')
+  const secret = process.env.ADMIN_TOTP_SECRET
+  const isLocalWithoutTotp = (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') && !secret
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code) || (!isLocalWithoutTotp && (!secret || !verifyTotp(code, secret)))) {
+    return res.status(401).json({ ok: false, error: 'A fresh 6-digit authenticator code is required for this action.' })
+  }
+  next()
+}
 
 function maskCredentialValue(val: string | null | undefined): string | null {
   if (!val) return null
@@ -387,7 +413,7 @@ adminRouter.post('/clients/:id/rotate-keys', requireAdmin, async (req: Request, 
 })
 
 // Dedicated audit-logged action to reveal plaintext merchant credentials.
-adminRouter.post('/clients/:id/reveal-credentials', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/clients/:id/reveal-credentials', adminSensitiveActionLimiter, requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const client = await db.client.findUnique({
@@ -405,7 +431,7 @@ adminRouter.post('/clients/:id/reveal-credentials', requireAdmin, async (req: Re
     await db.auditLog.create({
       data: {
         action: 'REVEAL_MERCHANT_CREDENTIALS',
-        details: `Superadmin revealed plaintext integration credentials for merchant ${client.businessName} (${client.id})`,
+        details: `Superadmin ${adminAuditActor(req)} revealed plaintext integration credentials for merchant ${client.businessName} (${client.id})`,
       },
     })
 
@@ -602,7 +628,7 @@ adminRouter.get('/webhooks', requireAdmin, async (_req: Request, res: Response) 
 })
 
 // Manual resend action for failed or exhausted webhook deliveries.
-adminRouter.post('/webhooks/:id/resend', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const log = await db.webhookLog.findUnique({
@@ -622,6 +648,10 @@ adminRouter.post('/webhooks/:id/resend', requireAdmin, async (req: Request, res:
       return res.status(400).json({ ok: false, error: 'Associated merchant no longer exists' })
     }
 
+    if (log.isSuccess) {
+      return res.status(409).json({ ok: false, error: 'Successful webhook deliveries cannot be resent.' })
+    }
+
     let payload: any
     try {
       payload = JSON.parse(log.payload)
@@ -629,19 +659,25 @@ adminRouter.post('/webhooks/:id/resend', requireAdmin, async (req: Request, res:
       return res.status(400).json({ ok: false, error: 'Invalid stored webhook payload JSON' })
     }
 
+    // Remove it from the retry queue before delivery; the same row is then
+    // updated by forwardToClientWebhook instead of creating a second event.
+    await db.webhookLog.updateMany({ where: { id: log.id, isSuccess: false }, data: { nextAttemptAt: null } })
+
     const targetUrl = log.client.webhookUrl || log.url
     const result = await forwardToClientWebhook(
       log.client.id,
       targetUrl,
       log.client.webhookSecret,
       payload,
-      1
+      1,
+      log.id,
+      log.eventId || undefined
     )
 
     await db.auditLog.create({
       data: {
         action: 'RESEND_WEBHOOK',
-        details: `Manual admin resend for webhook log ${log.id} (${log.event}) to ${targetUrl}: ${
+        details: `Manual admin resend by ${adminAuditActor(req)} for webhook log ${log.id} (${log.event}) to ${targetUrl}: ${
           result.success ? 'SUCCESS' : `FAILED (${result.error || result.statusCode})`
         }`,
       },

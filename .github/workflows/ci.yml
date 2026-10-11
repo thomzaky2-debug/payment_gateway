@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test & Typecheck (Node 22)
@@ -66,5 +69,14 @@ jobs:
       - name: Run TypeScript Typecheck
         run: npm run typecheck
 
+      - name: Build Server
+        run: npm run server:build
+
+      - name: Build Client
+        run: npm run client:build
+
       - name: Run Security Audit (Production Dependencies)
-        run: npm audit --omit=dev --audit-level=high || true
+        # Current advisories require major-version upgrades; keep this visible as
+        # a warning until those upgrades are tested and scheduled separately.
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
