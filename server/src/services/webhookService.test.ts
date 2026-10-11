@@ -6,6 +6,8 @@ import {
   forwardToClientWebhook,
 } from './webhookService.js'
 import { encryptCredential } from '../lib/credentialCrypto.js'
+import { db } from '../db.js'
+import { processDueWebhookRetries } from '../workers/webhookRetryWorker.js'
 
 test('generateWebhookSignature creates valid HMAC-SHA256 hex signature', () => {
   const secret = 'whsec_test_secret_12345'
@@ -63,7 +65,22 @@ test('resolveWebhookSigningSecret fails closed on malformed enc:v1: envelope', (
   assert.ok(res.error?.includes('failed decryption'))
 })
 
-test('forwardToClientWebhook aborts delivery immediately when secret resolution fails', async () => {
+test('forwardToClientWebhook aborts delivery immediately when secret resolution fails and records failed audit log', async (t) => {
+  let createdLog: any = null
+  const originalCreate = (db as any).webhookLog?.create
+  ;(db as any).webhookLog = {
+    ...(db as any).webhookLog,
+    create: async (args: any) => {
+      createdLog = args.data
+      return { id: 'whlog_test', ...args.data }
+    },
+  }
+  t.after(() => {
+    if (originalCreate) {
+      ;(db as any).webhookLog.create = originalCreate
+    }
+  })
+
   const tamperedSecret = 'enc:v1:fakeKey:00112233445566778899aabb:00112233445566778899aabbccddeeff:deadbeef'
   const dummyPayload = {
     event: 'payment.confirmed',
@@ -91,5 +108,92 @@ test('forwardToClientWebhook aborts delivery immediately when secret resolution 
   )
 
   assert.equal(res.success, false)
+  assert.equal(res.statusCode, 500)
   assert.ok(res.error?.includes('failed decryption'))
+  assert.ok(createdLog, 'Expected WebhookLog.create to be called')
+  assert.equal(createdLog.clientId, 'client_test_1')
+  assert.equal(createdLog.isSuccess, false)
+  assert.equal(createdLog.statusCode, 500)
+  assert.ok(createdLog.nextAttemptAt instanceof Date)
+  assert.ok(createdLog.response?.includes('failed decryption'))
 })
+
+test('processDueWebhookRetries preserves nextAttemptAt on secret resolution failure', async (t) => {
+  let updatedData: any = null
+  const originalFindMany = (db as any).webhookLog?.findMany
+  const originalUpdate = (db as any).webhookLog?.update
+
+  ;(db as any).webhookLog = {
+    ...(db as any).webhookLog,
+    findMany: async () => [
+      {
+        id: 'whlog_retry_1',
+        clientId: 'client_retry_1',
+        url: 'https://merchant.example.com/webhook',
+        payload: JSON.stringify({ event: 'payment.confirmed' }),
+        attempt: 1,
+        client: {
+          webhookSecret: 'enc:v1:fakeKey:00112233445566778899aabb:00112233445566778899aabbccddeeff:deadbeef',
+        },
+      },
+    ],
+    update: async (args: any) => {
+      updatedData = args.data
+      return { id: args.where.id, ...args.data }
+    },
+  }
+
+  t.after(() => {
+    if (originalFindMany) (db as any).webhookLog.findMany = originalFindMany
+    if (originalUpdate) (db as any).webhookLog.update = originalUpdate
+  })
+
+  await processDueWebhookRetries()
+
+  assert.ok(updatedData, 'Expected WebhookLog.update to be called')
+  assert.equal(updatedData.attempt, 2)
+  assert.equal(updatedData.isSuccess, false)
+  assert.equal(updatedData.statusCode, 500)
+  assert.ok(updatedData.nextAttemptAt instanceof Date, 'Expected nextAttemptAt to be set for retry')
+  assert.ok(updatedData.response?.includes('failed decryption'))
+})
+
+test('processDueWebhookRetries stops retrying when max attempts are exhausted on secret resolution failure', async (t) => {
+  let updatedData: any = null
+  const originalFindMany = (db as any).webhookLog?.findMany
+  const originalUpdate = (db as any).webhookLog?.update
+
+  ;(db as any).webhookLog = {
+    ...(db as any).webhookLog,
+    findMany: async () => [
+      {
+        id: 'whlog_retry_max',
+        clientId: 'client_retry_1',
+        url: 'https://merchant.example.com/webhook',
+        payload: JSON.stringify({ event: 'payment.confirmed' }),
+        attempt: 5, // 5th attempt, so nextAttemptNumber is 6
+        client: {
+          webhookSecret: 'enc:v1:fakeKey:00112233445566778899aabb:00112233445566778899aabbccddeeff:deadbeef',
+        },
+      },
+    ],
+    update: async (args: any) => {
+      updatedData = args.data
+      return { id: args.where.id, ...args.data }
+    },
+  }
+
+  t.after(() => {
+    if (originalFindMany) (db as any).webhookLog.findMany = originalFindMany
+    if (originalUpdate) (db as any).webhookLog.update = originalUpdate
+  })
+
+  await processDueWebhookRetries()
+
+  assert.ok(updatedData, 'Expected WebhookLog.update to be called')
+  assert.equal(updatedData.attempt, 6)
+  assert.equal(updatedData.isSuccess, false)
+  assert.equal(updatedData.statusCode, 500)
+  assert.equal(updatedData.nextAttemptAt, null, 'Expected nextAttemptAt to be null when attempts run out')
+})
+

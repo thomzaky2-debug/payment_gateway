@@ -91,12 +91,41 @@ export async function forwardToClientWebhook(
     return { success: false, error: 'No webhookUrl configured' }
   }
 
+  const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`
+  const timestamp = Math.floor(Date.now() / 1000)
+  const bodyStr = JSON.stringify(payload)
+  const backoffDelaysMs = [60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 60 * 60 * 1000, 6 * 60 * 60 * 1000]
+
   const secretResolution = resolveWebhookSigningSecret(webhookSecret)
   if (!secretResolution.ok) {
     console.error(
-      `[SECURITY ALERT] [webhookService] Webhook secret resolution failed for merchant ${clientId}: ${secretResolution.error}. Aborting delivery to prevent unsigned payload.`
+      `[SECURITY ALERT] [webhookService] Webhook secret resolution failed for merchant ${clientId}: ${secretResolution.error}. Recording failed delivery and scheduling retry.`
     )
-    return { success: false, error: secretResolution.error }
+    const nextAttemptAt =
+      attemptNumber <= backoffDelaysMs.length
+        ? new Date(Date.now() + backoffDelaysMs[attemptNumber - 1])
+        : null
+
+    try {
+      await db.webhookLog.create({
+        data: {
+          clientId,
+          url: webhookUrl,
+          event: payload.event,
+          eventId,
+          payload: bodyStr,
+          statusCode: 500,
+          response: `Webhook signing error: ${secretResolution.error}`,
+          isSuccess: false,
+          attempt: attemptNumber,
+          nextAttemptAt,
+        },
+      })
+    } catch (dbErr) {
+      console.error('[webhook] Failed to write WebhookLog record:', dbErr)
+    }
+
+    return { success: false, statusCode: 500, error: secretResolution.error }
   }
 
   const urlCheck = await validateWebhookUrlDns(webhookUrl)
@@ -104,10 +133,6 @@ export async function forwardToClientWebhook(
     console.warn(`[webhook] Blocked SSRF attempt to ${webhookUrl}: ${urlCheck.error}`)
     return { success: false, error: `Invalid webhookUrl: ${urlCheck.error}` }
   }
-
-  const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`
-  const timestamp = Math.floor(Date.now() / 1000)
-  const bodyStr = JSON.stringify(payload)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -151,7 +176,6 @@ export async function forwardToClientWebhook(
 
   // Calculate next retry timestamp using exponential backoff:
   // attempt 1: 1 min, attempt 2: 5 min, attempt 3: 15 min, attempt 4: 1 hr, attempt 5: 6 hrs
-  const backoffDelaysMs = [60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 60 * 60 * 1000, 6 * 60 * 60 * 1000]
   const nextAttemptAt =
     !isSuccess && attemptNumber <= backoffDelaysMs.length
       ? new Date(Date.now() + backoffDelaysMs[attemptNumber - 1])

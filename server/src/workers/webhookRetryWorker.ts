@@ -45,6 +45,11 @@ async function retrySingleWebhook(log: {
     console.error(
       `[SECURITY ALERT] [webhookRetryWorker] Failed to resolve webhookSecret for retry ${log.id}: ${secretResolution.error}. Aborting retry to prevent unsigned payload.`
     )
+    const nextAttemptAt =
+      nextAttemptNumber <= BACKOFF_DELAYS_MS.length
+        ? new Date(Date.now() + BACKOFF_DELAYS_MS[nextAttemptNumber - 1])
+        : null
+
     await db.webhookLog.update({
       where: { id: log.id },
       data: {
@@ -52,7 +57,7 @@ async function retrySingleWebhook(log: {
         statusCode: 500,
         response: secretResolution.error || 'Decryption failed for webhookSecret',
         isSuccess: false,
-        nextAttemptAt: null,
+        nextAttemptAt,
       },
     })
     return
