@@ -268,12 +268,15 @@ model WebhookLog {
   attempt       Int       @default(1)
   nextAttemptAt DateTime?
   deliveryLockedUntil DateTime? // Short-lived claim that prevents concurrent worker/manual sends
+  deliveryStartedAt DateTime? // Durable marker written before a network delivery begins
+  outcomeKnown Boolean   @default(true) // False means delivery may have happened; requires manual review
   createdAt     DateTime  @default(now())
 
   @@index([clientId, createdAt])
   @@index([eventId])
   @@index([isSuccess, nextAttemptAt])
   @@index([deliveryLockedUntil])
+  @@index([outcomeKnown, nextAttemptAt])
 }
 
 // ─── Administrative Audit Log ──────────────────────────────────────

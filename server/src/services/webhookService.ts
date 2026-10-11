@@ -128,7 +128,10 @@ async function persistWebhookLog(existingLogId: string | undefined, data: any): 
 
 async function persistAndProtectWebhookLog(existingLogId: string | undefined, data: any): Promise<boolean> {
   if (await persistWebhookLog(existingLogId, data)) return true
-  if (!existingLogId) return false
+  if (!existingLogId) {
+    console.error('[webhook] CRITICAL: an unsent webhook outcome could not be recorded; no delivery was attempted.')
+    return false
+  }
 
   // The row was claimed before a manual/worker resend. If recording the
   // result keeps failing, retain it for manual review instead of allowing the
@@ -141,6 +144,7 @@ async function persistAndProtectWebhookLog(existingLogId: string | undefined, da
         data: {
           nextAttemptAt: null,
           deliveryLockedUntil: manualReviewUntil,
+          outcomeKnown: false,
           response: 'CRITICAL: delivery result could not be persisted; automatic retry paused for manual review.',
         },
       })
@@ -193,6 +197,7 @@ export async function forwardToClientWebhook(
       attempt: attemptNumber,
       nextAttemptAt,
       deliveryLockedUntil: null,
+      outcomeKnown: true,
     })
     return withPersistenceStatus({ success: false, statusCode: 400, error: 'No webhookUrl configured' }, persisted)
   }
@@ -219,6 +224,7 @@ export async function forwardToClientWebhook(
       attempt: attemptNumber,
       nextAttemptAt,
       deliveryLockedUntil: null,
+      outcomeKnown: true,
     })
 
     return withPersistenceStatus({ success: false, statusCode: 500, error: secretResolution.error }, persisted)
@@ -243,6 +249,7 @@ export async function forwardToClientWebhook(
         ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
         : null,
       deliveryLockedUntil: null,
+      outcomeKnown: true,
     })
     return withPersistenceStatus({ success: false, statusCode: 500, error: `Webhook URL validation error: ${validationMessage}` }, persisted)
   }
@@ -265,6 +272,7 @@ export async function forwardToClientWebhook(
       attempt: attemptNumber,
       nextAttemptAt,
       deliveryLockedUntil: null,
+      outcomeKnown: true,
     })
     return withPersistenceStatus({ success: false, statusCode: 400, error }, persisted)
   }
@@ -285,6 +293,28 @@ export async function forwardToClientWebhook(
   let statusCode: number | null = null
   let responseBody: string | null = null
   let isSuccess = false
+
+  // A result write may fail after the remote server has processed the event.
+  // Create a durable unknown-outcome marker before any network I/O; if this
+  // fails, do not send because retry safety cannot be guaranteed.
+  let deliveryLogId = existingLogId
+  if (!deliveryLogId) {
+    try {
+      const pending = await db.webhookLog.create({
+        data: {
+          clientId, url: webhookUrl, event: payload.event, eventId, payload: bodyStr,
+          isSuccess: false, attempt: attemptNumber, nextAttemptAt: null,
+          deliveryLockedUntil: new Date(Date.now() + 60_000),
+          deliveryStartedAt: new Date(), outcomeKnown: false,
+          response: 'Delivery started; awaiting result persistence.',
+        },
+      })
+      deliveryLogId = pending.id
+    } catch (dbErr) {
+      console.error('[webhook] CRITICAL: refusing delivery because its start marker could not be persisted:', dbErr)
+      return { success: false, statusCode: 503, error: 'Webhook delivery could not be safely recorded', persistenceFailed: true }
+    }
+  }
 
   try {
     const customLookup = createPinnedDnsLookup(urlCheck.pinnedIp)
@@ -316,7 +346,7 @@ export async function forwardToClientWebhook(
       ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
       : null
 
-  const persisted = await persistAndProtectWebhookLog(existingLogId, {
+  const persisted = await persistAndProtectWebhookLog(deliveryLogId, {
     clientId,
     url: webhookUrl,
     event: payload.event,
@@ -328,6 +358,7 @@ export async function forwardToClientWebhook(
     attempt: attemptNumber,
     nextAttemptAt,
     deliveryLockedUntil: null,
+    outcomeKnown: true,
   })
 
   return withPersistenceStatus({ success: isSuccess, statusCode: statusCode ?? undefined, error: isSuccess ? undefined : responseBody ?? 'Failed' }, persisted)

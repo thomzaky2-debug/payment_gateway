@@ -23,12 +23,15 @@ async function retrySingleWebhook(log: {
   event?: string
   payload: string
   attempt: number
+  eventId?: string | null
   deliveryLockedUntil?: Date | null
   client: { webhookSecret: string | null }
 }) {
   const nextAttemptNumber = log.attempt + 1
   const timestamp = Math.floor(Date.now() / 1000)
-  const eventId = `retry_${log.id.slice(-8)}_${nextAttemptNumber}`
+  // Retries represent the same event. Keep this stable so merchant-side
+  // idempotency keyed by X-Instapay-Event-Id remains effective.
+  const eventId = log.eventId || `evt_${log.id}`
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -58,6 +61,7 @@ async function retrySingleWebhook(log: {
         isSuccess: false,
         nextAttemptAt,
         deliveryLockedUntil: null,
+        outcomeKnown: true,
       },
     })
 
@@ -123,6 +127,7 @@ async function retrySingleWebhook(log: {
       isSuccess,
       nextAttemptAt,
       deliveryLockedUntil: null,
+      outcomeKnown: true,
     },
   })
 
@@ -151,6 +156,7 @@ export async function processDueWebhookRetries() {
     const dueLogs = await db.webhookLog.findMany({
       where: {
         isSuccess: false,
+        outcomeKnown: true,
         nextAttemptAt: { lte: now },
         attempt: { lt: DECRYPT_FAILURE_BACKOFF_DELAYS_MS.length + 1 }, // Supports extended recovery window
       },
@@ -178,7 +184,11 @@ export async function processDueWebhookRetries() {
               { deliveryLockedUntil: { lte: now } },
             ],
           },
-          data: { deliveryLockedUntil: new Date(now.getTime() + 60_000) },
+          data: {
+            deliveryLockedUntil: new Date(now.getTime() + 60_000),
+            deliveryStartedAt: now,
+            outcomeKnown: false,
+          },
         })
         if (claim.count !== 1) continue
 

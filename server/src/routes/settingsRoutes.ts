@@ -287,12 +287,13 @@ settingsRouter.post('/webhooks/:id/resend', requireMerchant, merchantWebhookRese
         id: log.id,
         clientId: client.id,
         isSuccess: false,
+        outcomeKnown: true,
         OR: [
           { deliveryLockedUntil: null },
           { deliveryLockedUntil: { lte: now } },
         ],
       },
-      data: { deliveryLockedUntil: new Date(now.getTime() + 60_000) },
+      data: { deliveryLockedUntil: new Date(now.getTime() + 60_000), deliveryStartedAt: now, outcomeKnown: false },
     })
     if (claim.count !== 1) {
       return res.status(409).json({ ok: false, error: 'This webhook delivery is already being processed.' })

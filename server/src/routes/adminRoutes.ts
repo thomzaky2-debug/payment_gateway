@@ -670,12 +670,13 @@ adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin
       where: {
         id: log.id,
         isSuccess: false,
+        outcomeKnown: true,
         OR: [
           { deliveryLockedUntil: null },
           { deliveryLockedUntil: { lte: now } },
         ],
       },
-      data: { deliveryLockedUntil: new Date(now.getTime() + 60_000) },
+      data: { deliveryLockedUntil: new Date(now.getTime() + 60_000), deliveryStartedAt: now, outcomeKnown: false },
     })
     if (claim.count !== 1) {
       return res.status(409).json({ ok: false, error: 'This webhook delivery is already being processed.' })
@@ -712,6 +713,23 @@ adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin
     })
   } catch (err: unknown) {
     return sendInternalError(res, err, 'Failed to resend webhook')
+  }
+})
+
+// Release an unknown-outcome delivery after an administrator has verified the
+// merchant-side result. It remains unscheduled and can be manually resent.
+adminRouter.post('/webhooks/:id/release-review', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id)
+    const updated = await db.webhookLog.updateMany({
+      where: { id, isSuccess: false, outcomeKnown: false },
+      data: { outcomeKnown: true, deliveryLockedUntil: null, nextAttemptAt: null },
+    })
+    if (updated.count !== 1) return res.status(404).json({ ok: false, error: 'No webhook delivery awaiting manual review was found.' })
+    await db.auditLog.create({ data: { action: 'RELEASE_WEBHOOK_REVIEW', details: `Admin ${adminAuditActor(req)} released webhook log ${id} after manual outcome review.` } })
+    return res.json({ ok: true, message: 'Webhook review hold released. Use resend only after confirming the merchant outcome.' })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to release webhook review hold')
   }
 })
 
