@@ -488,7 +488,7 @@ adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: R
 
     // Deliver signed webhook to Merchant server
     if (settlement.newlyConfirmed && updated.client.webhookUrl) {
-      void forwardToClientWebhook(updated.client.id, updated.client.webhookUrl, decryptCredential(updated.client.webhookSecret), {
+      void forwardToClientWebhook(updated.client.id, updated.client.webhookUrl, updated.client.webhookSecret, {
         event: updated.purpose === 'SUBSCRIPTION' ? 'subscription.payment_confirmed' : 'payment.confirmed',
         clientId: updated.client.id,
         businessName: updated.client.businessName,

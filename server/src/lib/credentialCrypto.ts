@@ -179,11 +179,28 @@ export function decryptCredential(ciphertext: string | null | undefined): string
     // Legacy format from commit 347ebf0: enc:v1:<iv>:<tag>:<data>
     ;[ivHex, tagHex, dataHex] = parts
   } else {
-    return ciphertext
+    console.error(
+      `[SECURITY ALERT] [credentialCrypto] Malformed encrypted envelope: expected 3 or 4 colon-separated parts, got ${parts.length}`
+    )
+    return null
+  }
+
+  // Validate hex encoding
+  const isHex = (str: string) => /^[0-9a-fA-F]+$/.test(str)
+  if (!ivHex || !tagHex || !dataHex || !isHex(ivHex) || !isHex(tagHex) || !isHex(dataHex)) {
+    console.error('[SECURITY ALERT] [credentialCrypto] Malformed encrypted envelope: non-hex components in ciphertext')
+    return null
   }
 
   const iv = Buffer.from(ivHex, 'hex')
   const authTag = Buffer.from(tagHex, 'hex')
+  if (iv.length !== 12 || authTag.length !== 16) {
+    console.error(
+      `[SECURITY ALERT] [credentialCrypto] Malformed encrypted envelope: invalid IV length (${iv.length}) or auth tag length (${authTag.length})`
+    )
+    return null
+  }
+
   const candidates = getAllCandidateKeys()
 
   // Prioritize matching keyId if present

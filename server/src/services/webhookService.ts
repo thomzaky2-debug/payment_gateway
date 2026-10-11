@@ -1,6 +1,5 @@
 import http from 'http'
 import https from 'https'
-import net from 'net'
 import crypto from 'crypto'
 import axios from 'axios'
 import { db } from '../db.js'
@@ -24,6 +23,44 @@ export interface WebhookPayload {
     note?: string | null
     createdAt: string
   }
+}
+
+export interface WebhookSecretResolution {
+  ok: boolean
+  secret: string | null
+  error?: string
+}
+
+/**
+ * Resolves the webhook signing secret from a raw stored database value (encrypted or plaintext).
+ * Fail-closed: If a secret is encrypted but fails to decrypt (MAC failure or malformed envelope),
+ * returns { ok: false, ... } to ensure webhooks are never dispatched unsigned.
+ */
+export function resolveWebhookSigningSecret(
+  rawOrEncryptedSecret: string | null | undefined
+): WebhookSecretResolution {
+  if (!rawOrEncryptedSecret || typeof rawOrEncryptedSecret !== 'string') {
+    return { ok: true, secret: null }
+  }
+
+  const trimmed = rawOrEncryptedSecret.trim()
+  if (!trimmed) {
+    return { ok: true, secret: null }
+  }
+
+  if (isCredentialEncrypted(trimmed)) {
+    const decrypted = decryptCredential(trimmed)
+    if (!decrypted) {
+      return {
+        ok: false,
+        secret: null,
+        error: 'Webhook secret is encrypted but failed decryption (MAC/key failure or malformed envelope)',
+      }
+    }
+    return { ok: true, secret: decrypted }
+  }
+
+  return { ok: true, secret: trimmed }
 }
 
 /**
@@ -54,6 +91,14 @@ export async function forwardToClientWebhook(
     return { success: false, error: 'No webhookUrl configured' }
   }
 
+  const secretResolution = resolveWebhookSigningSecret(webhookSecret)
+  if (!secretResolution.ok) {
+    console.error(
+      `[SECURITY ALERT] [webhookService] Webhook secret resolution failed for merchant ${clientId}: ${secretResolution.error}. Aborting delivery to prevent unsigned payload.`
+    )
+    return { success: false, error: secretResolution.error }
+  }
+
   const urlCheck = await validateWebhookUrlDns(webhookUrl)
   if (!urlCheck.valid) {
     console.warn(`[webhook] Blocked SSRF attempt to ${webhookUrl}: ${urlCheck.error}`)
@@ -72,19 +117,8 @@ export async function forwardToClientWebhook(
     'X-Instapay-Signature-Version': 'v1',
   }
 
-  let resolvedSecret = webhookSecret
-  if (webhookSecret && isCredentialEncrypted(webhookSecret)) {
-    resolvedSecret = decryptCredential(webhookSecret)
-    if (!resolvedSecret) {
-      console.error(
-        `[SECURITY ALERT] [webhookService] Failed to decrypt webhookSecret for merchant ${clientId}. Aborting delivery to prevent unsigned payload.`
-      )
-      return { success: false, error: 'Webhook secret decryption failed' }
-    }
-  }
-
-  if (resolvedSecret) {
-    const signature = generateWebhookSignature(bodyStr, resolvedSecret, timestamp)
+  if (secretResolution.secret) {
+    const signature = generateWebhookSignature(bodyStr, secretResolution.secret, timestamp)
     headers['X-Instapay-Signature'] = `v1=${signature}`
   }
 

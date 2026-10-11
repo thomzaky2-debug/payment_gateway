@@ -276,7 +276,7 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
 
     // Deliver signed webhook to Merchant server if configured
     if (client.webhookUrl) {
-      void forwardToClientWebhook(client.id, client.webhookUrl, decryptCredential(client.webhookSecret), {
+      void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
         event: 'payment.confirmed',
         clientId: client.id,
         businessName: client.businessName,

@@ -1,11 +1,9 @@
 import axios from 'axios'
 import http from 'http'
 import https from 'https'
-import net from 'net'
 import { db } from '../db.js'
-import { generateWebhookSignature } from '../services/webhookService.js'
+import { generateWebhookSignature, resolveWebhookSigningSecret } from '../services/webhookService.js'
 import { validateWebhookUrlDns, createPinnedDnsLookup } from '../lib/urlValidator.js'
-import { decryptCredential } from '../lib/credentialCrypto.js'
 
 let workerInterval: NodeJS.Timeout | null = null
 let isProcessing = false
@@ -42,25 +40,26 @@ async function retrySingleWebhook(log: {
     'X-Instapay-Retry-Count': nextAttemptNumber.toString(),
   }
 
-  if (log.client.webhookSecret) {
-    const rawSecret = decryptCredential(log.client.webhookSecret)
-    if (!rawSecret) {
-      console.error(
-        `[SECURITY ALERT] [webhookRetryWorker] Failed to decrypt webhookSecret for retry ${log.id}. Aborting retry to prevent unsigned payload.`
-      )
-      await db.webhookLog.update({
-        where: { id: log.id },
-        data: {
-          attempt: nextAttemptNumber,
-          statusCode: 500,
-          response: 'Decryption failed for webhookSecret',
-          isSuccess: false,
-          nextAttemptAt: null,
-        },
-      })
-      return
-    }
-    const signature = generateWebhookSignature(log.payload, rawSecret, timestamp)
+  const secretResolution = resolveWebhookSigningSecret(log.client.webhookSecret)
+  if (!secretResolution.ok) {
+    console.error(
+      `[SECURITY ALERT] [webhookRetryWorker] Failed to resolve webhookSecret for retry ${log.id}: ${secretResolution.error}. Aborting retry to prevent unsigned payload.`
+    )
+    await db.webhookLog.update({
+      where: { id: log.id },
+      data: {
+        attempt: nextAttemptNumber,
+        statusCode: 500,
+        response: secretResolution.error || 'Decryption failed for webhookSecret',
+        isSuccess: false,
+        nextAttemptAt: null,
+      },
+    })
+    return
+  }
+
+  if (secretResolution.secret) {
+    const signature = generateWebhookSignature(log.payload, secretResolution.secret, timestamp)
     headers['X-Instapay-Signature'] = `v1=${signature}`
   }
 

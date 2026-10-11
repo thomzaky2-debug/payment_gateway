@@ -46,6 +46,22 @@ test('decryptCredential returns null on tampered ciphertext', () => {
   assert.equal(decryptCredential(tampered), null)
 })
 
+test('decryptCredential returns null on malformed enc:v1: envelopes', () => {
+  // Not enough parts (e.g. 2 parts)
+  assert.equal(decryptCredential('enc:v1:singlepart'), null)
+  assert.equal(decryptCredential('enc:v1:part1:part2'), null)
+
+  // Too many parts (e.g. 5 parts)
+  assert.equal(decryptCredential('enc:v1:k1:iv:tag:data:extra'), null)
+
+  // Non-hex components
+  assert.equal(decryptCredential('enc:v1:k1:not_hex_iv:not_hex_tag:not_hex_data'), null)
+
+  // Invalid IV / tag lengths
+  assert.equal(decryptCredential('enc:v1:k1:aabb:ccdd:eeff'), null)
+})
+
+
 test('decryptCredential handles legacy 3-part envelope from commit 347ebf0', () => {
   // Legacy format: enc:v1:<iv>:<tag>:<data>
   // Encrypted with single sha256(TOKEN_PEPPER)

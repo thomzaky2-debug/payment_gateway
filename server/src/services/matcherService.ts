@@ -392,7 +392,7 @@ export async function processInstaPayNotification(
         })
 
         if (client.webhookUrl) {
-          void forwardToClientWebhook(client.id, client.webhookUrl, decryptCredential(client.webhookSecret), {
+          void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
             event: 'payment.underpaid',
             clientId: client.id,
             businessName: client.businessName,
@@ -463,7 +463,7 @@ export async function processInstaPayNotification(
         })
 
         if (client.webhookUrl) {
-          void forwardToClientWebhook(client.id, client.webhookUrl, decryptCredential(client.webhookSecret), {
+          void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
             event: 'payment.overpaid',
             clientId: client.id,
             businessName: client.businessName,
@@ -539,7 +539,7 @@ export async function processInstaPayNotification(
 
   // 11. Deliver signed webhook callback to Merchant server
   if (client.webhookUrl) {
-    void forwardToClientWebhook(client.id, client.webhookUrl, decryptCredential(client.webhookSecret), {
+    void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
       event: 'payment.confirmed',
       clientId: client.id,
       businessName: client.businessName,
