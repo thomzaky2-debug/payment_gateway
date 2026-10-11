@@ -31,6 +31,14 @@ export interface WebhookSecretResolution {
   error?: string
 }
 
+export interface WebhookForwardResult {
+  success: boolean
+  statusCode?: number
+  error?: string
+  /** The delivery was attempted, but its result could not be durably recorded. */
+  persistenceFailed?: boolean
+}
+
 /**
  * Resolves the webhook signing secret from a raw stored database value (encrypted or plaintext).
  * Fail-closed: If a secret is encrypted but fails to decrypt (MAC failure or malformed envelope),
@@ -118,6 +126,41 @@ async function persistWebhookLog(existingLogId: string | undefined, data: any): 
   return false
 }
 
+async function persistAndProtectWebhookLog(existingLogId: string | undefined, data: any): Promise<boolean> {
+  if (await persistWebhookLog(existingLogId, data)) return true
+  if (!existingLogId) return false
+
+  // The row was claimed before a manual/worker resend. If recording the
+  // result keeps failing, retain it for manual review instead of allowing the
+  // worker to send a possibly already-delivered event once the short lock ends.
+  const manualReviewUntil = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  for (let writeAttempt = 1; writeAttempt <= 3; writeAttempt += 1) {
+    try {
+      await db.webhookLog.update({
+        where: { id: existingLogId },
+        data: {
+          nextAttemptAt: null,
+          deliveryLockedUntil: manualReviewUntil,
+          response: 'CRITICAL: delivery result could not be persisted; automatic retry paused for manual review.',
+        },
+      })
+      console.error(`[webhook] Delivery ${existingLogId} paused for manual review after persistence failure.`)
+      return false
+    } catch (dbErr) {
+      if (writeAttempt === 3) {
+        console.error(`[webhook] CRITICAL: could not pause delivery ${existingLogId} after persistence failure:`, dbErr)
+        break
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, writeAttempt * 50))
+    }
+  }
+  return false
+}
+
+function withPersistenceStatus(result: WebhookForwardResult, persisted: boolean): WebhookForwardResult {
+  return persisted ? result : { ...result, persistenceFailed: true }
+}
+
 export async function forwardToClientWebhook(
   clientId: string,
   webhookUrl: string,
@@ -126,7 +169,7 @@ export async function forwardToClientWebhook(
   attemptNumber = 1,
   existingLogId?: string,
   existingEventId?: string
-): Promise<{ success: boolean; statusCode?: number; error?: string }> {
+): Promise<WebhookForwardResult> {
   // Manual resend reuses the original event ID so merchant deduplication works
   // and the original delivery record remains the single source of truth.
   const eventId = existingEventId || `evt_${crypto.randomBytes(16).toString('hex')}`
@@ -138,7 +181,7 @@ export async function forwardToClientWebhook(
       attemptNumber <= STANDARD_BACKOFF_DELAYS_MS.length
         ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
         : null
-    await persistWebhookLog(existingLogId, {
+    const persisted = await persistAndProtectWebhookLog(existingLogId, {
       clientId,
       url: '',
       event: payload.event,
@@ -151,7 +194,7 @@ export async function forwardToClientWebhook(
       nextAttemptAt,
       deliveryLockedUntil: null,
     })
-    return { success: false, statusCode: 400, error: 'No webhookUrl configured' }
+    return withPersistenceStatus({ success: false, statusCode: 400, error: 'No webhookUrl configured' }, persisted)
   }
 
   const secretResolution = resolveWebhookSigningSecret(webhookSecret)
@@ -164,7 +207,7 @@ export async function forwardToClientWebhook(
         ? new Date(Date.now() + DECRYPT_FAILURE_BACKOFF_DELAYS_MS[attemptNumber - 1])
         : null
 
-    await persistWebhookLog(existingLogId, {
+    const persisted = await persistAndProtectWebhookLog(existingLogId, {
       clientId,
       url: webhookUrl,
       event: payload.event,
@@ -178,7 +221,7 @@ export async function forwardToClientWebhook(
       deliveryLockedUntil: null,
     })
 
-    return { success: false, statusCode: 500, error: secretResolution.error }
+    return withPersistenceStatus({ success: false, statusCode: 500, error: secretResolution.error }, persisted)
   }
 
   let urlCheck: Awaited<ReturnType<typeof validateWebhookUrlDns>>
@@ -186,7 +229,7 @@ export async function forwardToClientWebhook(
     urlCheck = await validateWebhookUrlDns(webhookUrl)
   } catch (err: unknown) {
     const validationMessage = err instanceof Error ? err.message : 'Webhook URL validation failed'
-    await persistWebhookLog(existingLogId, {
+    const persisted = await persistAndProtectWebhookLog(existingLogId, {
       clientId,
       url: webhookUrl,
       event: payload.event,
@@ -201,7 +244,7 @@ export async function forwardToClientWebhook(
         : null,
       deliveryLockedUntil: null,
     })
-    return { success: false, statusCode: 500, error: `Webhook URL validation error: ${validationMessage}` }
+    return withPersistenceStatus({ success: false, statusCode: 500, error: `Webhook URL validation error: ${validationMessage}` }, persisted)
   }
   if (!urlCheck.valid) {
     console.warn(`[webhook] Blocked SSRF attempt to ${webhookUrl}: ${urlCheck.error}`)
@@ -210,7 +253,7 @@ export async function forwardToClientWebhook(
       attemptNumber <= STANDARD_BACKOFF_DELAYS_MS.length
         ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
         : null
-    await persistWebhookLog(existingLogId, {
+    const persisted = await persistAndProtectWebhookLog(existingLogId, {
       clientId,
       url: webhookUrl,
       event: payload.event,
@@ -223,7 +266,7 @@ export async function forwardToClientWebhook(
       nextAttemptAt,
       deliveryLockedUntil: null,
     })
-    return { success: false, statusCode: 400, error }
+    return withPersistenceStatus({ success: false, statusCode: 400, error }, persisted)
   }
 
   const headers: Record<string, string> = {
@@ -273,7 +316,7 @@ export async function forwardToClientWebhook(
       ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
       : null
 
-  await persistWebhookLog(existingLogId, {
+  const persisted = await persistAndProtectWebhookLog(existingLogId, {
     clientId,
     url: webhookUrl,
     event: payload.event,
@@ -287,5 +330,5 @@ export async function forwardToClientWebhook(
     deliveryLockedUntil: null,
   })
 
-  return { success: isSuccess, statusCode: statusCode ?? undefined, error: isSuccess ? undefined : responseBody ?? 'Failed' }
+  return withPersistenceStatus({ success: isSuccess, statusCode: statusCode ?? undefined, error: isSuccess ? undefined : responseBody ?? 'Failed' }, persisted)
 }

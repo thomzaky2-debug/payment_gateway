@@ -696,15 +696,19 @@ adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin
       data: {
         action: 'RESEND_WEBHOOK',
         details: `Manual admin resend by ${adminAuditActor(req)} for webhook log ${log.id} (${log.event}) to ${targetUrl}: ${
-          result.success ? 'SUCCESS' : `FAILED (${result.error || result.statusCode})`
+          result.persistenceFailed
+            ? 'PERSISTENCE_FAILED — automatic retries paused for manual review'
+            : result.success ? 'SUCCESS' : `FAILED (${result.error || result.statusCode})`
         }`,
       },
     })
 
-    return res.json({
-      ok: true,
+    return res.status(result.persistenceFailed ? 202 : 200).json({
+      ok: !result.persistenceFailed,
       result,
-      message: result.success ? 'Webhook redelivered successfully' : `Delivery attempted: ${result.error}`,
+      message: result.persistenceFailed
+        ? 'Delivery was attempted, but its result could not be recorded. Automatic retries are paused for manual review.'
+        : result.success ? 'Webhook redelivered successfully' : `Delivery attempted: ${result.error}`,
     })
   } catch (err: unknown) {
     return sendInternalError(res, err, 'Failed to resend webhook')

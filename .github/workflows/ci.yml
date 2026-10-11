@@ -32,6 +32,8 @@ jobs:
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://test_user:test_password@localhost:5432/payment_gateway_test?schema=public
+      DIRECT_URL: postgresql://test_user:test_password@localhost:5432/payment_gateway_test?schema=public
+      SHADOW_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/postgres?schema=public
       PORT: 3001
       SUPERADMIN_KEY: ci_superadmin_test_key_minimum_32_characters_long
       TOKEN_PEPPER: ci_deterministic_token_pepper_value_32_chars
@@ -60,8 +62,11 @@ jobs:
       - name: Generate Prisma Client
         run: npm run db:generate
 
-      - name: Push Database Schema
-        run: npx prisma db push --skip-generate
+      - name: Apply Database Migrations
+        run: npm run db:migrate
+
+      - name: Verify Prisma Migration Drift
+        run: npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url "$SHADOW_DATABASE_URL" --exit-code
 
       - name: Run Unit & Policy Tests (test:auth)
         run: npm run test:auth

@@ -160,6 +160,48 @@ test('forwardToClientWebhook records an invalid URL failure on an existing deliv
   assert.ok(updatedData.nextAttemptAt instanceof Date)
 })
 
+test('forwardToClientWebhook pauses an existing delivery for manual review when result persistence fails', async (t) => {
+  let updateCalls = 0
+  let protectionData: any = null
+  const originalUpdate = (db as any).webhookLog?.update
+  ;(db as any).webhookLog = {
+    ...(db as any).webhookLog,
+    update: async (args: any) => {
+      updateCalls += 1
+      if (updateCalls <= 3) throw new Error('temporary database outage')
+      protectionData = args.data
+      return { id: args.where.id, ...args.data }
+    },
+  }
+  t.after(() => {
+    if (originalUpdate) (db as any).webhookLog.update = originalUpdate
+  })
+
+  const res = await forwardToClientWebhook(
+    'client_test_1',
+    'not-a-webhook-url',
+    null,
+    {
+      event: 'payment.confirmed',
+      clientId: 'client_test_1',
+      businessName: 'Test Business',
+      transaction: {
+        sessionId: 'cmt_persistence_failure', senderHandle: 'cust@instapay', recipientHandle: 'merchant@instapay',
+        amountEgp: 100, currency: 'EGP', status: 'CONFIRMED', detectedRef: null, detectedAt: null,
+        createdAt: new Date().toISOString(),
+      },
+    },
+    1,
+    'whlog_persistence_failure',
+    'evt_persistence_failure'
+  )
+
+  assert.equal(res.persistenceFailed, true)
+  assert.equal(updateCalls, 4)
+  assert.equal(protectionData.nextAttemptAt, null)
+  assert.ok(protectionData.deliveryLockedUntil instanceof Date)
+})
+
 test('processDueWebhookRetries preserves nextAttemptAt on secret resolution failure', async (t) => {
   let updatedData: any = null
   const originalFindMany = (db as any).webhookLog?.findMany

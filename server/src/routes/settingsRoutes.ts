@@ -317,16 +317,18 @@ settingsRouter.post('/webhooks/:id/resend', requireMerchant, merchantWebhookRese
     await db.auditLog.create({
       data: {
         action: 'MERCHANT_RESEND_WEBHOOK',
-        details: `Merchant ${client.id} manually resent webhook log ${log.id} from ${getRequestIp(req) || 'unknown-ip'}: ${result.success ? 'SUCCESS' : 'FAILED'}`,
+        details: `Merchant ${client.id} manually resent webhook log ${log.id} from ${getRequestIp(req) || 'unknown-ip'}: ${result.persistenceFailed ? 'PERSISTENCE_FAILED — automatic retries paused for manual review' : result.success ? 'SUCCESS' : 'FAILED'}`,
       },
     }).catch((auditError) => {
       console.error(`[settings/webhooks] Failed to audit merchant resend for ${log.id}:`, auditError)
     })
 
-    return res.json({
-      ok: true,
+    return res.status(result.persistenceFailed ? 202 : 200).json({
+      ok: !result.persistenceFailed,
       result,
-      message: result.success ? 'Webhook redelivered successfully' : `Delivery attempted: ${result.error}`,
+      message: result.persistenceFailed
+        ? 'Delivery was attempted, but its result could not be recorded. Automatic retries are paused for manual review.'
+        : result.success ? 'Webhook redelivered successfully' : `Delivery attempted: ${result.error}`,
     })
   } catch (err: unknown) {
     return sendInternalError(res, err, 'Failed to resend webhook')
