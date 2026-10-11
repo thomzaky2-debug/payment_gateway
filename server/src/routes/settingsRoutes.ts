@@ -281,7 +281,22 @@ settingsRouter.post('/webhooks/:id/resend', requireMerchant, merchantWebhookRese
       return res.status(400).json({ ok: false, error: 'Invalid stored webhook payload JSON' })
     }
 
-    await db.webhookLog.updateMany({ where: { id: log.id, clientId: client.id, isSuccess: false }, data: { nextAttemptAt: null } })
+    const now = new Date()
+    const claim = await db.webhookLog.updateMany({
+      where: {
+        id: log.id,
+        clientId: client.id,
+        isSuccess: false,
+        OR: [
+          { deliveryLockedUntil: null },
+          { deliveryLockedUntil: { lte: now } },
+        ],
+      },
+      data: { deliveryLockedUntil: new Date(now.getTime() + 60_000) },
+    })
+    if (claim.count !== 1) {
+      return res.status(409).json({ ok: false, error: 'This webhook delivery is already being processed.' })
+    }
 
     const currentClient = await db.client.findUnique({
       where: { id: client.id },
@@ -294,7 +309,7 @@ settingsRouter.post('/webhooks/:id/resend', requireMerchant, merchantWebhookRese
       targetUrl,
       currentClient?.webhookSecret ?? null,
       payload,
-      1,
+      log.attempt + 1,
       log.id,
       log.eventId || undefined
     )
@@ -304,7 +319,9 @@ settingsRouter.post('/webhooks/:id/resend', requireMerchant, merchantWebhookRese
         action: 'MERCHANT_RESEND_WEBHOOK',
         details: `Merchant ${client.id} manually resent webhook log ${log.id} from ${getRequestIp(req) || 'unknown-ip'}: ${result.success ? 'SUCCESS' : 'FAILED'}`,
       },
-    }).catch(() => {})
+    }).catch((auditError) => {
+      console.error(`[settings/webhooks] Failed to audit merchant resend for ${log.id}:`, auditError)
+    })
 
     return res.json({
       ok: true,

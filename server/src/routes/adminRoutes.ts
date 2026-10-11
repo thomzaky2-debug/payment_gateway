@@ -3,6 +3,7 @@ import { db } from '../db.js'
 import {
   createOwnerSessionToken,
   generateMerchantKeys,
+  hashToken,
   OWNER_SESSION_COOKIE_NAME,
   revokeAllMerchantSessions,
   revokeSessionToken,
@@ -50,7 +51,10 @@ const adminWebhookResendLimiter = createRateLimiterWithKey(
 )
 
 function adminAuditActor(req: Request): string {
-  return `${process.env.ADMIN_EMAIL || 'platform-owner'} from ${getRequestIp(req) || 'unknown-ip'}`
+  const session = getRequestAuthToken(req, OWNER_SESSION_COOKIE_NAME)
+  // Store only a short HMAC-derived identifier, never the bearer/cookie token.
+  const sessionFingerprint = session?.token ? hashToken(`audit-session:${session.token}`).slice(0, 16) : 'unknown-session'
+  return `${process.env.ADMIN_EMAIL || 'platform-owner'} (session ${sessionFingerprint}) from ${getRequestIp(req) || 'unknown-ip'}`
 }
 
 function requireAdminStepUp(req: Request, res: Response, next: NextFunction) {
@@ -659,9 +663,23 @@ adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin
       return res.status(400).json({ ok: false, error: 'Invalid stored webhook payload JSON' })
     }
 
-    // Remove it from the retry queue before delivery; the same row is then
-    // updated by forwardToClientWebhook instead of creating a second event.
-    await db.webhookLog.updateMany({ where: { id: log.id, isSuccess: false }, data: { nextAttemptAt: null } })
+    // Claim the delivery before sending. This prevents a second manual resend
+    // or the retry worker from dispatching the same event concurrently.
+    const now = new Date()
+    const claim = await db.webhookLog.updateMany({
+      where: {
+        id: log.id,
+        isSuccess: false,
+        OR: [
+          { deliveryLockedUntil: null },
+          { deliveryLockedUntil: { lte: now } },
+        ],
+      },
+      data: { deliveryLockedUntil: new Date(now.getTime() + 60_000) },
+    })
+    if (claim.count !== 1) {
+      return res.status(409).json({ ok: false, error: 'This webhook delivery is already being processed.' })
+    }
 
     const targetUrl = log.client.webhookUrl || log.url
     const result = await forwardToClientWebhook(
@@ -669,7 +687,7 @@ adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin
       targetUrl,
       log.client.webhookSecret,
       payload,
-      1,
+      log.attempt + 1,
       log.id,
       log.eventId || undefined
     )

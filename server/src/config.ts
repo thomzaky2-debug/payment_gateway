@@ -50,5 +50,12 @@ export function validateRuntimeConfig() {
     if (!isValidTotpSecret(totpSecret, 20)) {
       throw new Error('ADMIN_TOTP_SECRET must be a valid Base32 secret with at least 160 bits')
     }
+
+    // Make the client-IP trust boundary explicit. Use 0/false for a direct
+    // deployment, true/1 only behind one known reverse proxy hop.
+    const trustProxy = process.env.TRUST_PROXY?.trim()
+    if (!trustProxy || !(/^(true|false)$/i.test(trustProxy) || /^\d+$/.test(trustProxy))) {
+      throw new Error('TRUST_PROXY must be explicitly set to true, false, or a non-negative proxy hop count outside local development')
+    }
   }
 }

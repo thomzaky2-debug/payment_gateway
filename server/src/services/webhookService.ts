@@ -98,6 +98,15 @@ export const DECRYPT_FAILURE_BACKOFF_DELAYS_MS = [
   24 * 60 * 60 * 1000, // 24 hours (extends total recovery window to ~43.5 hours)
 ]
 
+async function persistWebhookLog(existingLogId: string | undefined, data: any): Promise<void> {
+  try {
+    if (existingLogId) await db.webhookLog.update({ where: { id: existingLogId }, data })
+    else await db.webhookLog.create({ data })
+  } catch (dbErr) {
+    console.error('[webhook] Failed to write WebhookLog record:', dbErr)
+  }
+}
+
 export async function forwardToClientWebhook(
   clientId: string,
   webhookUrl: string,
@@ -107,15 +116,32 @@ export async function forwardToClientWebhook(
   existingLogId?: string,
   existingEventId?: string
 ): Promise<{ success: boolean; statusCode?: number; error?: string }> {
-  if (!webhookUrl) {
-    return { success: false, error: 'No webhookUrl configured' }
-  }
-
   // Manual resend reuses the original event ID so merchant deduplication works
   // and the original delivery record remains the single source of truth.
   const eventId = existingEventId || `evt_${crypto.randomBytes(16).toString('hex')}`
   const timestamp = Math.floor(Date.now() / 1000)
   const bodyStr = JSON.stringify(payload)
+
+  if (!webhookUrl) {
+    const nextAttemptAt =
+      attemptNumber <= STANDARD_BACKOFF_DELAYS_MS.length
+        ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
+        : null
+    await persistWebhookLog(existingLogId, {
+      clientId,
+      url: '',
+      event: payload.event,
+      eventId,
+      payload: bodyStr,
+      statusCode: 400,
+      response: 'No webhookUrl configured',
+      isSuccess: false,
+      attempt: attemptNumber,
+      nextAttemptAt,
+      deliveryLockedUntil: null,
+    })
+    return { success: false, statusCode: 400, error: 'No webhookUrl configured' }
+  }
 
   const secretResolution = resolveWebhookSigningSecret(webhookSecret)
   if (!secretResolution.ok) {
@@ -127,32 +153,66 @@ export async function forwardToClientWebhook(
         ? new Date(Date.now() + DECRYPT_FAILURE_BACKOFF_DELAYS_MS[attemptNumber - 1])
         : null
 
-    try {
-      const data = {
-        clientId,
-        url: webhookUrl,
-        event: payload.event,
-        eventId,
-        payload: bodyStr,
-        statusCode: 500,
-        response: `Webhook signing error: ${secretResolution.error}`,
-        isSuccess: false,
-        attempt: attemptNumber,
-        nextAttemptAt,
-      }
-      if (existingLogId) await db.webhookLog.update({ where: { id: existingLogId }, data })
-      else await db.webhookLog.create({ data })
-    } catch (dbErr) {
-      console.error('[webhook] Failed to write WebhookLog record:', dbErr)
-    }
+    await persistWebhookLog(existingLogId, {
+      clientId,
+      url: webhookUrl,
+      event: payload.event,
+      eventId,
+      payload: bodyStr,
+      statusCode: 500,
+      response: `Webhook signing error: ${secretResolution.error}`,
+      isSuccess: false,
+      attempt: attemptNumber,
+      nextAttemptAt,
+      deliveryLockedUntil: null,
+    })
 
     return { success: false, statusCode: 500, error: secretResolution.error }
   }
 
-  const urlCheck = await validateWebhookUrlDns(webhookUrl)
+  let urlCheck: Awaited<ReturnType<typeof validateWebhookUrlDns>>
+  try {
+    urlCheck = await validateWebhookUrlDns(webhookUrl)
+  } catch (err: unknown) {
+    const validationMessage = err instanceof Error ? err.message : 'Webhook URL validation failed'
+    await persistWebhookLog(existingLogId, {
+      clientId,
+      url: webhookUrl,
+      event: payload.event,
+      eventId,
+      payload: bodyStr,
+      statusCode: 500,
+      response: `Webhook URL validation error: ${validationMessage}`,
+      isSuccess: false,
+      attempt: attemptNumber,
+      nextAttemptAt: attemptNumber <= STANDARD_BACKOFF_DELAYS_MS.length
+        ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
+        : null,
+      deliveryLockedUntil: null,
+    })
+    return { success: false, statusCode: 500, error: `Webhook URL validation error: ${validationMessage}` }
+  }
   if (!urlCheck.valid) {
     console.warn(`[webhook] Blocked SSRF attempt to ${webhookUrl}: ${urlCheck.error}`)
-    return { success: false, error: `Invalid webhookUrl: ${urlCheck.error}` }
+    const error = `Invalid webhookUrl: ${urlCheck.error}`
+    const nextAttemptAt =
+      attemptNumber <= STANDARD_BACKOFF_DELAYS_MS.length
+        ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
+        : null
+    await persistWebhookLog(existingLogId, {
+      clientId,
+      url: webhookUrl,
+      event: payload.event,
+      eventId,
+      payload: bodyStr,
+      statusCode: 400,
+      response: error,
+      isSuccess: false,
+      attempt: attemptNumber,
+      nextAttemptAt,
+      deliveryLockedUntil: null,
+    })
+    return { success: false, statusCode: 400, error }
   }
 
   const headers: Record<string, string> = {
@@ -202,24 +262,19 @@ export async function forwardToClientWebhook(
       ? new Date(Date.now() + STANDARD_BACKOFF_DELAYS_MS[attemptNumber - 1])
       : null
 
-  try {
-    const data = {
-      clientId,
-      url: webhookUrl,
-      event: payload.event,
-      eventId,
-      payload: bodyStr,
-      statusCode,
-      response: responseBody,
-      isSuccess,
-      attempt: attemptNumber,
-      nextAttemptAt,
-    }
-    if (existingLogId) await db.webhookLog.update({ where: { id: existingLogId }, data })
-    else await db.webhookLog.create({ data })
-  } catch (dbErr) {
-    console.error('[webhook] Failed to write WebhookLog record:', dbErr)
-  }
+  await persistWebhookLog(existingLogId, {
+    clientId,
+    url: webhookUrl,
+    event: payload.event,
+    eventId,
+    payload: bodyStr,
+    statusCode,
+    response: responseBody,
+    isSuccess,
+    attempt: attemptNumber,
+    nextAttemptAt,
+    deliveryLockedUntil: null,
+  })
 
   return { success: isSuccess, statusCode: statusCode ?? undefined, error: isSuccess ? undefined : responseBody ?? 'Failed' }
 }

@@ -118,10 +118,53 @@ test('forwardToClientWebhook aborts delivery immediately when secret resolution 
   assert.ok(createdLog.response?.includes('failed decryption'))
 })
 
+test('forwardToClientWebhook records an invalid URL failure on an existing delivery and releases its claim', async (t) => {
+  let updatedData: any = null
+  const originalUpdate = (db as any).webhookLog?.update
+  ;(db as any).webhookLog = {
+    ...(db as any).webhookLog,
+    update: async (args: any) => {
+      updatedData = args.data
+      return { id: args.where.id, ...args.data }
+    },
+  }
+  t.after(() => {
+    if (originalUpdate) (db as any).webhookLog.update = originalUpdate
+  })
+
+  const res = await forwardToClientWebhook(
+    'client_test_1',
+    'not-a-webhook-url',
+    null,
+    {
+      event: 'payment.confirmed',
+      clientId: 'client_test_1',
+      businessName: 'Test Business',
+      transaction: {
+        sessionId: 'cmt_invalid_url', senderHandle: 'cust@instapay', recipientHandle: 'merchant@instapay',
+        amountEgp: 100, currency: 'EGP', status: 'CONFIRMED', detectedRef: null, detectedAt: null,
+        createdAt: new Date().toISOString(),
+      },
+    },
+    3,
+    'whlog_existing',
+    'evt_existing'
+  )
+
+  assert.equal(res.success, false)
+  assert.equal(res.statusCode, 400)
+  assert.ok(updatedData, 'Expected existing WebhookLog to be updated')
+  assert.equal(updatedData.eventId, 'evt_existing')
+  assert.equal(updatedData.attempt, 3)
+  assert.equal(updatedData.deliveryLockedUntil, null)
+  assert.ok(updatedData.nextAttemptAt instanceof Date)
+})
+
 test('processDueWebhookRetries preserves nextAttemptAt on secret resolution failure', async (t) => {
   let updatedData: any = null
   const originalFindMany = (db as any).webhookLog?.findMany
   const originalUpdate = (db as any).webhookLog?.update
+  const originalUpdateMany = (db as any).webhookLog?.updateMany
 
   ;(db as any).webhookLog = {
     ...(db as any).webhookLog,
@@ -141,11 +184,13 @@ test('processDueWebhookRetries preserves nextAttemptAt on secret resolution fail
       updatedData = args.data
       return { id: args.where.id, ...args.data }
     },
+    updateMany: async () => ({ count: 1 }),
   }
 
   t.after(() => {
     if (originalFindMany) (db as any).webhookLog.findMany = originalFindMany
     if (originalUpdate) (db as any).webhookLog.update = originalUpdate
+    if (originalUpdateMany) (db as any).webhookLog.updateMany = originalUpdateMany
   })
 
   await processDueWebhookRetries()
@@ -162,6 +207,7 @@ test('processDueWebhookRetries stops retrying when max attempts are exhausted on
   let updatedData: any = null
   const originalFindMany = (db as any).webhookLog?.findMany
   const originalUpdate = (db as any).webhookLog?.update
+  const originalUpdateMany = (db as any).webhookLog?.updateMany
 
   ;(db as any).webhookLog = {
     ...(db as any).webhookLog,
@@ -181,11 +227,13 @@ test('processDueWebhookRetries stops retrying when max attempts are exhausted on
       updatedData = args.data
       return { id: args.where.id, ...args.data }
     },
+    updateMany: async () => ({ count: 1 }),
   }
 
   t.after(() => {
     if (originalFindMany) (db as any).webhookLog.findMany = originalFindMany
     if (originalUpdate) (db as any).webhookLog.update = originalUpdate
+    if (originalUpdateMany) (db as any).webhookLog.updateMany = originalUpdateMany
   })
 
   await processDueWebhookRetries()
@@ -196,4 +244,3 @@ test('processDueWebhookRetries stops retrying when max attempts are exhausted on
   assert.equal(updatedData.statusCode, 500)
   assert.equal(updatedData.nextAttemptAt, null, 'Expected nextAttemptAt to be null when attempts run out')
 })
-

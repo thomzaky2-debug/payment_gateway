@@ -10,6 +10,7 @@ const SECURITY_ENV_KEYS = [
   'ADMIN_EMAIL',
   'ADMIN_TOTP_SECRET',
   'CLIENT_URL',
+  'TRUST_PROXY',
   'AUTH_ALLOW_DEV_BYPASS',
   'AUTH_EXPOSE_DEV_OTP',
 ] as const
@@ -26,6 +27,7 @@ test('production configuration rejects shipped placeholders and malformed TOTP s
       ADMIN_EMAIL: 'owner@example.test',
       ADMIN_TOTP_SECRET: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
       CLIENT_URL: 'https://gateway.example.test',
+      TRUST_PROXY: '0',
       AUTH_ALLOW_DEV_BYPASS: 'false',
       AUTH_EXPOSE_DEV_OTP: 'false',
     })

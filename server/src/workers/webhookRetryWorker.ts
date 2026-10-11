@@ -23,6 +23,7 @@ async function retrySingleWebhook(log: {
   event?: string
   payload: string
   attempt: number
+  deliveryLockedUntil?: Date | null
   client: { webhookSecret: string | null }
 }) {
   const nextAttemptNumber = log.attempt + 1
@@ -56,6 +57,7 @@ async function retrySingleWebhook(log: {
         response: secretResolution.error || 'Decryption failed for webhookSecret',
         isSuccess: false,
         nextAttemptAt,
+        deliveryLockedUntil: null,
       },
     })
 
@@ -120,6 +122,7 @@ async function retrySingleWebhook(log: {
       response: responseBody,
       isSuccess,
       nextAttemptAt,
+      deliveryLockedUntil: null,
     },
   })
 
@@ -162,6 +165,23 @@ export async function processDueWebhookRetries() {
     if (dueLogs.length > 0) {
       console.log(`[Webhook Worker] Found ${dueLogs.length} pending webhooks to retry`)
       for (const log of dueLogs) {
+        // The query above is only a candidate list. Atomically claim each row
+        // so another app instance or a manual resend cannot send it too.
+        const now = new Date()
+        const claim = await db.webhookLog.updateMany({
+          where: {
+            id: log.id,
+            isSuccess: false,
+            nextAttemptAt: { lte: now },
+            OR: [
+              { deliveryLockedUntil: null },
+              { deliveryLockedUntil: { lte: now } },
+            ],
+          },
+          data: { deliveryLockedUntil: new Date(now.getTime() + 60_000) },
+        })
+        if (claim.count !== 1) continue
+
         await retrySingleWebhook(log).catch((err) => {
           console.error(`[Webhook Worker] Error retrying log ${log.id}:`, err)
         })
