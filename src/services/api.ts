@@ -4,8 +4,22 @@ import axios from 'axios'
  * In hosted mode the static sites live on app/admin hostnames while the API is
  * on its own HTTPS hostname. Leave VITE_API_BASE_URL empty in local Vite
  * development to retain the /api proxy.
+ *
+ * MonsterASP's static SPA builder does not reliably pass build environment
+ * variables to Vite. Keep its temporary staging hosts usable without ever
+ * changing the production custom-domain configuration.
  */
-export const apiOrigin = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '')
+const monsterAspStagingApiOrigins: Record<string, string> = {
+  'nilepay.runasp.net': 'https://nilepay-api.runasp.net',
+  'nilepay-admin.runasp.net': 'https://nilepay-api.runasp.net',
+}
+
+const configuredApiOrigin = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '')
+const stagingApiOrigin = typeof window === 'undefined'
+  ? ''
+  : monsterAspStagingApiOrigins[window.location.hostname.toLowerCase()] || ''
+
+export const apiOrigin = configuredApiOrigin || stagingApiOrigin
 export const apiBaseUrl = apiOrigin ? `${apiOrigin}/api` : '/api'
 
 export function apiUrl(path: string): string {
