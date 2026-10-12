@@ -37,7 +37,7 @@ export const authApi = {
     password: string
     instapayHandle: string
     instapayPaymentUrl?: string
-    whatsappNumber?: string
+    whatsappNumber: string
     verificationId?: string
     otp?: string
   }) {

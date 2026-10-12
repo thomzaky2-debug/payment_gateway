@@ -26,6 +26,7 @@ const navigation: Array<{
 }> = [
   { tab: 'overview', label: 'Overview', emoji: '📊' },
   { tab: 'merchants', label: 'Merchants', emoji: '🏪' },
+  { tab: 'merchantDetails', label: 'Merchant Details', emoji: '🔎' },
   { tab: 'transactions', label: 'Transactions', emoji: '💳' },
   { tab: 'audit', label: 'Audit Trail', emoji: '📋' },
   { tab: 'webhooks', label: 'Webhook Logs', emoji: '🔗' },

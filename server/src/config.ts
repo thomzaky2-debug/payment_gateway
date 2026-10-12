@@ -52,6 +52,17 @@ export function validateRuntimeConfig() {
       throw new Error('ADMIN_TOTP_SECRET must be a valid Base32 secret with at least 160 bits')
     }
 
+    const hasResend = Boolean(process.env.RESEND_API_KEY?.trim())
+    const smtpFields = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'] as const
+    const configuredSmtpFields = smtpFields.filter((name) => Boolean(process.env[name]?.trim()))
+    if (!hasResend && configuredSmtpFields.length !== smtpFields.length) {
+      throw new Error('Configure RESEND_API_KEY or complete SMTP_HOST, SMTP_USER, and SMTP_PASS for OTP email delivery')
+    }
+
+    if (!process.env.UPSTASH_REDIS_REST_URL?.startsWith('https://') || !process.env.UPSTASH_REDIS_REST_TOKEN?.trim()) {
+      throw new Error('UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be configured for hosted rate limiting')
+    }
+
     // Make the client-IP trust boundary explicit. Use 0/false for a direct
     // deployment, true/1 only behind one known reverse proxy hop.
     parseTrustProxy(process.env.TRUST_PROXY, true)

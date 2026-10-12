@@ -13,6 +13,7 @@ interface AdminTopbarProps {
 const titles: Record<AdminTab, { title: string; subtitle: string }> = {
   overview: { title: 'Platform Overview', subtitle: 'Operational health, activity, and actions requiring attention' },
   merchants: { title: 'Merchant Management', subtitle: 'Review accounts, approvals, detector health, and integration access' },
+  merchantDetails: { title: 'Merchant Details', subtitle: 'Review a merchant profile, operational health, and payment activity' },
   transactions: { title: 'Platform Transactions', subtitle: 'Monitor and resolve payment activity across every merchant' },
   audit: { title: 'Administrative Audit Trail', subtitle: 'Review privileged actions and platform security events' },
   webhooks: { title: 'Webhook Delivery Logs', subtitle: 'Inspect merchant callback delivery and retry activity' },

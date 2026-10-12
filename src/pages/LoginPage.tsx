@@ -31,6 +31,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
   const [isRegister, setIsRegister] = useState(false);
   const [businessName, setBusinessName] = useState('');
   const [instapayHandle, setInstapayHandle] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -82,6 +83,11 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
       }
       if (!instapayHandle.trim()) {
         newErrors.instapayHandle = 'InstaPay handle is required';
+      }
+      if (!/^01\d{9}$/.test(phoneNumber)) {
+        newErrors.phoneNumber = lang === 'ar'
+          ? 'أدخل رقم موبايل مصري من 11 رقمًا يبدأ بـ 01'
+          : 'Enter an 11-digit Egyptian mobile number starting with 01';
       }
       if (!registerOtp.trim()) {
         newErrors.registerOtp = 'Please enter the 6-digit verification code sent to your email';
@@ -220,6 +226,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
           businessName: businessName.trim(),
           instapayHandle: handle,
           instapayPaymentUrl: paymentUrl,
+          whatsappNumber: phoneNumber,
           email: email.trim(),
           password,
           verificationId: registerVerificationId,
@@ -719,6 +726,48 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                     ) : (
                       <p style={{ fontSize: '10.5px', color: '#64748b', margin: '4px 0 0 0' }}>
                         {lang === 'ar' ? 'يدعم عنوان إنستاباي أو رابط دفع ipn.eg المباشر' : 'Supports @instapay handle or direct ipn.eg link'}
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+                      {lang === 'ar' ? 'رقم الهاتف / واتساب' : 'Phone / WhatsApp Number'}
+                    </label>
+                    <div style={{ display: 'flex', direction: 'ltr' }}>
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          minWidth: '48px', padding: '0 12px', borderRadius: '9px 0 0 9px',
+                          border: `1px solid ${errors.phoneNumber ? '#ef4444' : '#334155'}`,
+                          borderRight: 'none', background: '#1e293b', color: '#cbd5e1',
+                          fontFamily: 'monospace', fontWeight: 700, fontSize: '14px',
+                        }}
+                      >
+                        +2
+                      </span>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel-national"
+                        pattern="01[0-9]{9}"
+                        maxLength={11}
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                        placeholder="01123456789"
+                        className="merchant-auth-input"
+                        style={{
+                          direction: 'ltr', borderRadius: '0 9px 9px 0',
+                          border: `1px solid ${errors.phoneNumber ? '#ef4444' : '#334155'}`,
+                        }}
+                      />
+                    </div>
+                    {errors.phoneNumber ? (
+                      <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.phoneNumber}</p>
+                    ) : (
+                      <p style={{ fontSize: '10.5px', color: '#64748b', margin: '4px 0 0 0' }}>
+                        {lang === 'ar' ? 'أدخل 11 رقمًا محليًا يبدأ بـ 01.' : 'Enter the 11-digit local number beginning with 01.'}
                       </p>
                     )}
                   </div>
@@ -1348,4 +1397,3 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     </div>
   );
 }
-

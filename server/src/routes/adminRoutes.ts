@@ -22,6 +22,7 @@ import { normalizeEmail } from '../lib/emailDelivery.js'
 import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { kickWebhookWorker } from '../workers/webhookRetryWorker.js'
+import { getWebhookDeliveryHealth } from '../services/webhookHealth.js'
 
 export const adminRouter = Router()
 
@@ -150,6 +151,16 @@ adminRouter.post('/logout', async (req: Request, res: Response) => {
 
 adminRouter.get('/session', requireAdmin, (_req: Request, res: Response) => {
   return res.json({ ok: true, authenticated: true })
+})
+
+// Detailed delivery signals are intentionally restricted to authenticated admins.
+adminRouter.get('/health', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const health = await getWebhookDeliveryHealth()
+    return res.status(health.healthy ? 200 : 503).json({ ok: true, webhooks: health })
+  } catch (err: unknown) {
+    return sendInternalError(res, err)
+  }
 })
 
 // ─── Platform Overview Stats ────────────────────────────────────────

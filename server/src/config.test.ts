@@ -13,6 +13,12 @@ const SECURITY_ENV_KEYS = [
   'TRUST_PROXY',
   'AUTH_ALLOW_DEV_BYPASS',
   'AUTH_EXPOSE_DEV_OTP',
+  'RESEND_API_KEY',
+  'SMTP_HOST',
+  'SMTP_USER',
+  'SMTP_PASS',
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
 ] as const
 
 test('production configuration rejects shipped placeholders and malformed TOTP secrets', () => {
@@ -30,6 +36,11 @@ test('production configuration rejects shipped placeholders and malformed TOTP s
       TRUST_PROXY: '0',
       AUTH_ALLOW_DEV_BYPASS: 'false',
       AUTH_EXPOSE_DEV_OTP: 'false',
+      SMTP_HOST: 'smtp.gmail.com',
+      SMTP_USER: 'instapay.payment.gateway@gmail.com',
+      SMTP_PASS: 'test-only-app-password',
+      UPSTASH_REDIS_REST_URL: 'https://test-rate-limit.upstash.io',
+      UPSTASH_REDIS_REST_TOKEN: 'test-only-upstash-token',
     })
 
     assert.throws(validateRuntimeConfig, /known placeholder/)
@@ -39,6 +50,10 @@ test('production configuration rejects shipped placeholders and malformed TOTP s
     assert.throws(validateRuntimeConfig, /valid Base32/)
 
     process.env.ADMIN_TOTP_SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
+    delete process.env.UPSTASH_REDIS_REST_TOKEN
+    assert.throws(validateRuntimeConfig, /UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN/)
+
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'test-only-upstash-token'
     assert.doesNotThrow(validateRuntimeConfig)
   } finally {
     for (const key of SECURITY_ENV_KEYS) {

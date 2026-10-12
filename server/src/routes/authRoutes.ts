@@ -26,6 +26,7 @@ import { clearMerchantSessionCookie, setMerchantSessionCookie } from '../lib/aut
 import { decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
+import { normalizeEgyptianMobileNumber } from '../lib/phoneValidation.js'
 
 export const authRouter = Router()
 
@@ -165,6 +166,14 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       })
     }
 
+    const normalizedPhoneNumber = normalizeEgyptianMobileNumber(whatsappNumber)
+    if (!normalizedPhoneNumber) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Enter an 11-digit Egyptian mobile number beginning with 01.',
+      })
+    }
+
     const passwordError = validatePasswordPolicy(password)
     if (passwordError) {
       return res.status(400).json({ ok: false, error: passwordError })
@@ -246,7 +255,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
         passwordHash,
         instapayHandle: finalHandle,
         instapayPaymentUrl: finalPaymentUrl,
-        whatsappNumber: whatsappNumber || null,
+        whatsappNumber: normalizedPhoneNumber,
         firstName: firstName || null,
         lastName: lastName || null,
         approvalStatus: 'PENDING',

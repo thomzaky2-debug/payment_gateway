@@ -100,7 +100,7 @@ interface PlatformStats {
   unmatchedPayments: number;
 }
 
-export type AdminTab = 'overview' | 'merchants' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications';
+export type AdminTab = 'overview' | 'merchants' | 'merchantDetails' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications';
 
 export interface AdminRoute {
   tab: AdminTab;
@@ -140,6 +140,9 @@ export function parseAdminRouteFromHash(hashString?: string): AdminRoute {
     merchant: 'merchants',
     clients: 'merchants',
     client: 'merchants',
+    'merchant-details': 'merchantDetails',
+    merchantdetails: 'merchantDetails',
+    details: 'merchantDetails',
     transactions: 'transactions',
     transaction: 'transactions',
     tx: 'transactions',
@@ -307,7 +310,7 @@ export function AdminPortalPage() {
       } else {
         setSelectedMerchant(null);
       }
-    } else {
+    } else if (tab !== 'merchantDetails') {
       setSelectedMerchant(null);
     }
     const targetHash = buildAdminHash(tab, subPath);
@@ -329,13 +332,13 @@ export function AdminPortalPage() {
   const handleSelectMerchant = (m: MerchantClient | null) => {
     setSelectedMerchant(m);
     if (m) {
-      const targetHash = buildAdminHash('merchants', m.id);
+      const targetHash = buildAdminHash(activeTab === 'merchantDetails' ? 'merchantDetails' : 'merchants', m.id);
       if (window.location.hash !== targetHash) {
         window.location.hash = targetHash;
       }
     } else {
-      const sub = merchantFilter === 'ALL' ? '' : merchantFilter.toLowerCase();
-      const targetHash = buildAdminHash('merchants', sub);
+      const sub = activeTab === 'merchantDetails' ? '' : (merchantFilter === 'ALL' ? '' : merchantFilter.toLowerCase());
+      const targetHash = buildAdminHash(activeTab === 'merchantDetails' ? 'merchantDetails' : 'merchants', sub);
       if (window.location.hash !== targetHash) {
         window.location.hash = targetHash;
       }
@@ -389,10 +392,10 @@ export function AdminPortalPage() {
     const handleHashChange = () => {
       const route = parseAdminRouteFromHash();
       setActiveTab((prev) => (prev !== route.tab ? route.tab : prev));
-      if (route.tab === 'merchants') {
+      if (route.tab === 'merchants' || route.tab === 'merchantDetails') {
         if (route.subPath) {
           const lower = route.subPath.toLowerCase();
-          if (['all', 'pending', 'approved', 'rejected'].includes(lower)) {
+          if (route.tab === 'merchants' && ['all', 'pending', 'approved', 'rejected'].includes(lower)) {
             setMerchantFilter(lower === 'all' ? 'ALL' : (lower.toUpperCase() as any));
             setSelectedMerchant(null);
           } else {
@@ -418,9 +421,9 @@ export function AdminPortalPage() {
   useEffect(() => {
     if (merchants.length > 0) {
       const route = parseAdminRouteFromHash();
-      if (route.tab === 'merchants' && route.subPath) {
+      if ((route.tab === 'merchants' || route.tab === 'merchantDetails') && route.subPath) {
         const lower = route.subPath.toLowerCase();
-        if (!['all', 'pending', 'approved', 'rejected'].includes(lower)) {
+        if (route.tab === 'merchantDetails' || !['all', 'pending', 'approved', 'rejected'].includes(lower)) {
           const merchantId = route.subPath.replace(/^details\//, '');
           const found = merchants.find((m) => m.id === merchantId);
           if (found) {
@@ -1184,6 +1187,7 @@ export function AdminPortalPage() {
   const tabHeading: Record<AdminTab, { title: string; description: string }> = {
     overview: { title: 'Platform Overview', description: 'Live operational health and activity across the entire payment network' },
     merchants: { title: 'Merchant Management', description: 'Monitor merchant health, access, subscriptions, and integration readiness' },
+    merchantDetails: { title: 'Merchant Details', description: 'Review a merchant profile, payment activity, detector health, and integration readiness' },
     transactions: { title: 'Platform Transactions', description: 'Track and resolve payment activity across all merchant accounts' },
     audit: { title: 'Administrative Audit Trail', description: 'Review privileged actions and important platform security events' },
     webhooks: { title: 'Webhook Delivery Logs', description: 'Monitor callback delivery health and merchant endpoint responses' },
@@ -1521,6 +1525,47 @@ export function AdminPortalPage() {
 
         {/* ─── TAB 1: MERCHANTS & APPROVALS ─────────────────────────── */}
         </>
+        )}
+
+        {activeTab === 'merchantDetails' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 0.85fr) minmax(0, 2fr)', gap: '18px', alignItems: 'start' }}>
+            <section style={{ backgroundColor: surface, border: surfaceBorder, borderRadius: '18px', padding: '16px', boxShadow: cardShadow }}>
+              <div style={{ marginBottom: '13px' }}>
+                <h3 style={{ margin: 0, color: textPrimary, fontSize: '15px', fontWeight: 800 }}>Select a merchant</h3>
+                <p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '11px' }}>Choose an account to review its current operational profile.</p>
+              </div>
+              <div style={{ position: 'relative', marginBottom: '10px' }}>
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: textSecondary }} />
+                <input value={merchantSearch} onChange={(event) => setMerchantSearch(event.target.value)} placeholder="Search merchants" aria-label="Search merchants" style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px 9px 31px', borderRadius: '8px', border: surfaceBorder, backgroundColor: isDark ? '#0f172a' : '#f8fafc', color: textPrimary, fontSize: '12px' }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '62dvh', overflowY: 'auto' }}>
+                {filteredMerchants.map((merchant) => {
+                  const selected = selectedMerchant?.id === merchant.id;
+                  return <button key={merchant.id} type="button" onClick={() => handleSelectMerchant(merchant)} style={{ width: '100%', border: selected ? '1px solid rgba(56,189,248,.55)' : surfaceBorder, borderRadius: '10px', padding: '10px', background: selected ? 'rgba(56,189,248,.10)' : 'transparent', color: textPrimary, cursor: 'pointer', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}><strong style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{merchant.businessName}</strong><span style={{ color: merchant.approvalStatus === 'APPROVED' ? '#34d399' : merchant.approvalStatus === 'PENDING' ? '#fbbf24' : '#f87171', fontSize: '9px', fontWeight: 800 }}>{merchant.approvalStatus}</span></div>
+                    <div style={{ color: textSecondary, fontSize: '10px', marginTop: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{merchant.email}</div>
+                  </button>;
+                })}
+                {filteredMerchants.length === 0 && <p style={{ margin: '18px 0', color: textSecondary, fontSize: '12px', textAlign: 'center' }}>No merchants match this search.</p>}
+              </div>
+            </section>
+
+            <section style={{ backgroundColor: surface, border: surfaceBorder, borderRadius: '18px', padding: 'clamp(16px, 3vw, 24px)', boxShadow: cardShadow, minHeight: '420px' }}>
+              {!selectedMerchant ? <div style={{ minHeight: '360px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: textSecondary }}><Users size={32} color="#38bdf8" /><h3 style={{ margin: '13px 0 5px', color: textPrimary, fontSize: '17px' }}>Choose a merchant</h3><p style={{ margin: 0, fontSize: '12px', maxWidth: '340px' }}>Their profile, account status, contacts, plan, detector health, and delivery status will appear here.</p></div> : <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', alignItems: 'flex-start', marginBottom: '20px' }}><div><h3 style={{ margin: 0, color: textPrimary, fontSize: '21px', fontWeight: 850 }}>{selectedMerchant.businessName}</h3><p style={{ margin: '5px 0 0', color: textSecondary, fontSize: '12px' }}>{selectedMerchant.businessType || 'Merchant account'} · Joined {new Date(selectedMerchant.createdAt).toLocaleDateString()}</p></div><span style={{ padding: '6px 9px', borderRadius: '999px', backgroundColor: selectedMerchant.isActive ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: selectedMerchant.isActive ? '#34d399' : '#f87171', fontSize: '11px', fontWeight: 800 }}>{selectedMerchant.isActive ? 'ACTIVE' : 'INACTIVE'}</span></div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: '10px', marginBottom: '18px' }}>{[
+                  { label: 'Approval', value: selectedMerchant.approvalStatus, color: selectedMerchant.approvalStatus === 'APPROVED' ? '#34d399' : '#fbbf24' }, { label: 'Current plan', value: selectedMerchant.subscriptionPlan, color: '#a5b4fc' }, { label: 'Transaction usage', value: `${selectedMerchant.txCount} / ${selectedMerchant.txLimit}`, color: '#38bdf8' }, { label: 'Detector health', value: overviewLoading ? 'Loading…' : merchantOverview ? `${merchantOverview.detectorOnlineCount} / ${merchantOverview.detectorDevices.length} online` : 'Unavailable', color: '#c084fc' },
+                ].map((item) => <div key={item.label} style={{ padding: '12px', borderRadius: '10px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: surfaceBorder }}><div style={{ color: textSecondary, fontSize: '10px', fontWeight: 750, textTransform: 'uppercase' }}>{item.label}</div><div style={{ color: item.color, marginTop: '6px', fontSize: '13px', fontWeight: 800 }}>{item.value}</div></div>)}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '10px' }}>
+                  <div style={{ padding: '13px', borderRadius: '10px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: surfaceBorder }}><div style={{ color: textSecondary, fontSize: '10px', fontWeight: 750, textTransform: 'uppercase' }}>Contact</div><div style={{ color: textPrimary, marginTop: '7px', fontSize: '12px' }}>{selectedMerchant.email}</div><div style={{ color: textSecondary, marginTop: '4px', fontSize: '12px' }}>{selectedMerchant.whatsappNumber || 'No phone number'}</div></div>
+                  <div style={{ padding: '13px', borderRadius: '10px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: surfaceBorder }}><div style={{ color: textSecondary, fontSize: '10px', fontWeight: 750, textTransform: 'uppercase' }}>Payment setup</div><div style={{ color: '#38bdf8', marginTop: '7px', fontFamily: 'monospace', fontSize: '12px', wordBreak: 'break-word' }}>{selectedMerchant.instapayHandle}</div><div style={{ color: textSecondary, marginTop: '4px', fontSize: '11px', wordBreak: 'break-word' }}>{selectedMerchant.instapayPaymentUrl || 'No payment link configured'}</div></div>
+                  <div style={{ padding: '13px', borderRadius: '10px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: surfaceBorder }}><div style={{ color: textSecondary, fontSize: '10px', fontWeight: 750, textTransform: 'uppercase' }}>Integration</div><div style={{ color: textPrimary, marginTop: '7px', fontSize: '12px' }}>Webhook: {selectedMerchant.webhookUrl ? 'Configured' : 'Not configured'}</div><div style={{ color: textSecondary, marginTop: '4px', fontSize: '11px' }}>{merchantOverview ? `${merchantOverview.webhookSuccess} / ${merchantOverview.webhookTotal} deliveries succeeded` : 'Delivery data loading…'}</div></div>
+                  <div style={{ padding: '13px', borderRadius: '10px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', border: surfaceBorder }}><div style={{ color: textSecondary, fontSize: '10px', fontWeight: 750, textTransform: 'uppercase' }}>Payment monitoring</div><div style={{ color: textPrimary, marginTop: '7px', fontSize: '12px' }}>{merchantOverview ? `${merchantOverview.totalTransactions} transactions · ${merchantOverview.transactionsByStatus.CONFIRMED || 0} confirmed` : 'Loading activity…'}</div><div style={{ color: textSecondary, marginTop: '4px', fontSize: '11px' }}>{merchantOverview ? `${merchantOverview.confirmedVolumeEgp.toFixed(2)} EGP confirmed volume` : ''}</div></div>
+                </div>
+                <button type="button" onClick={() => navigateToTab('merchants', selectedMerchant.id)} style={{ marginTop: '18px', padding: '9px 12px', borderRadius: '8px', border: '1px solid rgba(56,189,248,.35)', background: 'rgba(56,189,248,.10)', color: '#38bdf8', fontSize: '12px', fontWeight: 750, cursor: 'pointer' }}>Open full controls, credentials & actions →</button>
+              </>}
+            </section>
+          </div>
         )}
 
         {activeTab === 'merchants' && (
@@ -3163,7 +3208,7 @@ export function AdminPortalPage() {
         )}
 
         {/* ─── MODAL: MERCHANT KEYS & DETAILS ──────────────────────── */}
-        {selectedMerchant && (
+        {selectedMerchant && activeTab !== 'merchantDetails' && (
           <div
             style={{
               position: 'fixed',

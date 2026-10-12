@@ -84,7 +84,7 @@ Gateway Matcher Service
 ## 🚀 Quick Start (Local Development)
 
 ### 1. Prerequisites
-- **Node.js 20+**
+- **Node.js 22.20+**
 - **npm**
 - A **Supabase** project (or local PostgreSQL database)
 
@@ -93,10 +93,10 @@ Copy `.env.example` to `.env`:
 ```bash
 cp .env.example .env
 ```
-Fill in your Supabase connection strings:
+Copy the exact Supabase connection strings from **Dashboard → Connect**:
 ```env
-DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[PASSWORD]@[POOLER-HOST]:5432/postgres?sslmode=require"
+DIRECT_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres?sslmode=require"
 OWNER_SECRET="generate-with-openssl-rand-hex-32"
 TOKEN_PEPPER="generate-with-openssl-rand-hex-32"
 ```
@@ -110,6 +110,39 @@ npm run db:seed
 
 For an existing database created before migration tracking, mark the baseline
 once before deploying migrations: `npx prisma migrate resolve --applied 20261011180000_baseline`.
+
+## Hosted deployment
+
+Deploy with Node.js 22.20+ (pinned in `.nvmrc` and `netlify.toml`). Before
+starting any new API instance, apply the tracked migrations exactly once:
+
+```bash
+npm ci
+npm run db:generate
+npm run db:migrate
+```
+
+Use Supabase PostgreSQL for `DATABASE_URL` and `DIRECT_URL`; copy the exact
+connection strings from **Supabase Dashboard → Connect** rather than editing a
+sample host manually. Hosted rate limiting uses Upstash Redis. Set
+`UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` from the Upstash
+database's **Connect** tab. Do not start the new server before `db:migrate`
+completes.
+
+### OTP email sender (Gmail)
+
+Merchant OTPs are sent through SMTP. For `instapay.payment.gateway@gmail.com`,
+enable Google 2-Step Verification, create a Google **App Password**, then set
+these values in the host's secret/environment settings (never commit the app
+password):
+
+```env
+EMAIL_FROM="InstaPay Payment Gateway <instapay.payment.gateway@gmail.com>"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=465
+SMTP_USER="instapay.payment.gateway@gmail.com"
+SMTP_PASS="your-16-character-google-app-password"
+```
 
 ### 4. Start Development Servers
 Run both backend API (port 3001) and Vite frontend (port 3000) concurrently:

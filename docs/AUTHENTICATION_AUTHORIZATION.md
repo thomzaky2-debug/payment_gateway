@@ -67,7 +67,7 @@ Apply the additive Prisma schema before deploying the server:
 
 ```bash
 npm run db:generate
-npm run db:push
+npm run db:migrate
 ```
 
 Configure the following for every non-local environment:
@@ -76,6 +76,9 @@ Configure the following for every non-local environment:
 - strong `ADMIN_PASSWORD`, exact `ADMIN_EMAIL`, and Base32 `ADMIN_TOTP_SECRET`;
 - an HTTPS `CLIENT_URL`;
 - `TRUST_PROXY` set to the exact number of trusted reverse-proxy hops;
+- Node.js 22.20+ and all tracked Prisma migrations applied before the API starts;
+- Supabase `DATABASE_URL` and `DIRECT_URL` copied from its Connect panel, never exposed to the client;
+- Upstash `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` set as host secrets for shared rate limiting;
 - all development authentication flags left `false`;
 - an email provider for OTP delivery;
 - HTTPS webhook policy appropriate for production.
