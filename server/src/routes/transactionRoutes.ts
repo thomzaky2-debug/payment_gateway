@@ -4,6 +4,7 @@ import { emitCheckoutUpdate } from '../services/notificationService.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
 import { canMerchantResolveTransaction } from '../policies/transactionPolicy.js'
 import { confirmOrdinaryCheckout } from '../services/settlementService.js'
+import { kickWebhookWorker } from '../workers/webhookRetryWorker.js'
 import { sendInternalError } from '../lib/safeError.js'
 
 export const transactionRouter = Router()
@@ -243,6 +244,7 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
       return res.status(409).json({ ok: false, error: 'Transaction state changed. Refresh and try again.' })
     }
     const updated = settlement.transaction
+    void kickWebhookWorker()
 
     // Auto-resolve any corresponding mismatched payment record in review queue
     if (tx.detectedRef || tx.senderHandle) {

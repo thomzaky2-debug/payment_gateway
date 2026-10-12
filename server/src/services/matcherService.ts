@@ -1,9 +1,9 @@
 import { db } from '../db.js'
 import crypto from 'crypto'
-import { toEgpCents, fromEgpCents, egpAmountFromRow } from '../lib/money.js'
+import { toEgpCents, fromEgpCents } from '../lib/money.js'
 import { emitCheckoutUpdate } from './notificationService.js'
-import { forwardToClientWebhook } from './webhookService.js'
-import { confirmOrdinaryCheckout } from './settlementService.js'
+import { confirmOrdinaryCheckout, enqueueWebhookOutbox } from './settlementService.js'
+import { kickWebhookWorker } from '../workers/webhookRetryWorker.js'
 import type { Client } from '@prisma/client'
 
 export interface ProcessNotificationInput {
@@ -369,15 +369,16 @@ export async function processInstaPayNotification(
         // Proceed to Step 9 (auto-confirm transaction with detectedAmountEgp recorded)
       } else {
         // Exceeds tolerance or tolerance disabled -> mark UNDERPAID and route to Manual Review Queue
-        const updated = await db.transaction.update({
-          where: { id: match.id },
-          data: {
-            status: 'UNDERPAID',
-            detectedRef: reference,
-            detectedAt: now,
-            detectedAmountEgp: receivedAmountRounded,
-            detectedAmountCents: receivedAmountCents,
-          },
+        const updated = await db.$transaction(async (txDb) => {
+          const changed = await txDb.transaction.update({
+            where: { id: match.id },
+            data: {
+              status: 'UNDERPAID', detectedRef: reference, detectedAt: now,
+              detectedAmountEgp: receivedAmountRounded, detectedAmountCents: receivedAmountCents,
+            },
+          })
+          await enqueueWebhookOutbox(txDb, changed, client, 'payment.underpaid')
+          return changed
         })
 
         emitCheckoutUpdate({
@@ -390,26 +391,7 @@ export async function processInstaPayNotification(
           detectedAt: updated.detectedAt?.toISOString(),
         })
 
-        if (client.webhookUrl) {
-          void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
-            event: 'payment.underpaid',
-            clientId: client.id,
-            businessName: client.businessName,
-            transaction: {
-              sessionId: updated.sessionId,
-              senderHandle: updated.senderHandle,
-              recipientHandle: updated.recipientHandle,
-              amountEgp: egpAmountFromRow(match),
-              detectedAmountEgp: updated.detectedAmountEgp,
-              currency: updated.currency,
-              status: updated.status,
-              detectedRef: updated.detectedRef,
-              detectedAt: updated.detectedAt?.toISOString() ?? null,
-              note: updated.note,
-              createdAt: updated.createdAt.toISOString(),
-            },
-          })
-        }
+        void kickWebhookWorker()
 
         await finalizeIncomingEvent('UNDERPAID', updated.sessionId)
 
@@ -440,15 +422,16 @@ export async function processInstaPayNotification(
         // Proceed to Step 9 (auto-confirm transaction with detectedAmountEgp recorded)
       } else {
         // Flag for manual review as OVERPAID
-        const updated = await db.transaction.update({
-          where: { id: match.id },
-          data: {
-            status: 'OVERPAID',
-            detectedRef: reference,
-            detectedAt: now,
-            detectedAmountEgp: receivedAmountRounded,
-            detectedAmountCents: receivedAmountCents,
-          },
+        const updated = await db.$transaction(async (txDb) => {
+          const changed = await txDb.transaction.update({
+            where: { id: match.id },
+            data: {
+              status: 'OVERPAID', detectedRef: reference, detectedAt: now,
+              detectedAmountEgp: receivedAmountRounded, detectedAmountCents: receivedAmountCents,
+            },
+          })
+          await enqueueWebhookOutbox(txDb, changed, client, 'payment.overpaid')
+          return changed
         })
 
         emitCheckoutUpdate({
@@ -461,26 +444,7 @@ export async function processInstaPayNotification(
           detectedAt: updated.detectedAt?.toISOString(),
         })
 
-        if (client.webhookUrl) {
-          void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
-            event: 'payment.overpaid',
-            clientId: client.id,
-            businessName: client.businessName,
-            transaction: {
-              sessionId: updated.sessionId,
-              senderHandle: updated.senderHandle,
-              recipientHandle: updated.recipientHandle,
-              amountEgp: egpAmountFromRow(match),
-              detectedAmountEgp: updated.detectedAmountEgp,
-              currency: updated.currency,
-              status: updated.status,
-              detectedRef: updated.detectedRef,
-              detectedAt: updated.detectedAt?.toISOString() ?? null,
-              note: updated.note,
-              createdAt: updated.createdAt.toISOString(),
-            },
-          })
-        }
+        void kickWebhookWorker()
 
         await finalizeIncomingEvent('OVERPAID', updated.sessionId)
 
@@ -523,6 +487,7 @@ export async function processInstaPayNotification(
   }
 
   const updatedTx = settlement.transaction
+  void kickWebhookWorker()
   await finalizeIncomingEvent('CONFIRMED', updatedTx.sessionId)
 
   // 10. Real-time broadcast to Customer Checkout waiting screen

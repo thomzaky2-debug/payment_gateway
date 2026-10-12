@@ -152,24 +152,26 @@ export async function processDueWebhookRetries() {
   isProcessing = true
 
   try {
-    const now = new Date()
-    const dueLogs = await db.webhookLog.findMany({
-      where: {
-        isSuccess: false,
-        outcomeKnown: true,
-        nextAttemptAt: { lte: now },
-        attempt: { lt: DECRYPT_FAILURE_BACKOFF_DELAYS_MS.length + 1 }, // Supports extended recovery window
-      },
-      include: {
-        client: {
-          select: { webhookSecret: true },
+    while (true) {
+      const now = new Date()
+      const dueLogs = await db.webhookLog.findMany({
+        where: {
+          isSuccess: false,
+          outcomeKnown: true,
+          nextAttemptAt: { lte: now },
+          attempt: { lt: DECRYPT_FAILURE_BACKOFF_DELAYS_MS.length + 1 }, // Supports extended recovery window
         },
-      },
-      take: 20, // Batch limit per cycle
-    })
+        include: {
+          client: {
+            select: { webhookSecret: true },
+          },
+        },
+        take: 20,
+      })
 
-    if (dueLogs.length > 0) {
+      if (dueLogs.length === 0) break
       console.log(`[Webhook Worker] Found ${dueLogs.length} pending webhooks to retry`)
+      let claimedCount = 0
       for (const log of dueLogs) {
         // The query above is only a candidate list. Atomically claim each row
         // so another app instance or a manual resend cannot send it too.
@@ -178,6 +180,7 @@ export async function processDueWebhookRetries() {
           where: {
             id: log.id,
             isSuccess: false,
+            outcomeKnown: true,
             nextAttemptAt: { lte: now },
             OR: [
               { deliveryLockedUntil: null },
@@ -191,17 +194,26 @@ export async function processDueWebhookRetries() {
           },
         })
         if (claim.count !== 1) continue
+        claimedCount += 1
 
         await retrySingleWebhook(log).catch((err) => {
           console.error(`[Webhook Worker] Error retrying log ${log.id}:`, err)
         })
       }
+      // A full page may consist entirely of rows another worker currently
+      // holds. Stop instead of repeatedly querying the same locked rows.
+      if (dueLogs.length < 20 || claimedCount === 0) break
     }
   } catch (err) {
     console.error('[Webhook Worker] Cycle error:', err)
   } finally {
     isProcessing = false
   }
+}
+
+/** Process newly committed outbox rows without waiting for the poll interval. */
+export function kickWebhookWorker() {
+  void processDueWebhookRetries()
 }
 
 /**

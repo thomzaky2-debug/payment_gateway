@@ -14,6 +14,7 @@ import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanu
 import { syncApprovedMerchantsTokens, migratePlaintextCredentialsAtRest } from './services/authService.js'
 import { safeErrorMessage } from './lib/safeError.js'
 import { parseTrustProxy } from './lib/proxyTrust.js'
+import { db } from './db.js'
 
 import { authRouter } from './routes/authRoutes.js'
 import { webhookRouter } from './routes/webhookRoutes.js'
@@ -115,13 +116,33 @@ migratePlaintextCredentialsAtRest().catch((err) => console.warn('[Startup] Crede
 
 // ─── API Routes ────────────────────────────────────────────────────
 
-app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    service: 'InstaPay Gateway Backend',
-    version: '2.0.0',
-  })
+app.get('/api/health', async (_req, res) => {
+  try {
+    const now = new Date()
+    const [oldestDueWebhook, unknownOutcomeCount] = await Promise.all([
+      db.webhookLog.findFirst({
+        where: { isSuccess: false, outcomeKnown: true, nextAttemptAt: { lte: now } },
+        orderBy: { nextAttemptAt: 'asc' },
+        select: { id: true, nextAttemptAt: true },
+      }),
+      db.webhookLog.count({ where: { isSuccess: false, outcomeKnown: false } }),
+    ])
+    const oldestDueAgeMs = oldestDueWebhook?.nextAttemptAt ? now.getTime() - oldestDueWebhook.nextAttemptAt.getTime() : 0
+    const deliveryBacklogUnhealthy = oldestDueAgeMs > 5 * 60 * 1000 || unknownOutcomeCount > 0
+    res.status(deliveryBacklogUnhealthy ? 503 : 200).json({
+      status: deliveryBacklogUnhealthy ? 'degraded' : 'healthy',
+      timestamp: now.toISOString(),
+      service: 'InstaPay Gateway Backend',
+      version: '2.0.0',
+      webhooks: {
+        oldestDueAgeSeconds: Math.floor(oldestDueAgeMs / 1000),
+        unknownOutcomeCount,
+      },
+    })
+  } catch (err) {
+    console.error('[health] Webhook delivery health query failed:', err)
+    res.status(503).json({ status: 'degraded', timestamp: new Date().toISOString(), service: 'InstaPay Gateway Backend' })
+  }
 })
 
 app.get('/api/docs/integration-guide', (req, res) => {

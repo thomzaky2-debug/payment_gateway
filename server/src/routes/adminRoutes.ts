@@ -21,6 +21,7 @@ import { verifyTotp } from '../lib/totp.js'
 import { normalizeEmail } from '../lib/emailDelivery.js'
 import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
+import { kickWebhookWorker } from '../workers/webhookRetryWorker.js'
 
 export const adminRouter = Router()
 
@@ -548,6 +549,7 @@ adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: R
       return res.status(404).json({ ok: false, error: 'Transaction not found' })
     }
     const updated = settlement.transaction
+    if (settlement.newlyConfirmed) void kickWebhookWorker()
 
     // Emit live update to Customer Checkout Waiting Screen
     emitCheckoutUpdate({

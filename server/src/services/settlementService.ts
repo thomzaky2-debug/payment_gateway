@@ -23,11 +23,11 @@ export interface OrdinaryCheckoutSettlement {
  * together. The retry worker owns the later network I/O, so a database outage
  * can never silently drop a confirmed-payment notification.
  */
-async function enqueueConfirmationWebhook(txDb: any, transaction: any, client: any) {
+export async function enqueueWebhookOutbox(txDb: any, transaction: any, client: any, event?: string) {
   if (!client?.webhookUrl) return
-  const event = transaction.purpose === 'SUBSCRIPTION' ? 'subscription.payment_confirmed' : 'payment.confirmed'
+  const webhookEvent = event || (transaction.purpose === 'SUBSCRIPTION' ? 'subscription.payment_confirmed' : 'payment.confirmed')
   const payload = {
-    event,
+    event: webhookEvent,
     clientId: client.id,
     businessName: client.businessName,
     transaction: {
@@ -48,7 +48,7 @@ async function enqueueConfirmationWebhook(txDb: any, transaction: any, client: a
     data: {
       clientId: client.id,
       url: client.webhookUrl,
-      event,
+      event: webhookEvent,
       eventId: `evt_${crypto.randomBytes(16).toString('hex')}`,
       payload: JSON.stringify(payload),
       isSuccess: false,
@@ -114,7 +114,7 @@ export async function confirmOrdinaryCheckout(
       where: { id: input.transactionId },
     })
     const client = await txDb.client.findUniqueOrThrow({ where: { id: input.clientId } })
-    await enqueueConfirmationWebhook(txDb, transaction, client)
+    await enqueueWebhookOutbox(txDb, transaction, client)
     return { transaction, newlyConfirmed: true }
   })
 }
@@ -209,7 +209,7 @@ export async function confirmTransactionAsOwner(sessionId: string) {
       where: { id: existing.id },
       include: { client: true },
     })
-    await enqueueConfirmationWebhook(txDb, transaction, transaction.client)
+    await enqueueWebhookOutbox(txDb, transaction, transaction.client)
     return { transaction, newlyConfirmed: true }
   })
 }
