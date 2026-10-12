@@ -84,7 +84,13 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
         newErrors.businessName = 'Business name is required';
       }
       if (!instapayHandle.trim()) {
-        newErrors.instapayHandle = 'InstaPay handle is required';
+        newErrors.instapayHandle = lang === 'ar'
+          ? 'رابط الدفع مطلوب'
+          : 'Payment link is required';
+      } else if (!/^https:\/\/ipn\.eg\/S\/[^/?#\s]+\/instapay\/[^/?#\s]+\/?$/i.test(instapayHandle.trim())) {
+        newErrors.instapayHandle = lang === 'ar'
+          ? 'أدخل رابط دفع صحيحًا بالتنسيق https://ipn.eg/S/platform/instapay/TOKEN'
+          : 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN';
       }
       if (!/^01\d{9}$/.test(phoneNumber)) {
         newErrors.phoneNumber = lang === 'ar'
@@ -213,16 +219,9 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     setLoading(true);
     try {
       if (isRegister) {
-        let handle = instapayHandle.trim();
-        let paymentUrl: string | undefined = undefined;
-
-        if (handle.startsWith('http://') || handle.startsWith('https://') || handle.includes('ipn.eg')) {
-          paymentUrl = handle;
-          const match = handle.match(/ipn\.eg\/S\/([^\/\s?#]+)/i) || handle.match(/\/S\/([^\/\?#]+)/i);
-          if (match && match[1]) {
-            handle = `${match[1].toLowerCase().replace(/^@/, '')}@instapay`;
-          }
-        }
+        const paymentUrl = instapayHandle.trim();
+        const linkMatch = paymentUrl.match(/^https:\/\/ipn\.eg\/S\/([^/?#\s]+)\/instapay\/[^/?#\s]+\/?$/i);
+        const handle = `${linkMatch![1].toLowerCase().replace(/^@/, '')}@instapay`;
 
         const res = await authApi.register({
           businessName: businessName.trim(),
@@ -740,19 +739,19 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   <div style={{ marginBottom: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <label style={{ fontSize: '12px', fontWeight: 600, color: '#cbd5e1' }}>
-                        {lang === 'ar' ? 'عنوان أو رابط إنستاباي' : 'InstaPay Address / Payment Link'}
+                        {lang === 'ar' ? 'رابط الدفع' : 'Payment Link'}
                       </label>
                     </div>
                     <div style={{ position: 'relative' }}>
                       <AtSign size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
                       <input
-                        type="text"
+                        type="url"
                         autoCapitalize="none"
                         autoCorrect="off"
                         spellCheck={false}
                         value={instapayHandle}
                         onChange={(e) => setInstapayHandle(e.target.value)}
-                        placeholder="username@instapay or https://ipn.eg/S/..."
+                        placeholder="https://ipn.eg/S/platform/instapay/TOKEN"
                         className="merchant-auth-input has-icon-left"
                         style={{
                           fontFamily: 'monospace',
@@ -765,7 +764,9 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                       <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.instapayHandle}</p>
                     ) : (
                       <p style={{ fontSize: '10.5px', color: '#64748b', margin: '4px 0 0 0' }}>
-                        {lang === 'ar' ? 'يدعم عنوان إنستاباي أو رابط دفع ipn.eg المباشر' : 'Supports @instapay handle or direct ipn.eg link'}
+                        {lang === 'ar'
+                          ? 'استخدم رابط الدفع المباشر بالتنسيق: https://ipn.eg/S/platform/instapay/TOKEN'
+                          : 'Use your direct payment link: https://ipn.eg/S/platform/instapay/TOKEN'}
                       </p>
                     )}
                   </div>

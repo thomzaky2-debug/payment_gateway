@@ -27,6 +27,7 @@ import { decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
 import { normalizeEgyptianMobileNumber } from '../lib/phoneValidation.js'
+import { parseInstaPayPaymentLink } from '../lib/instapayPaymentLink.js'
 
 export const authRouter = Router()
 
@@ -159,10 +160,10 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       otp,
     } = req.body
 
-    if (!businessName || !email || !password || !instapayHandle) {
+    if (!businessName || !email || !password || !instapayPaymentUrl) {
       return res.status(400).json({
         ok: false,
-        error: 'Business name, email, password, and InstaPay handle are required',
+        error: 'Business name, email, password, and an InstaPay payment link are required',
       })
     }
 
@@ -210,36 +211,12 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
     const passwordHash = hashPassword(password)
 
-    // Normalize InstaPay Payment Link & Handle
-    let finalPaymentUrl = instapayPaymentUrl?.trim() || null
-    let finalHandle = (instapayHandle || '').trim()
-
-    if (finalPaymentUrl) {
-      const match = finalPaymentUrl.match(/ipn\.eg\/S\/([^\/\s?#]+)/i) || finalPaymentUrl.match(/\/S\/([^\/\?#]+)/i)
-      if (match && match[1]) {
-        finalHandle = `${match[1].toLowerCase().replace(/^@/, '')}@instapay`
-      }
-    }
-
-    if (finalHandle.startsWith('http://') || finalHandle.startsWith('https://') || finalHandle.includes('ipn.eg')) {
-      if (!finalPaymentUrl) {
-        finalPaymentUrl = finalHandle
-      }
-      const match = finalHandle.match(/ipn\.eg\/S\/([^\/\s?#]+)/i) || finalHandle.match(/\/S\/([^\/\?#]+)/i)
-      if (match && match[1]) {
-        finalHandle = `${match[1].toLowerCase().replace(/^@/, '')}@instapay`
-      } else {
-        const fallback = finalHandle.replace(/^https?:\/\//i, '').replace(/[^a-z0-9_.-]/gi, '')
-        finalHandle = `${fallback}@instapay`
-      }
-    } else if (finalHandle) {
-      const clean = finalHandle.replace(/^@/, '').split('@')[0].toLowerCase()
-      finalHandle = `${clean}@instapay`
-      if (!finalPaymentUrl) {
-        finalPaymentUrl = `https://ipn.eg/S/${clean}/instapay/link`
-      }
-    } else {
-      finalHandle = 'merchant@instapay'
+    const paymentLink = parseInstaPayPaymentLink(instapayPaymentUrl)
+    if (!paymentLink) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN',
+      })
     }
 
     // Account starts as PENDING until approved by admin
@@ -253,8 +230,8 @@ authRouter.post('/register', async (req: Request, res: Response) => {
         businessType: businessType || 'E-commerce',
         email: cleanEmail,
         passwordHash,
-        instapayHandle: finalHandle,
-        instapayPaymentUrl: finalPaymentUrl,
+        instapayHandle: paymentLink.handle,
+        instapayPaymentUrl: paymentLink.paymentUrl,
         whatsappNumber: normalizedPhoneNumber,
         firstName: firstName || null,
         lastName: lastName || null,

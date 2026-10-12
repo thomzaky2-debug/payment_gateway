@@ -14,7 +14,7 @@
     "server:build": "tsc -p server/tsconfig.json",
     "start": "node server/dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test:auth": "NODE_ENV=test tsx --test server/src/config.test.ts server/src/middleware/requireAdminOrigin.test.ts server/src/lib/proxyTrust.test.ts server/src/lib/rateLimiter.test.ts server/src/lib/phoneValidation.test.ts server/src/services/authService.test.ts server/src/services/checkoutService.test.ts server/src/services/settlementService.test.ts server/src/policies/transactionPolicy.test.ts server/src/lib/totp.test.ts server/src/lib/credentialCrypto.test.ts server/src/lib/urlValidator.test.ts server/src/services/webhookService.test.ts server/src/services/webhookCallers.test.ts",
+    "test:auth": "NODE_ENV=test tsx --test server/src/config.test.ts server/src/middleware/requireAdminOrigin.test.ts server/src/lib/proxyTrust.test.ts server/src/lib/rateLimiter.test.ts server/src/lib/phoneValidation.test.ts server/src/lib/instapayPaymentLink.test.ts server/src/services/authService.test.ts server/src/services/checkoutService.test.ts server/src/services/settlementService.test.ts server/src/policies/transactionPolicy.test.ts server/src/lib/totp.test.ts server/src/lib/credentialCrypto.test.ts server/src/lib/urlValidator.test.ts server/src/services/webhookService.test.ts server/src/services/webhookCallers.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
