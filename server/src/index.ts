@@ -30,6 +30,7 @@ import { apkRouter } from './routes/apkRoutes.js'
 
 import { createRateLimiter } from './lib/rateLimiter.js'
 import { requireTrustedOrigin } from './middleware/requireTrustedOrigin.js'
+import { requireAdminOrigin } from './middleware/requireAdminOrigin.js'
 import { validateRuntimeConfig } from './config.js'
 
 validateRuntimeConfig()
@@ -40,9 +41,19 @@ const server = http.createServer(app)
 const PORT = Number(process.env.PORT) || 3001
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173'
 const isLocalRuntime = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
+const ADMIN_URL = process.env.ADMIN_URL || CLIENT_URL
+
+function normalizeOrigin(value: string): string {
+  try {
+    return new URL(value).origin
+  } catch {
+    return value.trim().replace(/\/+$/, '')
+  }
+}
 
 const allowedOrigins = [
-  CLIENT_URL,
+  normalizeOrigin(CLIENT_URL),
+  normalizeOrigin(ADMIN_URL),
   ...(isLocalRuntime
     ? [
         'http://localhost:3000',
@@ -51,7 +62,11 @@ const allowedOrigins = [
         'http://127.0.0.1:5173',
       ]
     : []),
-  ...(process.env.ALLOWED_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+  ...(process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .map(normalizeOrigin),
 ]
 const allowedOriginSet = new Set(allowedOrigins)
 
@@ -158,7 +173,7 @@ app.use('/api/webhooks', webhookLimiter, webhookRouter)
 app.use('/api/v1/checkout', generalApiLimiter, v1CheckoutRouter)
 app.use('/api/checkout', generalApiLimiter, checkoutRouter)
 app.use('/api/transactions', generalApiLimiter, transactionRouter)
-app.use('/api/admin', adminRouter)
+app.use('/api/admin', requireAdminOrigin(ADMIN_URL), adminRouter)
 app.use('/api/settings', generalApiLimiter, settingsRouter)
 app.use('/api/plans', generalApiLimiter, planCatalogRouter)
 app.use('/api/subscription', generalApiLimiter, planRouter)
@@ -203,6 +218,7 @@ server.listen(PORT, () => {
   console.log(`🚀 InstaPay Payment Gateway Backend Server`)
   console.log(`📡 REST API & Socket.IO listening on port: ${PORT}`)
   console.log(`💻 Connected to Client UI: ${CLIENT_URL}`)
+  console.log(`🔐 Admin portal origin: ${normalizeOrigin(ADMIN_URL)}`)
   console.log(`⚡ Automated Webhook Retry Worker: ACTIVE`)
   console.log(`======================================================\n`)
 })

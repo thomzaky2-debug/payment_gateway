@@ -129,6 +129,27 @@ sample host manually. Hosted rate limiting uses Upstash Redis. Set
 database's **Connect** tab. Do not start the new server before `db:migrate`
 completes.
 
+### Separate admin subdomain
+
+Serve the same static build at a dedicated hostname such as
+`https://admin.example.com`, with the API at `https://api.example.com`. Set
+these host secrets/build variables before building the frontend and starting
+the API:
+
+```env
+CLIENT_URL=https://app.example.com
+ADMIN_URL=https://admin.example.com
+VITE_ADMIN_URL=https://admin.example.com
+VITE_API_BASE_URL=https://api.example.com
+ALLOWED_ORIGINS=https://checkout.example.com
+```
+
+`ADMIN_URL` is mandatory in hosted mode and must differ from `CLIENT_URL`.
+The API accepts browser `/api/admin` traffic only from that exact admin origin;
+the mobile admin app continues to authenticate with a bearer token. Point both
+the `app` and `admin` DNS records at the static host, and point `api` at the
+Node API host. Do not route the admin hostname through the merchant frontend.
+
 ### OTP email sender (Gmail)
 
 Merchant OTPs are sent through SMTP. For `instapay.payment.gateway@gmail.com`,

@@ -8,6 +8,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { calculateHmacSha256 } from '../utils/cryptoUtils';
+import { apiOrigin, apiUrl } from '../services/api';
 
 interface DocumentationSectionProps {
   apiKey?: string;
@@ -49,7 +50,7 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
 
   const displayApiKey = useRealKeys && isValidApiKey ? apiKey : 'egp_live_EXAMPLE_KEY';
   const displayWebhookSecret = useRealKeys && isValidWebhookSecret ? webhookSecret : 'whsec_EXAMPLE_SECRET';
-  const baseUrl = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3001` : 'http://localhost:3001';
+  const baseUrl = apiOrigin || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3001` : 'http://localhost:3001');
 
   // Update tester secret when real secret is received
   useEffect(() => {
@@ -752,7 +753,7 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
             </a>
 
             <a
-              href="/api/docs/integration-guide"
+              href={apiUrl('/api/docs/integration-guide')}
               target="_blank"
               rel="noopener noreferrer"
               download="InstaPay_Gateway_API_Integration_Guide.md"

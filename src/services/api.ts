@@ -1,7 +1,19 @@
 import axios from 'axios'
 
+/**
+ * In hosted mode the static sites live on app/admin hostnames while the API is
+ * on its own HTTPS hostname. Leave VITE_API_BASE_URL empty in local Vite
+ * development to retain the /api proxy.
+ */
+export const apiOrigin = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '')
+export const apiBaseUrl = apiOrigin ? `${apiOrigin}/api` : '/api'
+
+export function apiUrl(path: string): string {
+  return `${apiOrigin}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -9,7 +21,7 @@ export const api = axios.create({
 })
 
 const adminHttp = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -98,7 +110,7 @@ export const transactionsApi = {
     return res.data
   },
   getExportUrl() {
-    return '/api/transactions/export'
+    return apiUrl('/api/transactions/export')
   },
 }
 

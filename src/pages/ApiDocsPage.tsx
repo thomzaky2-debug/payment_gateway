@@ -11,6 +11,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { calculateHmacSha256 } from '../utils/cryptoUtils';
+import { apiOrigin, apiUrl } from '../services/api';
 
 interface ApiDocsPageProps {
   inApp?: boolean;
@@ -150,9 +151,9 @@ export function ApiDocsPage({ inApp = false }: ApiDocsPageProps) {
   const accentRose = '#f43f5e';
   const accentAmber = '#f59e0b';
 
-  const baseUrl = typeof window !== 'undefined'
+  const baseUrl = apiOrigin || (typeof window !== 'undefined'
     ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : 'https://api.yourdomain.com';
+    : 'https://api.yourdomain.com');
 
   /* ──────────────── Code Snippets ──────────────── */
   const nodeCreateSnippet = `import axios from 'axios';
@@ -898,7 +899,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
 
           {/* Download Raw Guide (.md) */}
           <a
-            href="/api/docs/integration-guide"
+            href={apiUrl('/api/docs/integration-guide')}
             download="InstaPay_Gateway_API_Integration_Guide.md"
             target="_blank"
             rel="noopener noreferrer"
@@ -2533,7 +2534,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                 {isRtl ? 'العودة للأعلى ↑' : 'Back to Top ↑'}
               </button>
               <a
-                href="/api/docs/integration-guide"
+                href={apiUrl('/api/docs/integration-guide')}
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: textSecondary, textDecoration: 'none' }}

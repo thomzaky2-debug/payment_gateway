@@ -10,6 +10,7 @@ const SECURITY_ENV_KEYS = [
   'ADMIN_EMAIL',
   'ADMIN_TOTP_SECRET',
   'CLIENT_URL',
+  'ADMIN_URL',
   'TRUST_PROXY',
   'AUTH_ALLOW_DEV_BYPASS',
   'AUTH_EXPOSE_DEV_OTP',
@@ -33,6 +34,7 @@ test('production configuration rejects shipped placeholders and malformed TOTP s
       ADMIN_EMAIL: 'owner@example.test',
       ADMIN_TOTP_SECRET: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
       CLIENT_URL: 'https://gateway.example.test',
+      ADMIN_URL: 'https://admin.gateway.example.test',
       TRUST_PROXY: '0',
       AUTH_ALLOW_DEV_BYPASS: 'false',
       AUTH_EXPOSE_DEV_OTP: 'false',
@@ -55,6 +57,9 @@ test('production configuration rejects shipped placeholders and malformed TOTP s
 
     process.env.UPSTASH_REDIS_REST_TOKEN = 'test-only-upstash-token'
     assert.doesNotThrow(validateRuntimeConfig)
+
+    process.env.ADMIN_URL = process.env.CLIENT_URL
+    assert.throws(validateRuntimeConfig, /different origin/)
   } finally {
     for (const key of SECURITY_ENV_KEYS) {
       const value = original[key]

@@ -17,7 +17,7 @@ import {
   Globe,
   AlertCircle,
 } from 'lucide-react';
-import { authApi } from '../services/api';
+import { apiUrl, authApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 interface LoginPageProps {
@@ -1056,7 +1056,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 </div>
               </div>
               <a
-                href="/api/apks/detector"
+                href={apiUrl('/api/apks/detector')}
                 download="InstaPay-Detector.apk"
                 style={{
                   padding: '5px 10px',

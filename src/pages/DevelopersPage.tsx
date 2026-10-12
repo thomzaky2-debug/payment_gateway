@@ -5,7 +5,7 @@ import {
   ArrowRight, Lock, Unlock, RotateCcw, Braces, Check, Clipboard,
   FileCode2, Globe, ChevronRight
 } from 'lucide-react';
-import { settingsApi } from '../services/api';
+import { apiUrl, settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DocumentationSection } from '../components/DocumentationSection';
@@ -156,7 +156,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
     setSimResult(null);
 
     try {
-      const res = await fetch('/api/v1/checkout/create', {
+      const res = await fetch(apiUrl('/api/v1/checkout/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

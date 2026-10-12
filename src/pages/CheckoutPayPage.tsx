@@ -31,6 +31,7 @@ import {
 import { useDevicePlatform } from '../hooks/useDevicePlatform';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { apiOrigin, apiUrl } from '../services/api';
 
 interface CheckoutData {
   sessionId: string;
@@ -90,7 +91,7 @@ export function CheckoutPayPage() {
     setError(null);
 
     const isTest = effectiveSessionId === 'cmt_test_local_session';
-    const initialUrl = isTest ? `/api/checkout/${effectiveSessionId}?fresh=1` : `/api/checkout/${effectiveSessionId}`;
+    const initialUrl = apiUrl(isTest ? `/api/checkout/${effectiveSessionId}?fresh=1` : `/api/checkout/${effectiveSessionId}`);
 
     fetch(initialUrl)
       .then((res) => res.json())
@@ -117,7 +118,7 @@ export function CheckoutPayPage() {
 
   const handleRestartSession = async () => {
     try {
-      const res = await fetch(`/api/checkout/${effectiveSessionId}?fresh=1`);
+      const res = await fetch(apiUrl(`/api/checkout/${effectiveSessionId}?fresh=1`));
       const data = await res.json();
       if (data.ok && data.checkout) {
         setCheckout(data.checkout);
@@ -140,7 +141,7 @@ export function CheckoutPayPage() {
     setSenderSaveError(null);
 
     try {
-      const res = await fetch(`/api/checkout/${effectiveSessionId}/sender`, {
+      const res = await fetch(apiUrl(`/api/checkout/${effectiveSessionId}/sender`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ senderHandle: fullHandle }),
@@ -167,7 +168,7 @@ export function CheckoutPayPage() {
     if (!effectiveSessionId || checkout?.status === 'CONFIRMED' || checkout?.status === 'EXPIRED') return;
 
     const poll = setInterval(() => {
-      fetch(`/api/checkout/${effectiveSessionId}`)
+      fetch(apiUrl(`/api/checkout/${effectiveSessionId}`))
         .then((res) => res.json())
         .then((data) => {
           if (data.ok && data.checkout) {
@@ -192,7 +193,7 @@ export function CheckoutPayPage() {
   useEffect(() => {
     if (!effectiveSessionId) return;
 
-    const socket: Socket = io();
+    const socket: Socket = io(apiOrigin || undefined, { withCredentials: true });
 
     socket.on('connect', () => {
       socket.emit('checkout:join', effectiveSessionId);

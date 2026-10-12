@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { AdminTab } from '../pages/AdminPortalPage';
 import { useTheme } from '../context/ThemeContext';
+import { apiUrl } from '../services/api';
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -390,7 +391,7 @@ export function AdminSidebar({
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
               <a
-                href="/api/apks/admin"
+                href={apiUrl('/api/apks/admin')}
                 download="InstaPay-Admin.apk"
                 style={{
                   flex: 1,

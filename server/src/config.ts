@@ -24,6 +24,28 @@ function requireSecret(name: string, minLength: number): string {
   return value
 }
 
+function requireHttpsOrigin(name: string): string {
+  const value = process.env[name]?.trim()
+  if (!value) throw new Error(`${name} must be configured outside local development`)
+
+  try {
+    const url = new URL(value)
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash
+    ) {
+      throw new Error('invalid origin')
+    }
+    return url.origin
+  } catch {
+    throw new Error(`${name} must be an HTTPS origin without a path, query, or fragment outside local development`)
+  }
+}
+
 /** Validate security-sensitive configuration before opening the HTTP port. */
 export function validateRuntimeConfig() {
   const ownerSecret = requireSecret('OWNER_SECRET', 32)
@@ -40,9 +62,10 @@ export function validateRuntimeConfig() {
       throw new Error('Development authentication bypasses cannot be enabled outside local development')
     }
 
-    const clientUrl = process.env.CLIENT_URL
-    if (!clientUrl?.startsWith('https://')) {
-      throw new Error('CLIENT_URL must use HTTPS outside local development')
+    const clientOrigin = requireHttpsOrigin('CLIENT_URL')
+    const adminOrigin = requireHttpsOrigin('ADMIN_URL')
+    if (clientOrigin === adminOrigin) {
+      throw new Error('ADMIN_URL must be a different origin from CLIENT_URL')
     }
     if (!process.env.ADMIN_EMAIL?.includes('@')) {
       throw new Error('ADMIN_EMAIL must be configured outside local development')

@@ -25,6 +25,7 @@ Browser merchant and owner sessions use different cookies and different HTTP cli
 - Owner sessions carry a fingerprint of the current administrator password and TOTP secret, so rotating either credential invalidates existing sessions.
 - Browser cookies are `HttpOnly`, `SameSite=Strict`, and `Secure` outside development/test.
 - Unsafe cookie-authenticated requests must pass the trusted Origin/Referer check. Bearer clients are not subject to browser CSRF checks.
+- The owner portal has a distinct `ADMIN_URL`. Every browser request to `/api/admin`, including reads, must originate from that exact URL; the merchant site cannot use an owner cookie to read or change administrative data. Owner Android clients continue to use explicit bearer tokens.
 - Legacy signed sessions are rejected by default and can only be enabled explicitly in local development with `AUTH_ACCEPT_LEGACY_SESSIONS=true`.
 
 ## Account authentication
@@ -75,6 +76,7 @@ Configure the following for every non-local environment:
 - unique `OWNER_SECRET` and `TOKEN_PEPPER` values generated with a cryptographic random generator;
 - strong `ADMIN_PASSWORD`, exact `ADMIN_EMAIL`, and Base32 `ADMIN_TOTP_SECRET`;
 - an HTTPS `CLIENT_URL`;
+- a distinct HTTPS `ADMIN_URL` such as `https://admin.example.com` (not a path on the merchant site); configure `VITE_ADMIN_URL` to the same value and `VITE_API_BASE_URL=https://api.example.com` in the static-site build;
 - `TRUST_PROXY` set to the exact number of trusted reverse-proxy hops;
 - Node.js 22.20+ and all tracked Prisma migrations applied before the API starts;
 - Supabase `DATABASE_URL` and `DIRECT_URL` copied from its Connect panel, never exposed to the client;

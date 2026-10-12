@@ -5,7 +5,7 @@ import {
   Signal, Cpu, Server, Zap, ArrowRight, ExternalLink,
   Copy, Check
 } from 'lucide-react';
-import { settingsApi } from '../services/api';
+import { apiUrl, settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -376,7 +376,7 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
 
           {/* Download Button */}
           <a
-            href="/api/apks/detector"
+            href={apiUrl('/api/apks/detector')}
             download="InstaPay-Detector.apk"
             style={{
               display: 'flex',
