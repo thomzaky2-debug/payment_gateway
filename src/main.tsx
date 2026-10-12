@@ -9,7 +9,16 @@ import { ApiDocsPage } from "./pages/ApiDocsPage.tsx";
 import { LanguageProvider } from "./context/LanguageContext.tsx";
 import { ThemeProvider } from "./context/ThemeContext.tsx";
 
-const configuredAdminOrigin = (import.meta.env.VITE_ADMIN_URL || '').trim().replace(/\/+$/, '');
+// MonsterASP's static SPA builder does not reliably pass Vite environment
+// variables. Keep the temporary, isolated staging admin host on the admin
+// route while production custom domains continue to use VITE_ADMIN_URL.
+const monsterAspStagingAdminOrigins: Record<string, string> = {
+  'nilepay-admin.runasp.net': 'https://nilepay-admin.runasp.net',
+};
+const configuredAdminOrigin = (
+  (import.meta.env.VITE_ADMIN_URL || '').trim().replace(/\/+$/, '') ||
+  (typeof window === 'undefined' ? '' : monsterAspStagingAdminOrigins[window.location.hostname.toLowerCase()] || '')
+);
 const isDedicatedAdminHost = (() => {
   if (!configuredAdminOrigin || typeof window === 'undefined') return false;
   try {
