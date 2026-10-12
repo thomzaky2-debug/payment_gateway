@@ -16,8 +16,10 @@ import {
   CheckCircle2,
   Globe,
   AlertCircle,
+  Activity,
+  BadgeCheck,
 } from 'lucide-react';
-import { apiUrl, authApi } from '../services/api';
+import { authApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 interface LoginPageProps {
@@ -357,31 +359,68 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
         fontFamily: "'Inter', sans-serif",
       }}
     >
-      {/* Background ambient glow */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-25%',
-          left: '-15%',
-          width: '75%',
-          height: '150%',
-          background: 'radial-gradient(circle, rgba(124, 58, 237, 0.16) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-25%',
-          right: '-15%',
-          width: '75%',
-          height: '150%',
-          background: 'radial-gradient(circle, rgba(16, 185, 129, 0.14) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
+      <div className="merchant-login-orb merchant-login-orb-primary" aria-hidden="true" />
+      <div className="merchant-login-orb merchant-login-orb-secondary" aria-hidden="true" />
 
-      <div className="merchant-login-card">
+      <main className="merchant-login-shell">
+        <section className="merchant-login-showcase" aria-label="InstaPay Merchant Gateway">
+          <div className="merchant-login-showcase-brand">
+            <div className="merchant-login-showcase-logo">
+              <img src="/Logo.png" alt="" />
+            </div>
+            <div>
+              <div className="merchant-login-showcase-name">InstaPay</div>
+              <div className="merchant-login-showcase-subtitle">Merchant Gateway</div>
+            </div>
+            <span className="merchant-login-showcase-badge">GATEWAY</span>
+          </div>
+
+          <div className="merchant-login-showcase-copy">
+            <span className="merchant-login-eyebrow">
+              <span className="merchant-login-live-dot" />
+              {lang === 'ar' ? 'مدفوعاتك تحت السيطرة' : 'Your payments, in focus'}
+            </span>
+            <h1>{lang === 'ar' ? 'بوابة مدفوعات واضحة وآمنة لنشاطك.' : 'A clear, secure home for your payments.'}</h1>
+            <p>
+              {lang === 'ar'
+                ? 'تابع المدفوعات الفورية وعمليات التسوية وإعدادات التكامل من مساحة عمل واحدة.'
+                : 'Monitor live payments, settlements, and integration settings from one focused workspace.'}
+            </p>
+          </div>
+
+          <div className="merchant-login-preview" aria-hidden="true">
+            <div className="merchant-login-preview-header">
+              <div>
+                <span>{lang === 'ar' ? 'نظرة عامة على المدفوعات' : 'Payment overview'}</span>
+                <strong>{lang === 'ar' ? 'نشاط مباشر' : 'Live activity'}</strong>
+              </div>
+              <div className="merchant-login-preview-icon"><Activity size={17} /></div>
+            </div>
+            <div className="merchant-login-preview-stat">
+              <div>
+                <span>{lang === 'ar' ? 'العمليات المؤكدة اليوم' : 'Confirmed today'}</span>
+                <strong>24</strong>
+              </div>
+              <span className="merchant-login-preview-change">+12.5%</span>
+            </div>
+            <div className="merchant-login-preview-chart">
+              <i style={{ height: '34%' }} />
+              <i style={{ height: '52%' }} />
+              <i style={{ height: '42%' }} />
+              <i style={{ height: '76%' }} />
+              <i style={{ height: '60%' }} />
+              <i style={{ height: '92%' }} />
+              <i style={{ height: '70%' }} />
+            </div>
+          </div>
+
+          <div className="merchant-login-showcase-footer">
+            <BadgeCheck size={18} />
+            <span>{lang === 'ar' ? 'مصمم للتجار الذين يعملون في الوقت الفعلي.' : 'Built for merchants operating in real time.'}</span>
+          </div>
+        </section>
+
+        <div className="merchant-login-card">
         {/* Top Header with Language Switcher */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -390,15 +429,16 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 width: '38px',
                 height: '38px',
                 borderRadius: '11px',
-                background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+                background: 'linear-gradient(135deg, #512772, #2563eb)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '18px',
-                boxShadow: '0 6px 18px -2px rgba(16,185,129,0.45)',
+                boxShadow: '0 8px 18px -4px rgba(81,39,114,0.7)',
+                padding: '5px',
               }}
             >
-              ⚡
+              <img src="/Logo.png" alt="" style={{ width: '26px', height: '26px', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: '#f8fafc', lineHeight: 1.2 }}>InstaPay</div>
@@ -1016,68 +1056,6 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
               <span>Protected by 256-bit SSL encryption & 2FA OTP</span>
             </div>
 
-            {/* Android Companion APK download quick badge */}
-            <div
-              style={{
-                marginTop: '14px',
-                padding: '9px 12px',
-                backgroundColor: 'rgba(16, 185, 129, 0.06)',
-                border: '1px dashed rgba(16, 185, 129, 0.25)',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '8px',
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '14px',
-                    flexShrink: 0,
-                  }}
-                >
-                  🤖
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {lang === 'ar' ? 'تطبيق الكاشف للأندرويد' : 'Companion Detector APK'}
-                  </div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>
-                    {lang === 'ar' ? 'إشعارات التحويلات اللحظية' : 'Live push notifications'}
-                  </div>
-                </div>
-              </div>
-              <a
-                href={apiUrl('/api/apks/detector')}
-                download="InstaPay-Detector.apk"
-                style={{
-                  padding: '5px 10px',
-                  backgroundColor: '#10b981',
-                  color: '#ffffff',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <span>APK</span>
-                <span>↓</span>
-              </a>
-            </div>
           </div>
         )}
 
@@ -1393,7 +1371,8 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
             )}
           </div>
         )}
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

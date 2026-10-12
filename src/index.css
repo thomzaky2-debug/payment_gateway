@@ -499,32 +499,276 @@ html:not(.dark) .admin-toast {
 .merchant-login-container {
   min-height: 100dvh;
   width: 100%;
-  background: linear-gradient(135deg, #070b14 0%, #0f172a 50%, #070b14 100%);
+  background:
+    radial-gradient(circle at 8% 15%, rgba(81, 39, 114, 0.28), transparent 28rem),
+    radial-gradient(circle at 92% 85%, rgba(14, 165, 233, 0.16), transparent 32rem),
+    #090d16;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px 16px;
+  padding: 32px;
   position: relative;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
+.merchant-login-shell {
+  width: min(1120px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(390px, 460px);
+  align-items: center;
+  gap: clamp(44px, 7vw, 104px);
+  position: relative;
+  z-index: 1;
+}
+
+.merchant-login-orb {
+  position: fixed;
+  border-radius: 999px;
+  pointer-events: none;
+  filter: blur(2px);
+  opacity: 0.72;
+}
+
+.merchant-login-orb-primary {
+  width: min(42vw, 620px);
+  height: min(42vw, 620px);
+  left: -18vw;
+  top: -24vw;
+  background: radial-gradient(circle, rgba(81, 39, 114, 0.34), rgba(81, 39, 114, 0));
+}
+
+.merchant-login-orb-secondary {
+  width: min(40vw, 580px);
+  height: min(40vw, 580px);
+  right: -20vw;
+  bottom: -25vw;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.2), rgba(37, 99, 235, 0));
+}
+
+.merchant-login-showcase {
+  color: #f8fafc;
+  min-width: 0;
+  padding: 20px 0;
+}
+
+.merchant-login-showcase-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.merchant-login-showcase-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  padding: 7px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #512772, #2563eb);
+  box-shadow: 0 10px 22px -7px rgba(81, 39, 114, 0.9);
+}
+
+.merchant-login-showcase-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.merchant-login-showcase-name {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.merchant-login-showcase-subtitle {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.merchant-login-showcase-badge {
+  margin-inline-start: 2px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 5px;
+  padding: 3px 6px;
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.1);
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.merchant-login-showcase-copy {
+  margin-top: clamp(46px, 8vh, 90px);
+  max-width: 570px;
+}
+
+.merchant-login-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.08);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.merchant-login-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.13);
+}
+
+.merchant-login-showcase-copy h1 {
+  max-width: 600px;
+  margin: 16px 0 14px;
+  color: #f8fafc;
+  font-size: clamp(33px, 4.1vw, 52px);
+  line-height: 1.08;
+  letter-spacing: -0.055em;
+  font-weight: 800;
+}
+
+.merchant-login-showcase-copy p {
+  max-width: 510px;
+  color: #94a3b8;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.merchant-login-preview {
+  max-width: 440px;
+  margin-top: 40px;
+  padding: 18px;
+  border: 1px solid rgba(71, 85, 105, 0.58);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(22, 32, 51, 0.9), rgba(15, 23, 42, 0.88));
+  box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(14px);
+}
+
+.merchant-login-preview-header,
+.merchant-login-preview-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.merchant-login-preview-header span,
+.merchant-login-preview-stat span:first-child {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.merchant-login-preview-header strong {
+  display: block;
+  margin-top: 3px;
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.merchant-login-preview-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #e0f2fe;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  box-shadow: 0 8px 15px -8px rgba(14, 165, 233, 0.85);
+}
+
+.merchant-login-preview-stat {
+  margin-top: 20px;
+}
+
+.merchant-login-preview-stat strong {
+  display: block;
+  margin-top: 5px;
+  color: #f8fafc;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.merchant-login-preview-change {
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #6ee7b7 !important;
+  background: rgba(16, 185, 129, 0.12);
+  font-size: 10px !important;
+  font-weight: 700;
+}
+
+.merchant-login-preview-chart {
+  height: 62px;
+  margin-top: 18px;
+  padding: 7px 1px 0;
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  border-top: 1px solid rgba(71, 85, 105, 0.46);
+}
+
+.merchant-login-preview-chart i {
+  flex: 1;
+  min-width: 6px;
+  border-radius: 999px 999px 3px 3px;
+  background: linear-gradient(180deg, #38bdf8, #2563eb);
+  opacity: 0.9;
+}
+
+.merchant-login-showcase-footer {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 11.5px;
+}
+
+.merchant-login-showcase-footer svg {
+  color: #38bdf8;
+  flex: none;
+}
+
 .merchant-login-card {
   width: 100%;
   max-width: 460px;
-  background-color: #0f172a;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 32px 28px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85);
+  justify-self: end;
+  background: linear-gradient(145deg, rgba(17, 24, 39, 0.98), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(71, 85, 105, 0.68);
+  border-radius: 22px;
+  padding: 30px 28px;
+  box-shadow: 0 28px 60px -22px rgba(0, 0, 0, 0.92), 0 0 0 1px rgba(15, 23, 42, 0.4) inset;
   position: relative;
-  z-index: 1;
+  overflow: hidden;
+}
+
+.merchant-login-card::before {
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  content: '';
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.7), transparent);
 }
 
 .merchant-auth-input {
   width: 100%;
   height: 44px;
-  background-color: #1e293b;
+  background-color: #0b1220;
   border: 1px solid #334155;
   border-radius: 10px;
   color: #f8fafc;
@@ -535,8 +779,8 @@ html:not(.dark) .admin-toast {
 }
 
 .merchant-auth-input:focus {
-  border-color: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14) !important;
 }
 
 /* LTR Base Icon Clearance */
@@ -566,7 +810,7 @@ html[dir="rtl"] .merchant-auth-input.has-icon-left.has-icon-right,
 .merchant-otp-input {
   width: 100%;
   height: 56px;
-  background-color: #1e293b;
+  background-color: #0b1220;
   border: 2px solid #7c3aed;
   border-radius: 12px;
   font-size: 28px;
@@ -594,6 +838,38 @@ html[dir="rtl"] .merchant-auth-input.has-icon-left.has-icon-right,
   gap: 8px;
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.merchant-auth-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.merchant-auth-btn:focus-visible,
+.merchant-login-card button:focus-visible,
+.merchant-login-card a:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .merchant-login-container {
+    padding: 24px 16px;
+  }
+
+  .merchant-login-shell {
+    display: block;
+    width: min(460px, 100%);
+  }
+
+  .merchant-login-showcase {
+    display: none;
+  }
+
+  .merchant-login-card {
+    max-width: none;
+    justify-self: auto;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -1656,5 +1932,4 @@ html.dark .security-refresh-btn:hover:not(:disabled) {
     width: 100% !important;
   }
 }
-
 
