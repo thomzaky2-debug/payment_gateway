@@ -67,6 +67,10 @@ export function validateRuntimeConfig() {
     if (clientOrigin === adminOrigin) {
       throw new Error('ADMIN_URL must be a different origin from CLIENT_URL')
     }
+    // Keep the encryption key separate from the token hashing pepper. Existing
+    // credentials encrypted with TOKEN_PEPPER remain decryptable during this
+    // migration, but all new credential encryption uses this explicit key.
+    requireSecret('CREDENTIAL_ENCRYPTION_KEY', 32)
     if (!process.env.ADMIN_EMAIL?.includes('@')) {
       throw new Error('ADMIN_EMAIL must be configured outside local development')
     }

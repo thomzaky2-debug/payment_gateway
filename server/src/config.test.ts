@@ -11,6 +11,7 @@ const SECURITY_ENV_KEYS = [
   'ADMIN_TOTP_SECRET',
   'CLIENT_URL',
   'ADMIN_URL',
+  'CREDENTIAL_ENCRYPTION_KEY',
   'TRUST_PROXY',
   'AUTH_ALLOW_DEV_BYPASS',
   'AUTH_EXPOSE_DEV_OTP',
@@ -35,6 +36,7 @@ test('production configuration rejects shipped placeholders and malformed TOTP s
       ADMIN_TOTP_SECRET: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
       CLIENT_URL: 'https://gateway.example.test',
       ADMIN_URL: 'https://admin.gateway.example.test',
+      CREDENTIAL_ENCRYPTION_KEY: '573e6bc81d7f3ad29d10afc5f90b27e98c0cb7d3bb934d6fcb3d38fe10072aed',
       TRUST_PROXY: '0',
       AUTH_ALLOW_DEV_BYPASS: 'false',
       AUTH_EXPOSE_DEV_OTP: 'false',
@@ -57,6 +59,10 @@ test('production configuration rejects shipped placeholders and malformed TOTP s
 
     process.env.UPSTASH_REDIS_REST_TOKEN = 'test-only-upstash-token'
     assert.doesNotThrow(validateRuntimeConfig)
+
+    delete process.env.CREDENTIAL_ENCRYPTION_KEY
+    assert.throws(validateRuntimeConfig, /CREDENTIAL_ENCRYPTION_KEY/)
+    process.env.CREDENTIAL_ENCRYPTION_KEY = '573e6bc81d7f3ad29d10afc5f90b27e98c0cb7d3bb934d6fcb3d38fe10072aed'
 
     process.env.ADMIN_URL = process.env.CLIENT_URL
     assert.throws(validateRuntimeConfig, /different origin/)

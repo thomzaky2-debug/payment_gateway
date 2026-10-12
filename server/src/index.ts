@@ -137,16 +137,27 @@ migratePlaintextCredentialsAtRest().catch((err) => console.warn('[Startup] Crede
 // ─── API Routes ────────────────────────────────────────────────────
 
 app.get('/api/health', async (_req, res) => {
+  // Liveness must represent only whether this HTTP process can respond. Do
+  // not remove a healthy API from rotation because a webhook needs manual
+  // review; delivery readiness is available separately below.
+  res.status(200).json({
+    status: 'alive',
+    timestamp: new Date().toISOString(),
+    service: 'InstaPay Gateway Backend',
+    version: '2.0.0',
+  })
+})
+
+app.get('/api/health/ready', async (_req, res) => {
   try {
     const health = await getWebhookDeliveryHealth()
     res.status(health.healthy ? 200 : 503).json({
-      status: health.healthy ? 'healthy' : 'degraded',
+      status: health.healthy ? 'ready' : 'degraded',
       timestamp: new Date().toISOString(),
       service: 'InstaPay Gateway Backend',
-      version: '2.0.0',
     })
   } catch (err) {
-    console.error('[health] Webhook delivery health query failed:', err)
+    console.error('[health/ready] Webhook delivery health query failed:', err)
     res.status(503).json({ status: 'degraded', timestamp: new Date().toISOString(), service: 'InstaPay Gateway Backend' })
   }
 })

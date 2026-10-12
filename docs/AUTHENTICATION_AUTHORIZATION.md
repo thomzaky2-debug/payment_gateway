@@ -56,7 +56,7 @@ Socket.IO merchant rooms are derived from the verified session. Public checkout 
 
 ## Secret handling
 
-- `OWNER_SECRET` and `TOKEN_PEPPER` must be different, random values of at least 32 characters.
+- `OWNER_SECRET`, `TOKEN_PEPPER`, and `CREDENTIAL_ENCRYPTION_KEY` must be independent, random values of at least 32 characters. The encryption key protects credentials at rest; `TOKEN_PEPPER` protects credential hashes.
 - Query-string credentials are not accepted.
 - Request logs use the path rather than the full query URL.
 - Login/session responses are marked `Cache-Control: no-store` and browser logins do not return reusable bearer tokens.
@@ -73,7 +73,7 @@ npm run db:migrate
 
 Configure the following for every non-local environment:
 
-- unique `OWNER_SECRET` and `TOKEN_PEPPER` values generated with a cryptographic random generator;
+- unique `OWNER_SECRET`, `TOKEN_PEPPER`, and `CREDENTIAL_ENCRYPTION_KEY` values generated with a cryptographic random generator;
 - strong `ADMIN_PASSWORD`, exact `ADMIN_EMAIL`, and Base32 `ADMIN_TOTP_SECRET`;
 - an HTTPS `CLIENT_URL`;
 - a distinct HTTPS `ADMIN_URL` such as `https://admin.example.com` (not a path on the merchant site); configure `VITE_ADMIN_URL` to the same value and `VITE_API_BASE_URL=https://api.example.com` in the static-site build;
@@ -88,6 +88,22 @@ Configure the following for every non-local environment:
 Android release builds require external signing properties (`RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD`) and a production `GATEWAY_BASE_URL`. Release network policy rejects cleartext traffic and user-installed certificate authorities; debug builds retain local emulator access.
 
 The checked-in APK files predate these controls, so `/api/apks/*` is fail-closed by default. Replace both files with current release-signed builds, verify their signing certificate and configuration, and only then set `ENABLE_APK_DOWNLOADS=true`.
+
+## MonsterASP deployment
+
+Use MonsterASP's Git deployment with **Node.js SSR app** for the API. It builds
+on the Windows host and generates the API IIS configuration; set the start
+command to `npm start`. For the merchant and admin sites, use **Build Node.js
+SPA**, publish the `dist` output, and retain the generated `web.config` copied
+from `public/` for client-side routing and security headers.
+
+Configure each host with the same registrable domain (`app.example.com`,
+`admin.example.com`, and `api.example.com`) so strict browser cookies remain
+same-site. Point ordinary uptime monitoring to `/api/health`; use
+`/api/health/ready` for delivery readiness monitoring. Before production,
+confirm the host supports Node.js 22.20+, persistent/always-on Node processes,
+outbound Supabase/Upstash/SMTP traffic, and Socket.IO WebSocket upgrades. Run
+`prisma migrate deploy` from CI or a trusted workstation before the API starts.
 
 ## Verification
 

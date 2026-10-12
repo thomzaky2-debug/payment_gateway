@@ -150,6 +150,26 @@ the mobile admin app continues to authenticate with a bearer token. Point both
 the `app` and `admin` DNS records at the static host, and point `api` at the
 Node API host. Do not route the admin hostname through the merchant frontend.
 
+### MonsterASP.NET
+
+Create three independently deployable hosts on one registrable domain:
+`app.example.com`, `admin.example.com`, and `api.example.com`. Deploy the API
+from GitHub as a **Node.js SSR app** with build command `npm run build` and
+start command `npm start`. Deploy the frontend repository twice as a **Build
+Node.js SPA** with output directory `dist`; the checked-in
+[`public/web.config`](public/web.config) is copied into `dist` and supplies
+IIS route fallback and browser security headers.
+
+Set secrets only in the API host's environment settings, including a distinct
+`CREDENTIAL_ENCRYPTION_KEY`; do not upload `.env`. Set the two `VITE_*`
+variables in each static-site build. Run `npm run db:migrate` from CI or a
+trusted machine before enabling the API. Monitor `/api/health` for process
+liveness and `/api/health/ready` for database/webhook-delivery readiness.
+
+Before switching traffic, confirm MonsterASP supplies Node.js 22.20+, keeps
+the API process alive for the webhook worker, permits outbound Supabase,
+Upstash and SMTP connections, and supports Socket.IO WebSocket upgrades.
+
 ### OTP email sender (Gmail)
 
 Merchant OTPs are sent through SMTP. For `instapay.payment.gateway@gmail.com`,
