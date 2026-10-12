@@ -208,6 +208,10 @@ export const adminApi = {
     const res = await adminHttp.post(`/admin/webhooks/${id}/resend`, {})
     return res.data
   },
+  async releaseWebhookReview(id: string, totp: string) {
+    const res = await adminHttp.post(`/admin/webhooks/${id}/release-review`, { totp })
+    return res.data
+  },
   async getPlans() {
     const res = await adminHttp.get('/admin/plans')
     return res.data

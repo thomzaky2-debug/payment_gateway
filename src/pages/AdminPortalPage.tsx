@@ -274,6 +274,26 @@ export function AdminPortalPage() {
     }
   };
 
+  const handleReleaseWebhookReview = async (logId: string) => {
+    const totp = window.prompt('Enter a fresh 6-digit authenticator code to release this webhook review hold:')?.trim() || '';
+    if (!/^\d{6}$/.test(totp)) {
+      showToast('A fresh 6-digit authenticator code is required.', 'error');
+      return;
+    }
+    try {
+      setResendingWebhookId(logId);
+      const res = await adminApi.releaseWebhookReview(logId, totp);
+      if (res?.ok) {
+        showToast(res.message || 'Webhook review hold released.', 'success');
+        void fetchData();
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to release webhook review hold', 'error');
+    } finally {
+      setResendingWebhookId(null);
+    }
+  };
+
   // Navigation and Hash Handlers
   const navigateToTab = (tab: AdminTab, subPath?: string) => {
     setActiveTab(tab);
@@ -2099,6 +2119,11 @@ export function AdminPortalPage() {
                       <div style={{ fontSize: '11.5px', color: '#a78bfa', fontWeight: 600, marginBottom: '6px' }}>
                         Event: {w.event}
                       </div>
+                      {w.outcomeKnown === false && (
+                        <div style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 700, marginBottom: '6px' }}>
+                          Manual review required — outcome may be unknown
+                        </div>
+                      )}
 
                       <div
                         style={{
@@ -2128,7 +2153,17 @@ export function AdminPortalPage() {
                       <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
                         {new Date(w.createdAt).toLocaleString()}
                       </span>
-                      {!w.isSuccess && (
+                      {!w.isSuccess && w.outcomeKnown === false ? (
+                        <button
+                          onClick={() => handleReleaseWebhookReview(w.id)}
+                          disabled={resendingWebhookId === w.id}
+                          style={{
+                            padding: '3px 8px', fontSize: '11px', borderRadius: '6px', backgroundColor: '#b45309', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+                          }}
+                        >
+                          {resendingWebhookId === w.id ? 'Releasing...' : 'Release review'}
+                        </button>
+                      ) : !w.isSuccess && (
                         <button
                           onClick={() => handleResendWebhook(w.id)}
                           disabled={resendingWebhookId === w.id}

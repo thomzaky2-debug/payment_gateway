@@ -536,27 +536,8 @@ export async function processInstaPayNotification(
     detectedAt: updatedTx.detectedAt?.toISOString() ?? null,
   })
 
-  // 11. Deliver signed webhook callback to Merchant server
-  if (client.webhookUrl) {
-    void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
-      event: 'payment.confirmed',
-      clientId: client.id,
-      businessName: client.businessName,
-      transaction: {
-        sessionId: updatedTx.sessionId,
-        senderHandle: updatedTx.senderHandle,
-        recipientHandle: updatedTx.recipientHandle,
-        amountEgp: updatedTx.amountEgp,
-        detectedAmountEgp: updatedTx.detectedAmountEgp,
-        currency: updatedTx.currency,
-        status: updatedTx.status,
-        detectedRef: updatedTx.detectedRef,
-        detectedAt: updatedTx.detectedAt?.toISOString() ?? null,
-        note: updatedTx.note,
-        createdAt: updatedTx.createdAt.toISOString(),
-      },
-    })
-  }
+  // Confirmation webhook is already queued transactionally by
+  // confirmOrdinaryCheckout; the retry worker performs the network delivery.
 
   return {
     ok: true,

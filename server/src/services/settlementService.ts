@@ -1,5 +1,6 @@
 import { db } from '../db.js'
 import type { Transaction } from '@prisma/client'
+import crypto from 'crypto'
 
 export interface ConfirmOrdinaryCheckoutInput {
   transactionId: string
@@ -15,6 +16,47 @@ export interface ConfirmOrdinaryCheckoutInput {
 export interface OrdinaryCheckoutSettlement {
   transaction: Transaction
   newlyConfirmed: boolean
+}
+
+/**
+ * Transactional webhook outbox: confirmation and its delivery intent commit
+ * together. The retry worker owns the later network I/O, so a database outage
+ * can never silently drop a confirmed-payment notification.
+ */
+async function enqueueConfirmationWebhook(txDb: any, transaction: any, client: any) {
+  if (!client?.webhookUrl) return
+  const event = transaction.purpose === 'SUBSCRIPTION' ? 'subscription.payment_confirmed' : 'payment.confirmed'
+  const payload = {
+    event,
+    clientId: client.id,
+    businessName: client.businessName,
+    transaction: {
+      sessionId: transaction.sessionId,
+      senderHandle: transaction.senderHandle,
+      recipientHandle: transaction.recipientHandle,
+      amountEgp: transaction.amountEgp,
+      detectedAmountEgp: transaction.detectedAmountEgp,
+      currency: transaction.currency,
+      status: transaction.status,
+      detectedRef: transaction.detectedRef,
+      detectedAt: transaction.detectedAt?.toISOString() ?? null,
+      note: transaction.note,
+      createdAt: transaction.createdAt.toISOString(),
+    },
+  }
+  await txDb.webhookLog.create({
+    data: {
+      clientId: client.id,
+      url: client.webhookUrl,
+      event,
+      eventId: `evt_${crypto.randomBytes(16).toString('hex')}`,
+      payload: JSON.stringify(payload),
+      isSuccess: false,
+      attempt: 0,
+      nextAttemptAt: new Date(),
+      outcomeKnown: true,
+    },
+  })
 }
 
 /**
@@ -71,6 +113,8 @@ export async function confirmOrdinaryCheckout(
     const transaction = await txDb.transaction.findUniqueOrThrow({
       where: { id: input.transactionId },
     })
+    const client = await txDb.client.findUniqueOrThrow({ where: { id: input.clientId } })
+    await enqueueConfirmationWebhook(txDb, transaction, client)
     return { transaction, newlyConfirmed: true }
   })
 }
@@ -165,6 +209,7 @@ export async function confirmTransactionAsOwner(sessionId: string) {
       where: { id: existing.id },
       include: { client: true },
     })
+    await enqueueConfirmationWebhook(txDb, transaction, transaction.client)
     return { transaction, newlyConfirmed: true }
   })
 }

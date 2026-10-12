@@ -560,27 +560,7 @@ adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: R
       detectedAt: updated.detectedAt?.toISOString() ?? null,
     })
 
-    // Deliver signed webhook to Merchant server
-    if (settlement.newlyConfirmed && updated.client.webhookUrl) {
-      void forwardToClientWebhook(updated.client.id, updated.client.webhookUrl, updated.client.webhookSecret, {
-        event: updated.purpose === 'SUBSCRIPTION' ? 'subscription.payment_confirmed' : 'payment.confirmed',
-        clientId: updated.client.id,
-        businessName: updated.client.businessName,
-        transaction: {
-          sessionId: updated.sessionId,
-          senderHandle: updated.senderHandle,
-          recipientHandle: updated.recipientHandle,
-          amountEgp: updated.amountEgp,
-          detectedAmountEgp: updated.detectedAmountEgp,
-          currency: updated.currency,
-          status: updated.status,
-          detectedRef: updated.detectedRef,
-          detectedAt: updated.detectedAt?.toISOString() ?? null,
-          note: updated.note,
-          createdAt: updated.createdAt.toISOString(),
-        },
-      })
-    }
+    // Confirmation webhook is queued transactionally with the settlement.
 
     await db.auditLog.create({
       data: {
@@ -718,7 +698,7 @@ adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin
 
 // Release an unknown-outcome delivery after an administrator has verified the
 // merchant-side result. It remains unscheduled and can be manually resent.
-adminRouter.post('/webhooks/:id/release-review', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/webhooks/:id/release-review', adminSensitiveActionLimiter, requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const updated = await db.webhookLog.updateMany({

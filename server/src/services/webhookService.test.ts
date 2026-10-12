@@ -202,6 +202,22 @@ test('forwardToClientWebhook pauses an existing delivery for manual review when 
   assert.ok(protectionData.deliveryLockedUntil instanceof Date)
 })
 
+test('processDueWebhookRetries excludes deliveries with unknown outcomes', async (t) => {
+  const originalFindMany = (db as any).webhookLog?.findMany
+  ;(db as any).webhookLog = {
+    ...(db as any).webhookLog,
+    findMany: async (args: any) => {
+      assert.equal(args.where.outcomeKnown, true)
+      return []
+    },
+  }
+  t.after(() => {
+    if (originalFindMany) (db as any).webhookLog.findMany = originalFindMany
+  })
+
+  await processDueWebhookRetries()
+})
+
 test('processDueWebhookRetries preserves nextAttemptAt on secret resolution failure', async (t) => {
   let updatedData: any = null
   const originalFindMany = (db as any).webhookLog?.findMany

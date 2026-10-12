@@ -45,7 +45,7 @@ function makeMockClient(overrides: Partial<Client> = {}): Client {
   }
 }
 
-test('matcherService passes raw stored webhookSecret directly to forwardToClientWebhook on exact match', async (t) => {
+test('matcherService queues a durable webhook outbox row on exact confirmation', async (t) => {
   const rawEncryptedSecret = 'enc:v1:fakeKey:00112233445566778899aabb:00112233445566778899aabbccddeeff:deadbeef'
   const client = makeMockClient({ webhookSecret: rawEncryptedSecret })
 
@@ -60,6 +60,7 @@ test('matcherService passes raw stored webhookSecret directly to forwardToClient
   const originalWebhookLogCreate = (db as any).webhookLog?.create
   const originalDbTransaction = (db as any).$transaction
   const originalClientUpdate = (db as any).client?.update
+  const originalClientFindUniqueOrThrow = (db as any).client?.findUniqueOrThrow
 
   const now = new Date()
   ;(db as any).$transaction = async (cb: any) => {
@@ -72,6 +73,7 @@ test('matcherService passes raw stored webhookSecret directly to forwardToClient
   ;(db as any).client = {
     ...(db as any).client,
     update: async () => client,
+    findUniqueOrThrow: async () => client,
   }
 
   const mockTx = {
@@ -135,6 +137,7 @@ test('matcherService passes raw stored webhookSecret directly to forwardToClient
     if (originalWebhookLogCreate) (db as any).webhookLog.create = originalWebhookLogCreate
     if (originalDbTransaction) (db as any).$transaction = originalDbTransaction
     if (originalClientUpdate) (db as any).client.update = originalClientUpdate
+    if (originalClientFindUniqueOrThrow) (db as any).client.findUniqueOrThrow = originalClientFindUniqueOrThrow
   })
 
   const matchRes = await processInstaPayNotification({
@@ -144,13 +147,11 @@ test('matcherService passes raw stored webhookSecret directly to forwardToClient
     reference: 'REF_TEST_100',
   })
 
-  assert.ok(createdWebhookLog, 'Expected forwardToClientWebhook to be called and record WebhookLog')
+  assert.ok(createdWebhookLog, 'Expected confirmation to enqueue a WebhookLog in its transaction')
   assert.equal(createdWebhookLog.clientId, client.id)
   assert.equal(createdWebhookLog.event, 'payment.confirmed')
   assert.equal(createdWebhookLog.isSuccess, false)
-  assert.equal(createdWebhookLog.statusCode, 500)
-  assert.ok(
-    createdWebhookLog.response?.includes('failed decryption'),
-    'Expected webhookService to detect raw encrypted secret and fail closed on decryption failure'
-  )
+  assert.equal(createdWebhookLog.attempt, 0)
+  assert.equal(createdWebhookLog.outcomeKnown, true)
+  assert.ok(createdWebhookLog.nextAttemptAt instanceof Date)
 })

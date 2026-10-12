@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { emitCheckoutUpdate } from '../services/notificationService.js'
-import { forwardToClientWebhook } from '../services/webhookService.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
 import { canMerchantResolveTransaction } from '../policies/transactionPolicy.js'
 import { confirmOrdinaryCheckout } from '../services/settlementService.js'
@@ -273,27 +272,7 @@ transactionRouter.post('/:sessionId/confirm', requireMerchant, async (req: Reque
       detectedAt: updated.detectedAt?.toISOString() ?? null,
     })
 
-    // Deliver signed webhook to Merchant server if configured
-    if (client.webhookUrl) {
-      void forwardToClientWebhook(client.id, client.webhookUrl, client.webhookSecret, {
-        event: 'payment.confirmed',
-        clientId: client.id,
-        businessName: client.businessName,
-        transaction: {
-          sessionId: updated.sessionId,
-          senderHandle: updated.senderHandle,
-          recipientHandle: updated.recipientHandle,
-          amountEgp: updated.amountEgp,
-          detectedAmountEgp: updated.detectedAmountEgp,
-          currency: updated.currency,
-          status: updated.status,
-          detectedRef: updated.detectedRef,
-          detectedAt: updated.detectedAt?.toISOString() ?? null,
-          note: updated.note,
-          createdAt: updated.createdAt.toISOString(),
-        },
-      })
-    }
+    // Confirmation webhook is queued transactionally with the settlement.
 
     await db.auditLog.create({
       data: {

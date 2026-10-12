@@ -41,6 +41,8 @@ function checkout(overrides: Record<string, unknown> = {}) {
 test('ordinary checkout settlement transitions status and consumes quota in one transaction', async (t) => {
   const calls: string[] = []
   const confirmed = checkout()
+  const merchant = { id: confirmed.clientId, businessName: 'Test Merchant', webhookUrl: 'https://merchant.example.test/webhook' }
+  let queuedWebhook: any = null
   const transactionDb = {
     transaction: {
       updateMany: async (args: any) => {
@@ -69,6 +71,17 @@ test('ordinary checkout settlement transitions status and consumes quota in one 
         })
         return {}
       },
+      findUniqueOrThrow: async () => {
+        calls.push('client-read')
+        return merchant
+      },
+    },
+    webhookLog: {
+      create: async (args: any) => {
+        calls.push('webhook-outbox')
+        queuedWebhook = args.data
+        return { id: 'whlog_outbox', ...args.data }
+      },
     },
   }
 
@@ -86,7 +99,11 @@ test('ordinary checkout settlement transitions status and consumes quota in one 
 
   assert.equal(result?.newlyConfirmed, true)
   assert.equal(result?.transaction, confirmed)
-  assert.deepEqual(calls, ['transition', 'quota', 'read'])
+  assert.deepEqual(calls, ['transition', 'quota', 'read', 'client-read', 'webhook-outbox'])
+  assert.equal(queuedWebhook.event, 'payment.confirmed')
+  assert.equal(queuedWebhook.attempt, 0)
+  assert.equal(queuedWebhook.outcomeKnown, true)
+  assert.ok(queuedWebhook.nextAttemptAt instanceof Date)
 })
 
 test('failed or ineligible transition never increments quota again', async (t) => {
