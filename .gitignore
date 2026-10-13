@@ -5,6 +5,7 @@ build/
 .env
 .env.local
 .env.*.local
+*.text
 .DS_Store
 
 # Server build output

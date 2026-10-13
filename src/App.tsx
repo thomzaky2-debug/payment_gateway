@@ -63,6 +63,8 @@ export function parseRouteFromHash(hashString?: string): { page: Page; subPath?:
     doc: 'docs',
     documentation: 'docs',
     'api-docs': 'docs',
+    sdk: 'docs',
+    api: 'docs',
   };
 
   const page = validPages[rawPage] || 'overview';
@@ -281,7 +283,15 @@ function App() {
       case 'security':
         return <SecurityPage showToast={showToast} showConfirm={showConfirm} />;
       case 'docs':
-        return <ApiDocsPage inApp={true} showToast={showToast} showConfirm={showConfirm} />;
+        return (
+          <ApiDocsPage
+            inApp={true}
+            subPath={currentSubPath}
+            onSubPathChange={handleSubPathChange}
+            showToast={showToast}
+            showConfirm={showConfirm}
+          />
+        );
       default:
         return <OverviewPage showToast={showToast} onNavigate={navigateTo} />;
     }

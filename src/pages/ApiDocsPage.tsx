@@ -15,13 +15,15 @@ import { apiOrigin, apiUrl } from '../services/api';
 
 interface ApiDocsPageProps {
   inApp?: boolean;
+  subPath?: string;
+  onSubPathChange?: (subPath?: string) => void;
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
   showConfirm?: (action: any) => void;
 }
 
 type LangOption = 'node' | 'python' | 'php' | 'go' | 'curl';
 
-export function ApiDocsPage({ inApp = false }: ApiDocsPageProps) {
+export function ApiDocsPage({ inApp = false, subPath, onSubPathChange }: ApiDocsPageProps) {
   const { isDark, toggleTheme } = useTheme();
   const { lang, setLang, isRtl } = useLanguage();
   const navigate = useNavigate();
@@ -87,15 +89,16 @@ export function ApiDocsPage({ inApp = false }: ApiDocsPageProps) {
 
   // Handle URL hash navigation on scroll or mount
   useEffect(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash) {
-      setActiveSection(hash);
-      const el = document.getElementById(hash);
+    const rawHash = (window.location.hash || '').replace(/^#\/?/, '').trim();
+    const target = (subPath || rawHash.replace(/^(?:docs|api-docs|documentation)\/?/, '')).trim();
+    if (target) {
+      setActiveSection(target);
+      const el = document.getElementById(target);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth' });
       }
     }
-  }, [location]);
+  }, [location, subPath]);
 
   // Recalculate HMAC on tester changes
   useEffect(() => {
@@ -130,7 +133,15 @@ export function ApiDocsPage({ inApp = false }: ApiDocsPageProps) {
       const yOffset = -80;
       const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
       window.scrollTo({ top: y, behavior: 'smooth' });
-      window.history.pushState(null, '', `#${id}`);
+      if (inApp) {
+        if (onSubPathChange) {
+          onSubPathChange(id);
+        } else {
+          window.history.pushState(null, '', `#docs/${id}`);
+        }
+      } else {
+        window.history.pushState(null, '', `#${id}`);
+      }
     }
   };
 
@@ -732,17 +743,18 @@ curl -X POST "http://localhost:8080/api/webhook" \\
     <div
       dir={isRtl ? 'rtl' : 'ltr'}
       style={{
-        backgroundColor: bgMain,
+        backgroundColor: inApp ? 'transparent' : bgMain,
         color: textPrimary,
-        minHeight: '100vh',
+        minHeight: inApp ? 'auto' : '100vh',
         fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
       }}
     >
-      {/* ──────────────── Top Navigation Bar ──────────────── */}
-      <header
-        style={{
-          position: 'sticky',
-          top: 0,
+      {/* ──────────────── Top Navigation Bar (Standalone Public View Only) ──────────────── */}
+      {!inApp && (
+        <header
+          style={{
+            position: 'sticky',
+            top: 0,
           zIndex: 40,
           backgroundColor: isDark ? 'rgba(11, 15, 25, 0.88)' : 'rgba(255, 255, 255, 0.88)',
           backdropFilter: 'blur(14px)',
@@ -986,6 +998,58 @@ curl -X POST "http://localhost:8080/api/webhook" \\
           </button>
         </div>
       </header>
+      )}
+
+      {/* ──────────────── Mobile In-App Toolbar ──────────────── */}
+      {inApp && (
+        <div
+          className="flex md:hidden items-center justify-between gap-2 mb-4 p-2.5 rounded-xl"
+          style={{
+            backgroundColor: isDark ? '#111827' : '#ffffff',
+            border: `1px solid ${borderCard}`,
+          }}
+        >
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 600,
+              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+              color: accentSky,
+              border: `1px solid ${isDark ? 'rgba(56, 189, 248, 0.3)' : '#bae6fd'}`,
+              cursor: 'pointer',
+            }}
+          >
+            <Sliders size={14} />
+            <span>{isRtl ? 'فهرس الدليل' : 'Documentation Index'}</span>
+          </button>
+          <a
+            href={apiUrl('/api/docs/integration-guide')}
+            download="InstaPay_Gateway_API_Integration_Guide.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: textSecondary,
+              textDecoration: 'none',
+            }}
+          >
+            <Download size={14} style={{ color: accentEmerald }} />
+            <span>{isRtl ? 'تحميل .md' : 'Download .md'}</span>
+          </a>
+        </div>
+      )}
 
       {/* ──────────────── Main Documentation Container ──────────────── */}
       <div
@@ -998,7 +1062,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
       >
         {/* ──────────────── Left Navigation Sidebar ──────────────── */}
         <aside
-          className={`fixed inset-y-0 z-30 w-72 md:w-64 lg:w-72 md:sticky md:top-[61px] md:h-[calc(100vh-61px)] overflow-y-auto transition-transform duration-300 ${
+          className={`fixed inset-y-0 z-30 w-72 md:w-64 lg:w-72 md:sticky ${inApp ? 'md:top-2 md:h-[calc(100vh-100px)]' : 'md:top-[61px] md:h-[calc(100vh-61px)]'} overflow-y-auto transition-transform duration-300 ${
             mobileMenuOpen ? 'translate-x-0' : (isRtl ? 'translate-x-full md:translate-x-0' : '-translate-x-full md:translate-x-0')
           }`}
           style={{
@@ -1299,6 +1363,30 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                 <Code2 size={15} style={{ color: accentSky }} />
                 <span>{isRtl ? 'أكواد 5 لغات برمجية' : '5 Language SDKs'}</span>
               </button>
+
+              <a
+                href={apiUrl('/api/docs/integration-guide')}
+                download="InstaPay_Gateway_API_Integration_Guide.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                  color: textPrimary,
+                  border: `1px solid ${borderCard}`,
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <Download size={15} style={{ color: accentEmerald }} />
+                <span>{isRtl ? 'تحميل كملف Markdown' : 'Download .md'}</span>
+              </a>
             </div>
           </div>
 
