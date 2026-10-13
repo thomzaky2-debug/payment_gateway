@@ -25,6 +25,7 @@ object MerchantNotificationPoller {
     private const val POLL_INTERVAL_MS = 60_000L
 
     private val started = AtomicBoolean(false)
+    private val polling = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private const val DELIVERED_PREFS = "merchant_notification_delivery"
@@ -54,6 +55,10 @@ object MerchantNotificationPoller {
     }
 
     private suspend fun pollOnce(context: Context) {
+        // Several Android lifecycle entry points (application start, listener
+        // reconnect, foreground service and activity) can request an immediate
+        // poll together. Only one may run at a time.
+        if (!polling.compareAndSet(false, true)) return
         try {
             val config = GatewayConfig.get(context)
             if (!config.isLoggedIn) return
@@ -130,6 +135,8 @@ object MerchantNotificationPoller {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Unhandled exception in pollOnce: ${e.message}")
+        } finally {
+            polling.set(false)
         }
     }
 
