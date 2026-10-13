@@ -62,6 +62,43 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
   }
 })
 
+// ─── Detector Heartbeat ────────────────────────────────────────────
+// The Android detector is online even when no payment has arrived yet.
+// Keep its availability separate from payment ingestion so the portal can
+// accurately report a connected, listening device.
+settingsRouter.post('/detector/heartbeat', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const { deviceId, appVersion, androidVersion } = req.body || {}
+    const cleanDeviceId = typeof deviceId === 'string' ? deviceId.trim().slice(0, 128) : ''
+    if (!cleanDeviceId) {
+      return res.status(400).json({ ok: false, error: 'Detector device identifier is required.' })
+    }
+
+    const device = await db.detectorDevice.upsert({
+      where: { clientId_deviceId: { clientId: client.id, deviceId: cleanDeviceId } },
+      create: {
+        clientId: client.id,
+        deviceId: cleanDeviceId,
+        appVersion: typeof appVersion === 'string' ? appVersion.trim().slice(0, 64) || null : null,
+        androidVersion: typeof androidVersion === 'string' ? androidVersion.trim().slice(0, 64) || null : null,
+        lastIp: getRequestIp(req),
+      },
+      update: {
+        appVersion: typeof appVersion === 'string' ? appVersion.trim().slice(0, 64) || undefined : undefined,
+        androidVersion: typeof androidVersion === 'string' ? androidVersion.trim().slice(0, 64) || undefined : undefined,
+        lastIp: getRequestIp(req),
+        lastSeenAt: new Date(),
+      },
+      select: { id: true, deviceId: true, lastSeenAt: true },
+    })
+
+    return res.json({ ok: true, device })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to record detector heartbeat')
+  }
+})
+
 
 // ─── Update Settings ────────────────────────────────────────────────
 

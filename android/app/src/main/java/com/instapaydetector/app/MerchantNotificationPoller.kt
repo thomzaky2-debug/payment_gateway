@@ -87,6 +87,9 @@ object MerchantNotificationPoller {
             if (config.merchantSessionToken.isBlank()) return
 
             val apiClient = DashboardApiClient(context)
+            apiClient.heartbeatDetector().onFailure { error ->
+                Log.w(TAG, "Detector heartbeat was not accepted: ${error.message}")
+            }
             try {
                 apiClient.fetchDashboard()
             } catch (e: Exception) {

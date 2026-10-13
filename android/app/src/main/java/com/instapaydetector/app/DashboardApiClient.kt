@@ -1,6 +1,8 @@
 package com.instapaydetector.app
 
 import android.content.Context
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -11,6 +13,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
@@ -128,6 +131,31 @@ class DashboardApiClient(private val ctx: Context) {
         )
     }
 
+    /** Sends an authenticated, privacy-preserving liveness signal for the web portal. */
+    suspend fun heartbeatDetector(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val payload = JSONObject().apply {
+                put("deviceId", deviceFingerprint())
+                put("appVersion", BuildConfig.VERSION_NAME)
+                put("androidVersion", "Android ${Build.VERSION.RELEASE}")
+            }
+            val request = Request.Builder()
+                .url("${baseUrl()}/api/settings/detector/heartbeat")
+                .addHeader("Authorization", "Bearer ${merchantSessionToken()}")
+                .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw responseException(response.code, response.body?.string().orEmpty())
+            }
+        }.fold(
+            onSuccess = { Result.success(Unit) },
+            onFailure = {
+                Log.w(TAG, "Detector heartbeat failed: ${it.message}")
+                Result.failure(it)
+            },
+        )
+    }
+
     suspend fun markNotificationsRead(ids: List<String>) = withContext(Dispatchers.IO) {
         ids.forEach { id ->
             val request = Request.Builder()
@@ -185,6 +213,13 @@ class DashboardApiClient(private val ctx: Context) {
 
     private fun merchantSessionToken(): String = config.merchantSessionToken.ifBlank {
         throw IllegalStateException("Your session has expired. Please sign in again.")
+    }
+
+    private fun deviceFingerprint(): String {
+        val androidId = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ANDROID_ID).orEmpty()
+        val source = "instapay-detector:$androidId"
+        return MessageDigest.getInstance("SHA-256").digest(source.toByteArray())
+            .joinToString("") { "%02x".format(it) }
     }
 
     private fun ensureSuccess(response: HttpResponse) {
