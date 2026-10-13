@@ -31,7 +31,19 @@ class GatewayConfig private constructor(ctx: Context) {
     init {
         // Older builds stored the merchant's server-to-server API key for
         // dashboard calls. It is no longer a valid mobile credential.
-        prefs.edit().remove(LEGACY_KEY_DASHBOARD_API_KEY).apply()
+        val editor = prefs.edit().remove(LEGACY_KEY_DASHBOARD_API_KEY)
+
+        // Updating an Android app preserves its encrypted preferences. Builds
+        // made for the emulator used 10.0.2.2, which only works from an Android
+        // emulator and must never survive into an HTTPS live build.
+        if (DEFAULT_SERVER_BASE_URL.startsWith("https://") && isLegacyEmulatorUrl(
+                prefs.getString(KEY_SERVER_BASE_URL, "")
+            )) {
+            editor.remove(KEY_SERVER_BASE_URL)
+                .remove(KEY_URL)
+                .remove(KEY_PENDING_VERIFICATION)
+        }
+        editor.apply()
     }
 
     var serverBaseUrl: String
@@ -170,6 +182,12 @@ class GatewayConfig private constructor(ctx: Context) {
         private val DEFAULT_URL = "$DEFAULT_SERVER_BASE_URL/api/webhooks/instapay"
         private const val DEFAULT_TOKEN = ""
         private const val DEFAULT_MERCHANT_HANDLE = "merchant@instapay"
+
+        private fun isLegacyEmulatorUrl(value: String?): Boolean {
+            val normalized = value?.trim()?.trimEnd('/') ?: return false
+            return normalized == "http://10.0.2.2:3001" ||
+                normalized == "https://10.0.2.2:3001"
+        }
 
         @Volatile
         private var instance: GatewayConfig? = null
