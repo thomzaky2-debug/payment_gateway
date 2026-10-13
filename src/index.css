@@ -1353,20 +1353,20 @@ html[dir="rtl"] .merchant-auth-input.has-icon-left.has-icon-right,
   }
 
   .merchant-sidebar-mobile-drawer {
-    width: min(198px, 70vw) !important;
-    min-width: min(198px, 70vw) !important;
-    max-width: min(198px, 70vw) !important;
+    width: min(280px, 86vw) !important;
+    min-width: min(280px, 86vw) !important;
+    max-width: min(280px, 86vw) !important;
   }
 
   .merchant-sidebar-mobile-drawer nav button {
     padding: 5px 8px !important;
-    font-size: 11px !important;
+    font-size: 13px !important;
     gap: 7px !important;
     border-radius: 6px !important;
   }
 
   .merchant-sidebar-mobile-drawer nav button span {
-    font-size: 12px !important;
+    font-size: 13px !important;
   }
 
   /* Dense, compact table cells */
@@ -1932,4 +1932,3 @@ html.dark .security-refresh-btn:hover:not(:disabled) {
     width: 100% !important;
   }
 }
-

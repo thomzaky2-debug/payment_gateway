@@ -106,7 +106,9 @@ app.use(
   })
 )
 
-app.use(express.json())
+// Profile photos are sent as validated image data URLs. Keep the body limit
+// bounded so regular API endpoints cannot be used for oversized uploads.
+app.use(express.json({ limit: '2mb' }))
 app.use(cookieParser())
 app.use('/api', requireTrustedOrigin(allowedOriginSet))
 

@@ -434,7 +434,9 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
           title={isRtl ? 'إعدادات الحساب' : 'Store Settings'}
         >
           <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '11px', flexShrink: 0 }}>
-            {client?.businessName ? client.businessName[0].toUpperCase() : <User size={13} />}
+            {client?.profileImageData ? (
+              <img src={client.profileImageData} alt="Merchant profile" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            ) : client?.businessName ? client.businessName[0].toUpperCase() : <User size={13} />}
           </div>
           <div className="topbar-desktop-only" style={{ minWidth: 0 }}>
             <p style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#f8fafc' : '#1e293b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

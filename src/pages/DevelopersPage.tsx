@@ -5,7 +5,7 @@ import {
   ArrowRight, Lock, Unlock, RotateCcw, Braces, Check, Clipboard,
   FileCode2, Globe, ChevronRight
 } from 'lucide-react';
-import { apiUrl, settingsApi } from '../services/api';
+import { apiUrl, settingsApi, subscriptionApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DocumentationSection } from '../components/DocumentationSection';
@@ -173,11 +173,25 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
       if (data.ok) {
         setSimResult(data.checkout);
         if (showToast) showToast('success', isRtl ? 'تم إنشاء جلسة الدفع بنجاح!' : 'Checkout session created successfully!');
+      } else if (data.error === 'Activate your free trial before creating checkout sessions.') {
+        // A first checkout is an explicit merchant action, so activate an
+        // eligible introductory trial and run the requested test once.
+        const trial = await subscriptionApi.activateTrial();
+        if (!trial?.ok) throw new Error(trial?.error || data.error);
+        const retry = await fetch(apiUrl('/api/v1/checkout/create'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey}` },
+          body: JSON.stringify({ amountEgp: Number(testAmount), senderHandle: testSender, note: testNote }),
+        });
+        const retryData = await retry.json();
+        if (!retryData?.ok) throw new Error(retryData?.error || 'Simulator checkout failed');
+        setSimResult(retryData.checkout);
+        if (showToast) showToast('success', isRtl ? 'تم تفعيل التجربة وإنشاء جلسة الدفع.' : 'Free trial activated and checkout session created.');
       } else {
         if (showToast) showToast('error', data.error || (isRtl ? 'فشل إنشاء جلسة المحاكاة' : 'Simulator checkout failed'));
       }
-    } catch {
-      if (showToast) showToast('error', isRtl ? 'فشل تشغيل المحاكي' : 'Failed to run simulator');
+    } catch (error: any) {
+      if (showToast) showToast('error', error.message || (isRtl ? 'فشل تشغيل المحاكي' : 'Failed to run simulator'));
     } finally {
       setSimLoading(false);
     }

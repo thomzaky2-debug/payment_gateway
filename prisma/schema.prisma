@@ -48,6 +48,7 @@ model Client {
   firstName      String?
   lastName       String?
   whatsappNumber String?
+  profileImageData String?
   email          String  @unique
   passwordHash   String
 

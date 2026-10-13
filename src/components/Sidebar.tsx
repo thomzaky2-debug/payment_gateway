@@ -51,7 +51,9 @@ export function Sidebar({
     }
   });
 
-  const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+  // A phone drawer must always be expanded. A desktop preference may have
+  // been saved as collapsed, but applying it here hides all navigation labels.
+  const isCollapsed = mobileOpen ? false : (controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed);
 
   const handleToggleCollapse = () => {
     if (controlledToggle) {
@@ -94,9 +96,9 @@ export function Sidebar({
           top: mobileOpen ? 0 : undefined,
           bottom: mobileOpen ? 0 : undefined,
           [isRtl ? 'right' : 'left']: mobileOpen ? 0 : undefined,
-          width: mobileOpen ? 'min(200px, 70vw)' : isCollapsed ? '56px' : '198px',
-          minWidth: mobileOpen ? 'min(200px, 70vw)' : isCollapsed ? '56px' : '198px',
-          maxWidth: mobileOpen ? 'min(200px, 70vw)' : isCollapsed ? '56px' : '198px',
+          width: mobileOpen ? 'min(280px, 86vw)' : isCollapsed ? '56px' : '198px',
+          minWidth: mobileOpen ? 'min(280px, 86vw)' : isCollapsed ? '56px' : '198px',
+          maxWidth: mobileOpen ? 'min(280px, 86vw)' : isCollapsed ? '56px' : '198px',
           height: mobileOpen ? '100dvh' : '100%',
           maxHeight: mobileOpen ? '100dvh' : '100%',
           backgroundColor: isDark ? '#0b101e' : '#ffffff',

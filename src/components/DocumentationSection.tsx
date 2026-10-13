@@ -728,7 +728,7 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
             </button>
 
             <a
-              href="/docs"
+              href="/#docs/"
               target="_blank"
               rel="noopener noreferrer"
               style={{

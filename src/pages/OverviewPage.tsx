@@ -437,8 +437,8 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                 <>
                   {isRtl ? 'المستلم: ' : 'Receiver: '}
                   <strong>{settings?.instapayHandle || 'InstaPay'}</strong>
-                  {latestDevice && ` • ${latestDevice.deviceId}`}
-                  {timeSinceLastSeen !== null && ` (${timeSinceLastSeen}s)`}
+                  {latestDevice?.appVersion && ` • ${latestDevice.appVersion}`}
+                  {timeSinceLastSeen !== null && ` • ${timeSinceLastSeen}s ago`}
                 </>
               ) : (
                 isRtl

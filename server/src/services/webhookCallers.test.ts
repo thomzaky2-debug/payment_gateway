@@ -15,6 +15,7 @@ function makeMockClient(overrides: Partial<Client> = {}): Client {
     firstName: null,
     lastName: null,
     whatsappNumber: null,
+    profileImageData: null,
     email: 'merchant@example.com',
     passwordHash: 'dummy',
     apiKey: null,

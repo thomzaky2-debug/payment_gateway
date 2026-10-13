@@ -66,8 +66,8 @@ export function CheckoutPayPage() {
   const { theme, toggleTheme, isDark } = useTheme();
   const { lang, setLang, isRtl } = useLanguage();
 
-  // If no sessionId in URL, default to active test demo session
-  const effectiveSessionId = paramSessionId || 'cmt_test_local_session';
+  // A payment page is valid only with a merchant-created checkout session.
+  const effectiveSessionId = paramSessionId;
 
   const [checkout, setCheckout] = useState<CheckoutData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,8 +90,13 @@ export function CheckoutPayPage() {
     setLoading(true);
     setError(null);
 
-    const isTest = effectiveSessionId === 'cmt_test_local_session';
-    const initialUrl = apiUrl(isTest ? `/api/checkout/${effectiveSessionId}?fresh=1` : `/api/checkout/${effectiveSessionId}`);
+    if (!effectiveSessionId) {
+      setError(isRtl ? 'رابط الدفع غير مكتمل أو غير صالح' : 'This payment link is incomplete or invalid');
+      setLoading(false);
+      return;
+    }
+
+    const initialUrl = apiUrl(`/api/checkout/${effectiveSessionId}`);
 
     fetch(initialUrl)
       .then((res) => res.json())
@@ -115,17 +120,6 @@ export function CheckoutPayPage() {
       })
       .finally(() => setLoading(false));
   }, [effectiveSessionId, isRtl]);
-
-  const handleRestartSession = async () => {
-    try {
-      const res = await fetch(apiUrl(`/api/checkout/${effectiveSessionId}?fresh=1`));
-      const data = await res.json();
-      if (data.ok && data.checkout) {
-        setCheckout(data.checkout);
-        setTimeLeft(data.checkout.secondsRemaining || 0);
-      }
-    } catch {}
-  };
 
   // Handle saving customer sender handle
   const handleSaveSender = async (e?: React.FormEvent) => {
@@ -433,22 +427,6 @@ export function CheckoutPayPage() {
             </button>
           </form>
 
-          <button
-            onClick={() => navigate('/pay/cmt_test_local_session')}
-            style={{
-              width: '100%',
-              padding: '12px',
-              backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
-              color: isDark ? '#38bdf8' : '#0284c7',
-              border: `1px solid ${borderSubtle}`,
-              borderRadius: '12px',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            {isRtl ? '⚡ تحميل الجلسة التجريبية (Demo Session)' : '⚡ Load Demo Test Session'}
-          </button>
         </div>
       </div>
     );
@@ -960,29 +938,6 @@ export function CheckoutPayPage() {
                 ? 'انتهى الوقت المحدد لإتمام هذه العملية. إذا قمت بالتحويل بالفعل، يرجى التواصل مع المتجر وتزويدهم بالرقم المرجعي.'
                 : 'This checkout session has timed out. If you already sent the transfer, please contact the merchant with your reference number.'}
             </p>
-            {effectiveSessionId === 'cmt_test_local_session' && (
-              <button
-                onClick={handleRestartSession}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  backgroundColor: '#10b981',
-                  color: 'white',
-                  fontWeight: 600,
-                  fontSize: '14px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  margin: '0 auto',
-                  transition: 'opacity 0.2s',
-                }}
-              >
-                <RefreshCw size={15} />
-                {isRtl ? 'إعادة تشغيل جلسة التجربة' : 'Restart Test Session'}
-              </button>
-            )}
           </div>
         ) : (
           /* ─── Status 4: Active PENDING State (Two-Column Layout) ─── */
@@ -1210,26 +1165,6 @@ export function CheckoutPayPage() {
                     >
                       {checkout.checkoutTtlMin} {isRtl ? 'د' : 'm'}
                     </span>
-                  )}
-                  {effectiveSessionId === 'cmt_test_local_session' && (
-                    <button
-                      onClick={handleRestartSession}
-                      title={isRtl ? 'إعادة ضبط مؤقت التجربة' : 'Restart demo session timer'}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'inherit',
-                        padding: '1px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        marginLeft: isRtl ? undefined : '2px',
-                        marginRight: isRtl ? '2px' : undefined,
-                        opacity: 0.75,
-                      }}
-                    >
-                      <RefreshCw size={11} />
-                    </button>
                   )}
                 </div>
               </div>
@@ -1816,7 +1751,7 @@ export function CheckoutPayPage() {
                 type="text"
                 value={sessionLookupInput}
                 onChange={(e) => setSessionLookupInput(e.target.value)}
-                placeholder="cmt_test_local_session"
+                placeholder="cmt_..."
                 style={{
                   padding: '10px 14px',
                   borderRadius: '10px',

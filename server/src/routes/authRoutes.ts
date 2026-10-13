@@ -375,6 +375,7 @@ authRouter.get('/session', async (req: Request, res: Response) => {
         id: true,
         slug: true,
         businessName: true,
+        profileImageData: true,
         businessType: true,
         email: true,
         instapayHandle: true,

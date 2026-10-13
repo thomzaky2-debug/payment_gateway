@@ -157,6 +157,22 @@ export const settingsApi = {
     const res = await api.get('/settings/audit-logs')
     return res.data
   },
+  async getSessions() {
+    const res = await api.get('/settings/sessions')
+    return res.data
+  },
+  async revokeSession(id: string) {
+    const res = await api.delete(`/settings/sessions/${id}`)
+    return res.data
+  },
+  async revokeOtherSessions() {
+    const res = await api.post('/settings/sessions/revoke-others')
+    return res.data
+  },
+  async updateProfileImage(profileImageData: string | null) {
+    const res = await api.put('/settings/profile-image', { profileImageData })
+    return res.data
+  },
   async resendWebhook(id: string) {
     const res = await api.post(`/settings/webhooks/${id}/resend`)
     return res.data

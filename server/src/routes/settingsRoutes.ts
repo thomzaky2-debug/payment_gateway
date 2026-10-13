@@ -1,15 +1,37 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
-import { generateMerchantKeys } from '../services/authService.js'
+import { generateMerchantKeys, hashToken, MERCHANT_SESSION_COOKIE_NAME } from '../services/authService.js'
 import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
 import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
 import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
-import { getRequestIp } from '../middleware/authToken.js'
+import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
 
 export const settingsRouter = Router()
+
+function describeSessionUserAgent(userAgent: string | null): { device: string; browser: string } {
+  const ua = userAgent || ''
+  const version = (name: string, expression: RegExp) => {
+    const match = ua.match(expression)
+    return match?.[1] ? `${name} ${match[1]}` : name
+  }
+  const browser = /edg\//i.test(ua) ? version('Microsoft Edge', /edg\/([\d.]+)/i)
+    : /opr\//i.test(ua) ? version('Opera', /opr\/([\d.]+)/i)
+      : /firefox\//i.test(ua) ? version('Firefox', /firefox\/([\d.]+)/i)
+        : /chrome\//i.test(ua) && !/edg\//i.test(ua) ? version('Chrome', /chrome\/([\d.]+)/i)
+          : /safari\//i.test(ua) ? 'Safari'
+            : ua ? 'Unknown browser' : 'Browser unknown'
+  const device = /iphone/i.test(ua) ? 'iPhone'
+    : /ipad/i.test(ua) ? 'iPad'
+      : /android/i.test(ua) ? 'Android device'
+        : /windows/i.test(ua) ? 'Windows device'
+          : /macintosh|mac os/i.test(ua) ? 'Mac'
+            : /linux/i.test(ua) ? 'Linux device'
+              : 'Unknown device'
+  return { device, browser }
+}
 
 const merchantWebhookResendLimiter = createRateLimiterWithKey(
   15 * 60 * 1000,
@@ -23,6 +45,7 @@ export function safeMerchantSettings(client: any) {
   return {
     id: client.id,
     businessName: client.businessName,
+    profileImageData: client.profileImageData,
     email: client.email,
     instapayHandle: client.instapayHandle,
     instapayPaymentUrl: client.instapayPaymentUrl,
@@ -42,6 +65,25 @@ export function safeMerchantSettings(client: any) {
   }
 }
 
+const MAX_PROFILE_IMAGE_BYTES = 750 * 1024
+
+function validateProfileImageData(value: unknown): { value?: string; error?: string } {
+  if (value === null || value === '') return { value: undefined }
+  if (typeof value !== 'string' || value.length > 1_100_000) return { error: 'Profile image must be smaller than 750 KB.' }
+  const match = value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/)
+  if (!match) return { error: 'Profile image must be a PNG, JPEG, or WebP image.' }
+  const image = Buffer.from(match[2], 'base64')
+  if (!image.length || image.length > MAX_PROFILE_IMAGE_BYTES) return { error: 'Profile image must be smaller than 750 KB.' }
+  const mime = match[1]
+  const isPng = image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  const isJpeg = image.length >= 3 && image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff
+  const isWebp = image.length >= 12 && image.subarray(0, 4).toString('ascii') === 'RIFF' && image.subarray(8, 12).toString('ascii') === 'WEBP'
+  if ((mime === 'image/png' && !isPng) || (mime === 'image/jpeg' && !isJpeg) || (mime === 'image/webp' && !isWebp)) {
+    return { error: 'Profile image content does not match its declared type.' }
+  }
+  return { value }
+}
+
 // ─── Get Settings & Detector Status ─────────────────────────────────
 
 settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => {
@@ -59,6 +101,85 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
     })
   } catch (err: unknown) {
     return sendInternalError(res, err, 'Failed to retrieve settings')
+  }
+})
+
+// ─── Active Browser Sessions ───────────────────────────────────────
+// Session metadata is recorded at sign-in. Never infer a city from an IP
+// without a vetted geolocation provider; an unavailable location is safer
+// and more honest than a guessed one.
+settingsRouter.get('/sessions', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const credential = getRequestAuthToken(req, MERCHANT_SESSION_COOKIE_NAME)
+    const currentTokenHash = credential ? hashToken(credential.token) : null
+    const sessions = await db.authSession.findMany({
+      where: { clientId: client.id, kind: 'MERCHANT', revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { lastSeenAt: 'desc' },
+      select: { id: true, tokenHash: true, userAgent: true, ipAddress: true, createdAt: true, lastSeenAt: true },
+    })
+
+    return res.json({
+      ok: true,
+      sessions: sessions.map(({ tokenHash, userAgent, ipAddress, ...session }) => ({
+        ...session,
+        ...describeSessionUserAgent(userAgent),
+        ipAddress: ipAddress || 'IP unavailable',
+        location: 'Location unavailable',
+        current: Boolean(currentTokenHash && tokenHash === currentTokenHash),
+      })),
+    })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to retrieve active sessions')
+  }
+})
+
+settingsRouter.delete('/sessions/:id', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const credential = getRequestAuthToken(req, MERCHANT_SESSION_COOKIE_NAME)
+    const currentTokenHash = credential ? hashToken(credential.token) : null
+    const id = String(req.params.id)
+    const result = await db.authSession.updateMany({
+      where: { id, clientId: client.id, kind: 'MERCHANT', revokedAt: null, ...(currentTokenHash ? { tokenHash: { not: currentTokenHash } } : {}) },
+      data: { revokedAt: new Date() },
+    })
+    if (!result.count) return res.status(404).json({ ok: false, error: 'Session was not found or cannot be revoked.' })
+    return res.json({ ok: true })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to revoke session')
+  }
+})
+
+settingsRouter.post('/sessions/revoke-others', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    const credential = getRequestAuthToken(req, MERCHANT_SESSION_COOKIE_NAME)
+    const currentTokenHash = credential ? hashToken(credential.token) : null
+    const result = await db.authSession.updateMany({
+      where: { clientId: client.id, kind: 'MERCHANT', revokedAt: null, ...(currentTokenHash ? { tokenHash: { not: currentTokenHash } } : {}) },
+      data: { revokedAt: new Date() },
+    })
+    return res.json({ ok: true, revokedSessions: result.count })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to revoke other sessions')
+  }
+})
+
+// ─── Profile Photo ─────────────────────────────────────────────────
+settingsRouter.put('/profile-image', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const validated = validateProfileImageData(req.body?.profileImageData)
+    if (validated.error) return res.status(400).json({ ok: false, error: validated.error })
+    const client = (req as unknown as { client: any }).client
+    const updated = await db.client.update({
+      where: { id: client.id },
+      data: { profileImageData: validated.value ?? null },
+      select: { profileImageData: true },
+    })
+    return res.json({ ok: true, profileImageData: updated.profileImageData })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to update profile image')
   }
 })
 
@@ -193,19 +314,6 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
         })
         .catch(() => {})
 
-      // Also sync test demo session
-      await db.transaction
-        .updateMany({
-          where: {
-            sessionId: 'cmt_test_local_session',
-            clientId: client.id,
-          },
-          data: {
-            expiresAt: newExpiresAt,
-            status: 'PENDING',
-          },
-        })
-        .catch(() => {})
     }
 
     return res.json({ ok: true, settings: safeMerchantSettings(updated) })

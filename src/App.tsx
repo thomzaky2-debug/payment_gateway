@@ -273,6 +273,7 @@ function App() {
             showToast={showToast}
             subPath={currentSubPath}
             onSubPathChange={handleSubPathChange}
+            onProfileImageChange={(profileImageData) => setCurrentClient((client: any) => client ? { ...client, profileImageData } : client)}
           />
         );
       case 'audit':

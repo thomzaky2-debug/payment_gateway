@@ -29,6 +29,8 @@ import {
   Filter,
   LayoutGrid,
   List,
+  Camera,
+  Trash2,
 } from 'lucide-react';
 import { settingsApi, notificationsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -40,6 +42,7 @@ interface SettingsPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
   subPath?: string;
   onSubPathChange?: (subPath: string) => void;
+  onProfileImageChange?: (profileImageData: string | null) => void;
 }
 
 interface NotificationItem {
@@ -62,7 +65,7 @@ function parseTabFromSubPath(sub?: string): SettingsTab {
   return 'general';
 }
 
-export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPageProps) {
+export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileImageChange }: SettingsPageProps) {
   const { isRtl } = useLanguage();
   const { isDark } = useTheme();
 
@@ -84,6 +87,8 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
   const [webhookSecret, setWebhookSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [profileImageData, setProfileImageData] = useState<string | null>(null);
+  const [uploadingProfileImage, setUploadingProfileImage] = useState(false);
 
   // Payment Precision & Review Policies
   const [autoAcceptOverpaid, setAutoAcceptOverpaid] = useState(true);
@@ -96,10 +101,6 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread' | 'urgent'>('all');
   const [notifViewMode, setNotifViewMode] = useState<'grid' | 'list'>('grid');
-  const [notifyOnUnderpaid, setNotifyOnUnderpaid] = useState(true);
-  const [notifyOnOverpaid, setNotifyOnOverpaid] = useState(true);
-  const [notifyOnUnmatched, setNotifyOnUnmatched] = useState(true);
-  const [notifyOnDetectorOffline, setNotifyOnDetectorOffline] = useState(true);
 
   // Webhook Code language tab
   const [codeLang, setCodeLang] = useState<'nodejs' | 'python' | 'php'>('nodejs');
@@ -194,6 +195,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
       if (res.ok && res.settings) {
         const s = res.settings;
         setBusinessName(s.businessName || '');
+        setProfileImageData(s.profileImageData || null);
         setInstapayHandle(s.instapayHandle || '');
         setInstapayPaymentUrl(s.instapayPaymentUrl || '');
         setWebhookUrl(s.webhookUrl || '');
@@ -218,6 +220,40 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
       setRefreshing(false);
     }
   }, [showToast, isRtl]);
+
+  const uploadProfileImage = async (profileImage: string | null) => {
+    setUploadingProfileImage(true);
+    try {
+      const result = await settingsApi.updateProfileImage(profileImage);
+      if (!result?.ok) throw new Error(result?.error || 'Unable to update profile image');
+      const savedImage = result.profileImageData || null;
+      setProfileImageData(savedImage);
+      onProfileImageChange?.(savedImage);
+      showToast?.('success', profileImage ? (isRtl ? 'تم تحديث صورة الملف الشخصي' : 'Profile photo updated') : (isRtl ? 'تمت إزالة صورة الملف الشخصي' : 'Profile photo removed'));
+    } catch (error: any) {
+      showToast?.('error', error.response?.data?.error || error.message || (isRtl ? 'تعذر تحديث صورة الملف الشخصي' : 'Unable to update profile photo'));
+    } finally {
+      setUploadingProfileImage(false);
+    }
+  };
+
+  const handleProfileImageSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const image = event.target.files?.[0];
+    event.target.value = '';
+    if (!image) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type)) {
+      showToast?.('error', isRtl ? 'استخدم صورة PNG أو JPEG أو WebP فقط.' : 'Use a PNG, JPEG, or WebP image.');
+      return;
+    }
+    if (image.size > 750 * 1024) {
+      showToast?.('error', isRtl ? 'يجب أن يكون حجم الصورة أقل من 750 كيلوبايت.' : 'Profile photo must be smaller than 750 KB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => void uploadProfileImage(String(reader.result));
+    reader.onerror = () => showToast?.('error', isRtl ? 'تعذر قراءة الصورة المختارة.' : 'Unable to read the selected image.');
+    reader.readAsDataURL(image);
+  };
 
   const fetchNotificationsList = useCallback(async () => {
     setLoadingNotifs(true);
@@ -684,6 +720,27 @@ export function SettingsPage({ showToast, subPath, onSubPathChange }: SettingsPa
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px', borderRadius: '12px', background: isDark ? 'rgba(30,41,59,0.6)' : '#f8fafc', border: `1px solid ${borderColor}` }}>
+                    <div style={{ width: '58px', height: '58px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '20px' }}>
+                      {profileImageData ? <img src={profileImageData} alt="Merchant profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (businessName?.[0]?.toUpperCase() || <Store size={22} />)}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ fontSize: '12.5px', fontWeight: 700, color: textPrimary, margin: 0 }}>{isRtl ? 'صورة الملف الشخصي' : 'Profile Photo'}</p>
+                      <p style={{ fontSize: '11px', color: textSecondary, margin: '3px 0 8px' }}>{isRtl ? 'PNG أو JPEG أو WebP حتى 750 كيلوبايت' : 'PNG, JPEG, or WebP · up to 750 KB'}</p>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', cursor: uploadingProfileImage ? 'wait' : 'pointer', color: 'white', background: '#2563eb', fontSize: '11px', fontWeight: 700, opacity: uploadingProfileImage ? 0.65 : 1 }}>
+                          <Camera size={13} />
+                          {uploadingProfileImage ? (isRtl ? 'جارٍ الرفع...' : 'Uploading...') : (profileImageData ? (isRtl ? 'تغيير الصورة' : 'Change photo') : (isRtl ? 'رفع صورة' : 'Upload photo'))}
+                          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleProfileImageSelection} disabled={uploadingProfileImage} style={{ display: 'none' }} />
+                        </label>
+                        {profileImageData && (
+                          <button type="button" onClick={() => void uploadProfileImage(null)} disabled={uploadingProfileImage} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', cursor: uploadingProfileImage ? 'wait' : 'pointer', color: '#dc2626', background: isDark ? 'rgba(220,38,38,0.12)' : '#fef2f2', border: isDark ? '1px solid rgba(220,38,38,0.3)' : '1px solid #fecaca', fontSize: '11px', fontWeight: 700 }}>
+                            <Trash2 size={13} /> {isRtl ? 'إزالة' : 'Remove'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
                       {isRtl ? 'الاسم التجاري للمتجر' : 'Business Display Name'}
@@ -1406,91 +1463,6 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
              ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'notifications' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Notification Triggers Configuration Card */}
-              <div style={{ ...card({ padding: '24px' }) }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
-                  <div style={{
-                    width: '40px', height: '40px', borderRadius: '11px',
-                    background: 'linear-gradient(135deg, #d97706, #f59e0b)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(217,119,6,0.3)',
-                  }}>
-                    <Bell size={20} color="white" />
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
-                      {isRtl ? 'قنوات وتفضيلات التنبيه الفوري' : 'Real-Time Alert Preferences'}
-                    </h3>
-                    <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
-                      {isRtl ? 'اختر الحالات التي ترغب في تلقي إشعارات فورية لها في لوحة التحكم' : 'Customize event triggers for merchant dashboard notifications'}
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-                  {[
-                    {
-                      titleAr: 'تنبيهات المدفوعات الناقصة',
-                      titleEn: 'Underpaid Payment Alerts',
-                      subAr: 'إشعار فوري عند وجود عجز في قيمة التحويل',
-                      subEn: 'Alert immediately when a customer pays short',
-                      checked: notifyOnUnderpaid,
-                      setter: setNotifyOnUnderpaid,
-                    },
-                    {
-                      titleAr: 'تنبيهات المبالغ الزائدة',
-                      titleEn: 'Overpaid Payment Alerts',
-                      subAr: 'إشعار عند تحويل العميل لمبالغ أعلى من المطلوب',
-                      subEn: 'Alert when a customer overpays and buffer applies',
-                      checked: notifyOnOverpaid,
-                      setter: setNotifyOnOverpaid,
-                    },
-                    {
-                      titleAr: 'تنبيهات التحويلات اليتيمة',
-                      titleEn: 'Unmatched Direct Transfers',
-                      subAr: 'إشعار بأي تحويل بنكي مباشر بدون رقم جلسة',
-                      subEn: 'Alert for direct bank transfers lacking order sessions',
-                      checked: notifyOnUnmatched,
-                      setter: setNotifyOnUnmatched,
-                    },
-                    {
-                      titleAr: 'حالة جهاز الكاشف (Companion)',
-                      titleEn: 'Detector Health Warnings',
-                      subAr: 'تنبيه عاجل إذا انقطع اتصال تطبيق الكاشف بالإنترنت',
-                      subEn: 'Urgent warning if Android detector goes offline',
-                      checked: notifyOnDetectorOffline,
-                      setter: setNotifyOnDetectorOffline,
-                    },
-                  ].map((pref, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        ...subcard({ padding: '14px 16px' }),
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: textPrimary }}>
-                          {isRtl ? pref.titleAr : pref.titleEn}
-                        </div>
-                        <div style={{ fontSize: '11px', color: textSecondary, marginTop: '2px' }}>
-                          {isRtl ? pref.subAr : pref.subEn}
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={pref.checked}
-                        onChange={(e) => pref.setter(e.target.checked)}
-                        style={{ width: '18px', height: '18px', accentColor: '#2563eb', cursor: 'pointer' }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* Real-time Notifications Inbox */}
               <div style={{ ...card({ padding: '24px' }) }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
@@ -1507,7 +1479,7 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                         {isRtl ? 'صندوق التنبيهات وسجل الإشعارات' : 'Merchant Notification Inbox'}
                       </h3>
                       <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
-                        {isRtl ? `${notifications.length} إشعار مسجل في النظام` : `${notifications.length} events logged`}
+                        {isRtl ? `${notifications.length} إشعار غير مقروء` : `${notifications.length} unread notification${notifications.length === 1 ? '' : 's'}`}
                       </p>
                     </div>
                   </div>

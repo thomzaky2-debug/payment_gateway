@@ -11,7 +11,6 @@ export const checkoutRouter = Router()
 checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId)
-    const isFresh = req.query.fresh === '1' || req.query.reset === '1'
     const tx = await getCheckoutSession(sessionId)
 
     if (!tx) {
@@ -25,20 +24,7 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
     let secondsRemaining = Math.max(0, Math.floor((expiresAtMs - now) / 1000))
     let currentStatus = tx.status
 
-    // Ensure session remaining time adheres to merchant's checkoutTtlMin setting:
-    if (process.env.NODE_ENV === 'development' && tx.sessionId === 'cmt_test_local_session') {
-      if (isFresh || secondsRemaining <= 0 || secondsRemaining > merchantTtlSec) {
-        expiresAtMs = now + merchantTtlSec * 1000
-        secondsRemaining = merchantTtlSec
-        currentStatus = 'PENDING'
-        await db.transaction
-          .update({
-            where: { id: tx.id },
-            data: { expiresAt: new Date(expiresAtMs), status: 'PENDING' },
-          })
-          .catch(() => {})
-      }
-    } else if (secondsRemaining > merchantTtlSec) {
+    if (secondsRemaining > merchantTtlSec) {
       secondsRemaining = merchantTtlSec
     }
 
