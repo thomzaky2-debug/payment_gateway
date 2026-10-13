@@ -35,7 +35,12 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+        val savedTheme = getSharedPreferences("instapay_settings", MODE_PRIVATE)
+            .getString("pref_theme", "dark") ?: "dark"
+        androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(
+            if (savedTheme == "light") androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+            else androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+        )
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
         binding.tvBuildInfo.text = "Build ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"

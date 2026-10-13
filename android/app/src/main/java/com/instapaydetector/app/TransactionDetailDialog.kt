@@ -90,10 +90,18 @@ class TransactionDetailDialog : DialogFragment() {
                     btnExpireTx.visibility = View.GONE
                     btnCancelTx.visibility = View.GONE
                 }
+                "REJECTED" -> {
+                    txtConfirmedBadge.visibility = View.GONE
+                    btnConfirmTx.visibility = View.GONE
+                    btnExpireTx.visibility = View.GONE
+                    btnCancelTx.visibility = View.GONE
+                }
                 else -> { // PENDING or UNDERPAID
                     txtConfirmedBadge.visibility = View.GONE
                     btnConfirmTx.visibility = View.VISIBLE
-                    btnExpireTx.visibility = View.VISIBLE
+                    // Expiry is server-managed; the portal does not expose a
+                    // client-side expiry mutation, so never show a broken action.
+                    btnExpireTx.visibility = View.GONE
                     btnCancelTx.visibility = View.VISIBLE
                 }
             }
@@ -131,22 +139,6 @@ class TransactionDetailDialog : DialogFragment() {
             }
         }
 
-        btnExpireTx.setOnClickListener {
-            btnExpireTx.isEnabled = false
-            kotlinx.coroutines.MainScope().launch {
-                val client = DashboardApiClient(requireContext())
-                val res = client.updateTransactionStatus(currentTx.sessionId, "EXPIRED")
-                btnExpireTx.isEnabled = true
-                if (res.isSuccess) {
-                    updateUIStatus("EXPIRED")
-                    onStatusChanged?.invoke(currentTx)
-                    android.widget.Toast.makeText(requireContext(), R.string.tx_status_updated, android.widget.Toast.LENGTH_SHORT).show()
-                } else {
-                    android.widget.Toast.makeText(requireContext(), R.string.tx_status_update_failed, android.widget.Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
         btnCancelTx.setOnClickListener {
             btnCancelTx.isEnabled = false
             kotlinx.coroutines.MainScope().launch {
@@ -154,7 +146,7 @@ class TransactionDetailDialog : DialogFragment() {
                 val res = client.updateTransactionStatus(currentTx.sessionId, "CANCELLED")
                 btnCancelTx.isEnabled = true
                 if (res.isSuccess) {
-                    updateUIStatus("CANCELLED")
+                    updateUIStatus("REJECTED")
                     onStatusChanged?.invoke(currentTx)
                     android.widget.Toast.makeText(requireContext(), R.string.tx_status_updated, android.widget.Toast.LENGTH_SHORT).show()
                 } else {

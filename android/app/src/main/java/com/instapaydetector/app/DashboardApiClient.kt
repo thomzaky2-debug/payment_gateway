@@ -4,332 +4,277 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
-/**
- * Gateway API client for the merchant dashboard app.
- *
- * Endpoints used:
- *   GET  /api/dashboard          — stats + recent transactions
- *   GET  /api/stats/chart?days=N — daily revenue series for the chart
- *   GET  /api/transactions?q=&status=&limit=&cursor= — paginated list
- *
- * The base URL is derived from the configured webhook URL by stripping
- * the trailing /api/webhooks/instapay path. The revocable merchant session
- * token is sent as a Bearer header on every private control-plane request.
- */
+/** Authenticated mobile view of the same merchant API used by the web portal. */
 class DashboardApiClient(private val ctx: Context) {
-
     private val config = GatewayConfig.get(ctx)
-    private val cachePrefs = ctx.getSharedPreferences("dashboard_cache", Context.MODE_PRIVATE)
-
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    /** Derives the gateway base URL from the configured webhook URL. */
-    private fun baseUrl(): String {
-        val url = config.gatewayUrl
-        // Strip /api/webhooks/instapay if present
-        if (url.contains("/api/webhooks/instapay")) {
-            return url.substring(0, url.indexOf("/api/webhooks/instapay"))
-        } else {
-            // Fallback: strip the last path segment
-            return url.trimEnd('/').substringBeforeLast('/')
-        }
-    }
+    private fun baseUrl(): String = config.serverBaseUrl.trimEnd('/')
 
+    /** The web portal composes its overview from these three merchant routes. */
     suspend fun fetchDashboard(): Result<DashboardStats> = withContext(Dispatchers.IO) {
-        try {
-            val res = get("${baseUrl()}/api/dashboard")
-            if (!res.isSuccessful) {
-                loadCachedDashboard()?.let { return@withContext Result.success(it) }
-                return@withContext Result.failure(Exception("HTTP ${res.code}"))
-            }
-            val json = JSONObject(res.body)
-            cachePrefs.edit()
-                .putString(KEY_DASHBOARD_JSON, res.body)
-                .putLong(KEY_DASHBOARD_CACHED_AT, System.currentTimeMillis())
-                .apply()
-            val parsed = parseDashboard(json)
-            config.syncFromMerchant(parsed.merchant, parsed.subscription)
-            Result.success(parsed)
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchDashboard failed: ${e.message}", e)
-            loadCachedDashboard()?.let { return@withContext Result.success(it) }
-            Result.failure(e)
-        }
+        runCatching {
+            val statsResponse = get("${baseUrl()}/api/transactions/stats")
+            val transactionsResponse = get("${baseUrl()}/api/transactions?limit=5&page=1")
+            val settingsResponse = get("${baseUrl()}/api/settings")
+            ensureSuccess(statsResponse)
+            ensureSuccess(transactionsResponse)
+            ensureSuccess(settingsResponse)
+
+            val stats = JSONObject(statsResponse.body).getJSONObject("stats")
+            val settings = JSONObject(settingsResponse.body).getJSONObject("settings")
+            val merchant = MerchantInfo(
+                handle = settings.optString("instapayHandle", config.merchantHandle),
+                name = settings.optString("businessName", config.merchantBusinessName.ifBlank { "Merchant account" }),
+                email = settings.optString("email", config.merchantEmail),
+                webhookUrl = settings.optNullableString("webhookUrl"),
+                instapayPaymentUrl = settings.optNullableString("instapayPaymentUrl"),
+                checkoutTtlMin = settings.optNullableInt("checkoutTtlMin"),
+            )
+            val subscription = SubscriptionInfo(
+                plan = settings.optString("subscriptionPlan", "FREE_TRIAL"),
+                txCount = settings.optInt("txCount", 0),
+                txLimit = settings.optInt("txLimit", 0),
+                subscriptionEndsAt = settings.optNullableString("subscriptionEndsAt"),
+                isFreeTrial = settings.optBoolean("isFreeTrial", false),
+            )
+            DashboardStats(
+                merchant = merchant,
+                stats = StatsBreakdown(
+                    today = parseBucket(stats.optJSONObject("today")),
+                    sevenDays = parseBucket(stats.optJSONObject("sevenDays")),
+                    pending = parseBucket(stats.optJSONObject("pending")),
+                ),
+                recent = parseTransactions(JSONObject(transactionsResponse.body).getJSONArray("transactions")),
+                subscription = subscription,
+            ).also { config.syncFromMerchant(merchant, subscription) }
+        }.fold(
+            onSuccess = { Result.success(it) },
+            onFailure = {
+                Log.e(TAG, "fetchDashboard failed: ${it.message}", it)
+                Result.failure(it)
+            },
+        )
     }
 
-    suspend fun fetchNotifications(): Result<List<MerchantNotification>> = withContext(Dispatchers.IO) {
-        try {
-            val res = get("${baseUrl()}/api/notifications")
-            if (!res.isSuccessful) return@withContext Result.failure(Exception("HTTP ${res.code}"))
-            val array = JSONObject(res.body).optJSONArray("notifications") ?: JSONArray()
-            Result.success((0 until array.length()).map { i ->
-                val item = array.getJSONObject(i)
-                MerchantNotification(item.getString("id"), item.getString("title"), item.getString("message"), item.optString("severity", "INFO"))
-            })
-        } catch (e: Exception) { Result.failure(e) }
-    }
-
-    suspend fun markNotificationsRead(ids: List<String>) = withContext(Dispatchers.IO) {
-        if (ids.isEmpty()) return@withContext
-        val body = JSONObject().put("ids", JSONArray(ids)).toString().toRequestBody("application/json".toMediaType())
-        val request = Request.Builder().url("${baseUrl()}/api/notifications").addHeader("Authorization", "Bearer ${merchantSessionToken()}").patch(body).build()
-        httpClient.newCall(request).execute().close()
-    }
-
+    /** Builds the chart from the transaction history, rather than an invented API route. */
     suspend fun fetchChart(days: Int = 30): Result<ChartData> = withContext(Dispatchers.IO) {
-        try {
-            val res = get("${baseUrl()}/api/stats/chart?days=$days")
-            if (!res.isSuccessful) {
-                return@withContext Result.failure(Exception("HTTP ${res.code}"))
-            }
-            val json = JSONObject(res.body)
-            Result.success(parseChart(json))
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchChart failed: ${e.message}", e)
-            Result.failure(e)
-        }
+        runCatching {
+            val safeDays = days.coerceIn(1, 90)
+            val res = get("${baseUrl()}/api/transactions?limit=100&page=1")
+            ensureSuccess(res)
+            buildChart(parseTransactions(JSONObject(res.body).getJSONArray("transactions")), safeDays)
+        }.fold(
+            onSuccess = { Result.success(it) },
+            onFailure = {
+                Log.e(TAG, "fetchChart failed: ${it.message}", it)
+                Result.failure(it)
+            },
+        )
     }
 
     suspend fun fetchTransactions(
         query: String? = null,
         status: String? = null,
         limit: Int = 50,
-        cursor: String? = null
+        cursor: String? = null,
     ): Result<TransactionList> = withContext(Dispatchers.IO) {
-        try {
-            val params = mutableListOf<String>()
-            if (!query.isNullOrBlank()) params.add("q=${java.net.URLEncoder.encode(query, "UTF-8")}")
-            if (!status.isNullOrBlank()) params.add("status=$status")
-            params.add("limit=$limit")
-            if (!cursor.isNullOrBlank()) params.add("cursor=${java.net.URLEncoder.encode(cursor, "UTF-8")}")
-            val url = "${baseUrl()}/api/transactions?" + params.joinToString("&")
-
-            val res = get(url)
-            if (!res.isSuccessful) {
-                return@withContext Result.failure(Exception("HTTP ${res.code}"))
+        runCatching {
+            val params = mutableListOf("limit=${limit.coerceIn(1, 100)}")
+            params += "page=${cursor?.toIntOrNull()?.coerceAtLeast(1) ?: 1}"
+            if (!query.isNullOrBlank()) {
+                params.add("search=${URLEncoder.encode(query, "UTF-8")}")
             }
-            val json = JSONObject(res.body)
-            Result.success(parseTransactionList(json))
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchTransactions failed: ${e.message}", e)
-            Result.failure(e)
+            if (!status.isNullOrBlank()) {
+                params.add("status=${URLEncoder.encode(status, "UTF-8")}")
+            }
+            val res = get("${baseUrl()}/api/transactions?${params.joinToString("&")}")
+            ensureSuccess(res)
+            parseTransactionList(JSONObject(res.body))
+        }.fold(
+            onSuccess = { Result.success(it) },
+            onFailure = {
+                Log.e(TAG, "fetchTransactions failed: ${it.message}", it)
+                Result.failure(it)
+            },
+        )
+    }
+
+    suspend fun fetchNotifications(): Result<List<MerchantNotification>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val res = get("${baseUrl()}/api/notifications")
+            ensureSuccess(res)
+            val array = JSONObject(res.body).optJSONArray("notifications") ?: JSONArray()
+            (0 until array.length()).map { index ->
+                val item = array.getJSONObject(index)
+                MerchantNotification(item.optString("id"), item.optString("title"), item.optString("message"), item.optString("severity", "INFO"))
+            }
+        }.fold(
+            onSuccess = { Result.success(it) },
+            onFailure = { Result.failure(it) },
+        )
+    }
+
+    suspend fun markNotificationsRead(ids: List<String>) = withContext(Dispatchers.IO) {
+        ids.forEach { id ->
+            val request = Request.Builder()
+                .url("${baseUrl()}/api/notifications/${URLEncoder.encode(id, "UTF-8")}/read")
+                .addHeader("Authorization", "Bearer ${merchantSessionToken()}")
+                .post("{}".toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            httpClient.newCall(request).execute().close()
         }
     }
 
-    private fun get(url: String): HttpResponse {
-        val bearer = merchantSessionToken()
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer $bearer")
-            .addHeader("Accept", "application/json")
-            .get()
-            .build()
+    /** The server permits only the same safe review actions shown in the portal. */
+    suspend fun updateTransactionStatus(sessionId: String, newStatus: String, detectedRef: String? = null): Result<Boolean> = withContext(Dispatchers.IO) {
+        runCatching {
+            val action = when (newStatus) {
+                "CONFIRMED" -> "confirm"
+                "CANCELLED", "REJECTED" -> "reject"
+                else -> throw IllegalArgumentException("This payment state cannot be changed from the Detector app.")
+            }
+            val body = if (detectedRef.isNullOrBlank()) "{}" else JSONObject().put("detectedRef", detectedRef).toString()
+            val request = Request.Builder()
+                .url("${baseUrl()}/api/transactions/${URLEncoder.encode(sessionId, "UTF-8")}/$action")
+                .addHeader("Authorization", "Bearer ${merchantSessionToken()}")
+                .post(body.toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw responseException(response.code, response.body?.string().orEmpty())
+            }
+            true
+        }.fold(
+            onSuccess = { Result.success(it) },
+            onFailure = { Result.failure(it) },
+        )
+    }
 
+    suspend fun revokeSession(sessionToken: String) = withContext(Dispatchers.IO) {
+        if (sessionToken.isBlank()) return@withContext
+        val request = Request.Builder()
+            .url("${baseUrl()}/api/auth/logout")
+            .addHeader("Authorization", "Bearer $sessionToken")
+            .post("{}".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        runCatching { httpClient.newCall(request).execute().close() }
+    }
+
+    private fun get(url: String): HttpResponse {
+        val request = Request.Builder().url(url)
+            .addHeader("Authorization", "Bearer ${merchantSessionToken()}")
+            .addHeader("Accept", "application/json")
+            .get().build()
         httpClient.newCall(request).execute().use { response ->
             return HttpResponse(response.code, response.body?.string().orEmpty())
         }
     }
 
-    suspend fun updateTransactionStatus(
-        sessionId: String,
-        newStatus: String,
-        detectedRef: String? = null
-    ): Result<Boolean> = withContext(Dispatchers.IO) {
-        try {
-            val json = JSONObject().apply {
-                put("sessionId", sessionId)
-                put("newStatus", newStatus)
-                if (!detectedRef.isNullOrBlank()) {
-                    put("detectedRef", detectedRef)
-                }
-            }
-            val body = json.toString().toRequestBody("application/json".toMediaType())
-            val bearer = merchantSessionToken()
-            val request = Request.Builder()
-                .url("${baseUrl()}/api/transactions")
-                .addHeader("Authorization", "Bearer $bearer")
-                .patch(body)
-                .build()
-
-            httpClient.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    Result.success(true)
-                } else {
-                    Result.failure(Exception("HTTP ${response.code}"))
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "updateTransactionStatus failed: ${e.message}", e)
-            Result.failure(e)
-        }
+    private fun merchantSessionToken(): String = config.merchantSessionToken.ifBlank {
+        throw IllegalStateException("Your session has expired. Please sign in again.")
     }
 
-    suspend fun revokeSession(sessionToken: String) = withContext(Dispatchers.IO) {
-        if (sessionToken.isBlank()) return@withContext
-        val body = "{}".toRequestBody("application/json".toMediaType())
-        val request = Request.Builder()
-            .url("${baseUrl()}/api/auth/logout")
-            .addHeader("Authorization", "Bearer $sessionToken")
-            .post(body)
-            .build()
-        runCatching { httpClient.newCall(request).execute().close() }
+    private fun ensureSuccess(response: HttpResponse) {
+        if (!response.isSuccessful) throw responseException(response.code, response.body)
     }
 
-    private fun merchantSessionToken(): String {
-        return config.merchantSessionToken.ifBlank {
-            throw IllegalStateException("Merchant session unavailable. Sign in again.")
-        }
+    private fun responseException(code: Int, body: String): Exception {
+        val message = runCatching { JSONObject(body).optString("error") }.getOrNull().orEmpty()
+        return Exception(message.ifBlank { "Gateway request failed (HTTP $code)" })
     }
 
-    // --- JSON parsers ---
-
-    private fun loadCachedDashboard(): DashboardStats? {
-        val cached = cachePrefs.getString(KEY_DASHBOARD_JSON, null) ?: return null
-        return try {
-            parseDashboard(JSONObject(cached))
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse cached dashboard: ${e.message}", e)
-            null
-        }
-    }
-
-    private fun parseDashboard(json: JSONObject): DashboardStats {
-        val merchant = json.getJSONObject("merchant")
-        val stats = json.getJSONObject("stats")
-        val recentArr = json.getJSONArray("recent")
-
-        val subscription = if (json.has("subscription") && !json.isNull("subscription")) {
-            val sub = json.getJSONObject("subscription")
-            SubscriptionInfo(
-                plan = sub.optString("plan", "FREE_TRIAL"),
-                txCount = sub.optInt("txCount", 0),
-                txLimit = sub.optInt("txLimit", 5),
-                subscriptionEndsAt = if (sub.isNull("subscriptionEndsAt")) null else sub.optString("subscriptionEndsAt"),
-                isFreeTrial = sub.optBoolean("isFreeTrial", true),
-            )
-        } else null
-
-        val merchantInfo = MerchantInfo(
-            handle = merchant.optString("handle", config.merchantHandle),
-            name = merchant.optString("name", config.merchantBusinessName.ifBlank { "Merchant account" }),
-            email = merchant.optString("email", config.merchantEmail),
-            webhookUrl = if (merchant.has("webhookUrl") && !merchant.isNull("webhookUrl")) merchant.getString("webhookUrl") else null,
-            instapayPaymentUrl = if (merchant.has("instapayPaymentUrl") && !merchant.isNull("instapayPaymentUrl")) merchant.getString("instapayPaymentUrl") else null,
-            checkoutTtlMin = if (merchant.has("checkoutTtlMin")) merchant.optInt("checkoutTtlMin", 10) else null,
-            detectToken = if (merchant.has("detectToken") && !merchant.isNull("detectToken")) merchant.getString("detectToken") else null,
-        )
-
-        return DashboardStats(
-            merchant = merchantInfo,
-            stats = StatsBreakdown(
-                today = parseBucket(stats.getJSONObject("today")),
-                sevenDays = parseBucket(stats.getJSONObject("sevenDays")),
-                pending = parseBucket(stats.getJSONObject("pending")),
-            ),
-            recent = parseTransactions(recentArr),
-            subscription = subscription,
-        )
-    }
-
-    private fun parseBucket(json: JSONObject): StatBucket {
-        return StatBucket(
-            count = json.getInt("count"),
-            totalEgp = json.getDouble("totalEgp"),
-        )
-    }
-
-    private fun parseChart(json: JSONObject): ChartData {
-        val range = json.getJSONObject("range")
-        val seriesArr = json.getJSONArray("series")
-        val summary = json.getJSONObject("summary")
-
-        val series = mutableListOf<ChartPoint>()
-        for (i in 0 until seriesArr.length()) {
-            val p = seriesArr.getJSONObject(i)
-            series.add(ChartPoint(
-                date = p.getString("date"),
-                totalEgp = p.getDouble("totalEgp"),
-                count = p.getInt("count"),
-            ))
-        }
-
-        val bestDay = summary.getJSONObject("bestDay")
-        return ChartData(
-            range = ChartRange(
-                days = range.getInt("days"),
-                startDate = range.getString("startDate"),
-                endDate = range.getString("endDate"),
-            ),
-            series = series,
-            summary = ChartSummary(
-                totalRevenue = summary.getDouble("totalRevenue"),
-                totalCount = summary.getInt("totalCount"),
-                avgPerDay = summary.getDouble("avgPerDay"),
-                bestDay = ChartBestDay(
-                    date = bestDay.getString("date"),
-                    totalEgp = bestDay.getDouble("totalEgp"),
-                    count = bestDay.getInt("count"),
-                ),
-            ),
-        )
-    }
+    private fun parseBucket(json: JSONObject?): StatBucket = StatBucket(
+        count = json?.optInt("count", 0) ?: 0,
+        totalEgp = json?.optDouble("totalEgp", 0.0) ?: 0.0,
+    )
 
     private fun parseTransactionList(json: JSONObject): TransactionList {
-        val arr = json.getJSONArray("transactions")
-        val pagination = json.getJSONObject("pagination")
+        val transactions = parseTransactions(json.optJSONArray("transactions") ?: JSONArray())
+        val pagination = json.optJSONObject("pagination") ?: JSONObject()
+        val page = pagination.optInt("page", 1).coerceAtLeast(1)
+        val totalPages = pagination.optInt("totalPages", 1).coerceAtLeast(1)
         return TransactionList(
-            transactions = parseTransactions(arr),
+            transactions = transactions,
             pagination = Pagination(
-                limit = pagination.getInt("limit"),
-                hasMore = pagination.getBoolean("hasMore"),
-                nextCursor = if (pagination.isNull("nextCursor")) null else pagination.getString("nextCursor"),
-                count = pagination.getInt("count"),
+                limit = pagination.optInt("limit", transactions.size.coerceAtLeast(1)),
+                hasMore = page < totalPages,
+                nextCursor = if (page < totalPages) (page + 1).toString() else null,
+                count = pagination.optInt("total", transactions.size),
             ),
         )
     }
 
-    private fun parseTransactions(arr: JSONArray): List<Transaction> {
-        val list = mutableListOf<Transaction>()
-        for (i in 0 until arr.length()) {
-            val t = arr.getJSONObject(i)
-            list.add(Transaction(
-                sessionId = t.getString("sessionId"),
-                senderHandle = t.getString("senderHandle"),
-                recipientHandle = t.getString("recipientHandle"),
-                amountEgp = t.getDouble("amountEgp"),
-                detectedAmountEgp = if (t.isNull("detectedAmountEgp")) null else t.optDouble("detectedAmountEgp"),
-                currency = t.getString("currency"),
-                status = t.getString("status"),
-                note = if (t.isNull("note")) null else t.getString("note"),
-                deepLinkUrl = if (t.isNull("deepLinkUrl")) null else t.getString("deepLinkUrl"),
-                deepLinkToken = if (t.isNull("deepLinkToken")) null else t.getString("deepLinkToken"),
-                detectedRef = if (t.isNull("detectedRef")) null else t.getString("detectedRef"),
-                detectedAt = if (t.isNull("detectedAt")) null else t.getString("detectedAt"),
-                createdAt = t.getString("createdAt"),
-                expiresAt = t.getString("expiresAt"),
+    private fun parseTransactions(array: JSONArray): List<Transaction> = buildList {
+        for (index in 0 until array.length()) {
+            val item = array.getJSONObject(index)
+            add(Transaction(
+                sessionId = item.optString("sessionId"),
+                senderHandle = item.optString("senderHandle", "—"),
+                recipientHandle = item.optString("recipientHandle", "—"),
+                amountEgp = item.optDouble("amountEgp", 0.0),
+                detectedAmountEgp = item.optNullableDouble("detectedAmountEgp"),
+                currency = item.optString("currency", "EGP"),
+                status = item.optString("status", "PENDING"),
+                note = item.optNullableString("note"),
+                deepLinkUrl = item.optNullableString("deepLinkUrl"),
+                deepLinkToken = item.optNullableString("deepLinkToken"),
+                detectedRef = item.optNullableString("detectedRef"),
+                detectedAt = item.optNullableString("detectedAt"),
+                createdAt = item.optString("createdAt"),
+                expiresAt = item.optString("expiresAt"),
             ))
         }
-        return list
     }
 
-    private data class HttpResponse(val code: Int, val body: String) {
-        val isSuccessful: Boolean get() = code in 200..299
+    private fun buildChart(transactions: List<Transaction>, days: Int): ChartData {
+        val end = LocalDate.now()
+        val start = end.minusDays((days - 1).toLong())
+        val buckets = (0 until days).associate { offset ->
+            start.plusDays(offset.toLong()).toString() to doubleArrayOf(0.0, 0.0)
+        }.toMutableMap()
+        transactions.filter { it.status == "CONFIRMED" }.forEach { transaction ->
+            val date = transaction.detectedAt?.take(10) ?: transaction.createdAt.take(10)
+            buckets[date]?.let { bucket ->
+                bucket[0] = bucket[0] + transaction.amountEgp
+                bucket[1] = bucket[1] + 1.0
+            }
+        }
+        val series = buckets.map { (date, bucket) -> ChartPoint(date, bucket[0], bucket[1].toInt()) }
+        val totalRevenue = series.sumOf { it.totalEgp }
+        val totalCount = series.sumOf { it.count }
+        val best = series.maxByOrNull { it.totalEgp } ?: ChartPoint(end.toString(), 0.0, 0)
+        return ChartData(
+            ChartRange(days, start.toString(), end.toString()), series,
+            ChartSummary(totalRevenue, totalCount, totalRevenue / days, ChartBestDay(best.date, best.totalEgp, best.count)),
+        )
     }
 
-    companion object {
+    private fun JSONObject.optNullableString(name: String): String? =
+        if (has(name) && !isNull(name)) optString(name).takeIf { it.isNotBlank() } else null
+
+    private fun JSONObject.optNullableInt(name: String): Int? =
+        if (has(name) && !isNull(name)) optInt(name) else null
+
+    private fun JSONObject.optNullableDouble(name: String): Double? =
+        if (has(name) && !isNull(name)) optDouble(name) else null
+
+    private data class HttpResponse(val code: Int, val body: String) { val isSuccessful get() = code in 200..299 }
+
+    private companion object {
         private const val TAG = "DashboardApi"
-        private const val KEY_DASHBOARD_JSON = "dashboard_json"
-        private const val KEY_DASHBOARD_CACHED_AT = "dashboard_cached_at"
+        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }

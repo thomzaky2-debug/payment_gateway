@@ -7,8 +7,6 @@ import androidx.core.app.ActivityCompat
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.instapaydetector.app.databinding.ActivityMainBinding
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
 
 /**
  * Main host activity with bottom navigation for the client console:
@@ -21,8 +19,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
 
     val apiClient by lazy { DashboardApiClient(this) }
-    val paymentFeedback by lazy { PaymentFeedback(this) }
-    val wsClient by lazy { DashboardWebSocketClient(this) }
 
     private val pageCopy by lazy {
         listOf(
@@ -52,7 +48,9 @@ class MainActivity : AppCompatActivity() {
 
         // Apply saved Theme before onCreate (check to prevent recreation loop)
         val prefs = getSharedPreferences("instapay_settings", MODE_PRIVATE)
-        val savedTheme = prefs.getString("pref_theme", "system") ?: "system"
+        // The merchant portal uses the dark gateway workspace by default.
+        // A saved user preference still wins after it is introduced by settings.
+        val savedTheme = prefs.getString("pref_theme", "dark") ?: "dark"
         val targetMode = when (savedTheme) {
             "light" -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
             "dark" -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
@@ -120,8 +118,6 @@ class MainActivity : AppCompatActivity() {
         binding.pageTitle.text = pageCopy[savedTab].first
         binding.pageSubtitle.text = pageCopy[savedTab].second
 
-        // Start the WebSocket client for real-time updates
-        MainScope().launch { wsClient.start() }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -138,6 +134,5 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        wsClient.stop()
     }
 }

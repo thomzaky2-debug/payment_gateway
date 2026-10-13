@@ -27,8 +27,6 @@ class DashboardFragment : Fragment() {
 
     private val apiClient by lazy { (activity as MainActivity).apiClient }
     private val config by lazy { GatewayConfig.get(requireContext()) }
-    private val paymentFeedback by lazy { (activity as MainActivity).paymentFeedback }
-    private val wsClient by lazy { (activity as MainActivity).wsClient }
 
     private lateinit var recentAdapter: TransactionAdapter
 
@@ -97,25 +95,6 @@ class DashboardFragment : Fragment() {
             }
         }
 
-        // Wire up WebSocket for real-time updates
-        wsClient.onConnectionChange = { connected ->
-            requireActivity().runOnUiThread {
-                binding.liveStatus.text = if (connected) getString(R.string.dash_live) else getString(R.string.dash_offline)
-                binding.liveStatus.setTextColor(
-                    if (connected) resources.getColor(R.color.live_green, null)
-                    else resources.getColor(R.color.text_secondary, null)
-                )
-                binding.liveDot.visibility = if (connected) View.VISIBLE else View.GONE
-            }
-        }
-        wsClient.onPaymentConfirmed = { event ->
-            requireActivity().runOnUiThread {
-                paymentFeedback.celebrate()
-                updateNotificationBadge()
-                loadAll()
-            }
-        }
-
         // "View all" button → switch to Transactions tab
         binding.viewAllButton.setOnClickListener {
             (activity as? MainActivity)?.let {
@@ -151,7 +130,10 @@ class DashboardFragment : Fragment() {
             dashResult.onSuccess { dash -> renderDashboard(dash) }
                 .onFailure { e ->
                     binding.errorText.visibility = View.VISIBLE
-                    binding.errorText.text = "Failed to load: ${e.message}"
+                    binding.errorText.text = "Could not refresh your merchant data: ${e.message}"
+                    binding.liveStatus.text = "Connection unavailable"
+                    binding.liveStatus.setTextColor(resources.getColor(R.color.status_denied, null))
+                    binding.liveDot.visibility = View.GONE
                 }
 
             loadChartData()
@@ -176,6 +158,9 @@ class DashboardFragment : Fragment() {
         binding.errorText.visibility = View.GONE
         binding.merchantName.text = dash.merchant.name
         binding.merchantHandle.text = dash.merchant.handle
+        binding.liveStatus.text = "Gateway connected"
+        binding.liveStatus.setTextColor(resources.getColor(R.color.live_green, null))
+        binding.liveDot.visibility = View.VISIBLE
 
         // Stat cards — each include layout has inner views accessible via the include's binding
         binding.cardToday.statLabel.text = getString(R.string.dash_today)
@@ -362,8 +347,8 @@ class DashboardFragment : Fragment() {
     }
 
     private fun renderLocalProfileFallback() {
-        binding.merchantName.text = "Merchant account"
-        binding.merchantHandle.text = config.merchantHandle
+        binding.merchantName.text = "Loading merchant account"
+        binding.merchantHandle.text = "Secure gateway connection"
     }
 
     private fun formatSubscriptionDuration(value: String?): String {
@@ -390,9 +375,6 @@ class DashboardFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        // Clear callbacks to avoid leaks
-        wsClient.onConnectionChange = null
-        wsClient.onPaymentConfirmed = null
         _binding = null
     }
 }
