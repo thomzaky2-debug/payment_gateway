@@ -19,8 +19,8 @@ android {
         // Android 8.0 (API 26) — matches the "Android 8+" requirement.
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "2.3.2-portal"
+        versionCode = 13
+        versionName = "2.3.3-dedup"
         resValue("string", "app_name", "InstaPay Detector")
         buildConfigField("String", "GATEWAY_BASE_URL", "\"${gatewayBaseUrl ?: "https://gateway.example.invalid"}\"")
     }

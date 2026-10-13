@@ -27,6 +27,10 @@ object MerchantNotificationPoller {
     private val started = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    private const val DELIVERED_PREFS = "merchant_notification_delivery"
+    private const val DELIVERED_IDS = "delivered_ids"
+    private const val MAX_DELIVERED_IDS = 200
+
     fun start(context: Context) {
         val appContext = context.applicationContext
         if (!GatewayConfig.get(appContext).isLoggedIn) return
@@ -96,7 +100,7 @@ object MerchantNotificationPoller {
             if (notifications.isEmpty()) return
 
             val postedIds = mutableListOf<String>()
-            notifications.forEach { item ->
+            notifications.filterNot { wasDeliveredLocally(context, it.id) }.forEach { item ->
                 // Record to local Notification History
                 try {
                     NotificationHistoryManager.get(context).addNotification(
@@ -110,6 +114,7 @@ object MerchantNotificationPoller {
 
                 if (postNotification(context, item)) {
                     postedIds.add(item.id)
+                    rememberDelivered(context, item.id)
                 }
             }
 
@@ -165,6 +170,30 @@ object MerchantNotificationPoller {
             Log.w(TAG, "Cannot post merchant notification: ${e.message}")
             false
         }
+    }
+
+    /**
+     * Server-side unread filtering is authoritative. This tiny persistent
+     * safety net prevents a duplicate alert if a device loses connectivity
+     * after Android displays it but before the read acknowledgement completes.
+     */
+    private fun wasDeliveredLocally(context: Context, id: String): Boolean {
+        if (id.isBlank()) return false
+        return context.getSharedPreferences(DELIVERED_PREFS, Context.MODE_PRIVATE)
+            .getStringSet(DELIVERED_IDS, emptySet())
+            ?.contains(id) == true
+    }
+
+    private fun rememberDelivered(context: Context, id: String) {
+        if (id.isBlank()) return
+        val prefs = context.getSharedPreferences(DELIVERED_PREFS, Context.MODE_PRIVATE)
+        val current = prefs.getStringSet(DELIVERED_IDS, emptySet()).orEmpty()
+        val updated = LinkedHashSet(current)
+        updated.add(id)
+        while (updated.size > MAX_DELIVERED_IDS) {
+            updated.iterator().next().also(updated::remove)
+        }
+        prefs.edit().putStringSet(DELIVERED_IDS, updated).apply()
     }
 
     private fun ensureChannel(context: Context) {
