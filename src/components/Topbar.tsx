@@ -47,9 +47,15 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000);
-    return () => clearInterval(interval);
   }, []);
+
+  const handleNotificationsToggle = () => {
+    const willOpen = !showNotifMenu;
+    setShowNotifMenu(willOpen);
+    // Refresh only when the merchant explicitly opens the panel. Periodic
+    // polling made the portal look as if it was refreshing while in use.
+    if (willOpen) void fetchNotifications();
+  };
 
   const handleMarkAllRead = async () => {
     try {
@@ -186,7 +192,7 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
         {/* Notifications Dropdown */}
         <div style={{ position: 'relative' }}>
           <button
-            onClick={() => setShowNotifMenu(!showNotifMenu)}
+            onClick={handleNotificationsToggle}
             style={{
               position: 'relative',
               padding: '8px',
@@ -443,4 +449,3 @@ export function Topbar({ currentPage, client, onLogout, onNavigate, onOpenMobile
     </header>
   );
 }
-

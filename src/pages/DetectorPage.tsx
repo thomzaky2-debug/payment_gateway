@@ -46,8 +46,6 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
 
   useEffect(() => {
     fetchDetectorData();
-    const interval = setInterval(() => fetchDetectorData(), 30000);
-    return () => clearInterval(interval);
   }, [fetchDetectorData]);
 
   const latestDevice = devices.length > 0 ? devices[0] : null;
