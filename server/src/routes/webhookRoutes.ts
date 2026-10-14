@@ -8,17 +8,6 @@ import type { Client } from '@prisma/client'
 
 export const webhookRouter = Router()
 
-function isSupportedDeviceTokenClient(req: Request): boolean {
-  if (req.headers['x-client-supports-device-tokens'] === 'true') return true
-  const appVersion = typeof req.body?.appVersion === 'string' ? req.body.appVersion : null
-  if (appVersion) {
-    const parts = appVersion.split('.').map((n: string) => parseInt(n, 10) || 0)
-    // Version 2.0.0 or higher supports per-device credentials
-    if ((parts[0] || 0) >= 2) return true
-  }
-  return false
-}
-
 /**
  * Android Detector Webhook Ingestion Endpoint
  *
@@ -56,17 +45,17 @@ webhookRouter.post('/instapay', async (req: Request, res: Response) => {
     if (!client) {
       const legacyClient = await authenticateByDetectToken(token)
       if (legacyClient) {
-        // Enforce legacy detect token sunset policy
+        // Enforce legacy detect token sunset policy:
+        // Before LEGACY_DETECT_TOKEN_SUNSET: legacy token works.
+        // At and after it: legacy token is rejected for every client.
         const sunsetStr = process.env.LEGACY_DETECT_TOKEN_SUNSET
         if (sunsetStr) {
           const sunsetDate = new Date(sunsetStr)
-          if (Number.isFinite(sunsetDate.getTime()) && Date.now() > sunsetDate.getTime()) {
-            if (isSupportedDeviceTokenClient(req)) {
-              return res.status(401).json({
-                ok: false,
-                error: 'Unauthorized. Legacy detectToken has been sunset. Please use a device token.',
-              })
-            }
+          if (Number.isFinite(sunsetDate.getTime()) && Date.now() >= sunsetDate.getTime()) {
+            return res.status(401).json({
+              ok: false,
+              error: 'Unauthorized. Legacy detectToken has been sunset. Please use a per-device credential.',
+            })
           }
         }
         client = legacyClient

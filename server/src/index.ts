@@ -30,7 +30,7 @@ import { apkRouter } from './routes/apkRoutes.js'
 import { mobileAuthRouter } from './routes/mobileAuthRoutes.js'
 import { mobileRouter } from './routes/mobileRoutes.js'
 import { accountRouter } from './routes/accountRoutes.js'
-import { renderAccountDeletionHtml } from './views/accountDeletionHtml.js'
+import { renderAccountDeletionHtml, renderAccountDeletionScript } from './views/accountDeletionHtml.js'
 
 import { createRateLimiter } from './lib/rateLimiter.js'
 import { requireTrustedOrigin } from './middleware/requireTrustedOrigin.js'
@@ -181,9 +181,19 @@ app.get('/api/docs/integration-guide', (req, res) => {
   return res.status(404).json({ ok: false, error: 'Documentation file not found' })
 })
 
+app.get(['/docs', '/api/docs', '/api-docs'], (_req, res) => {
+  res.redirect(`${CLIENT_URL}/docs`)
+})
+
 app.get(['/account-deletion', '/deletion-info'], (_req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.send(renderAccountDeletionHtml())
+})
+
+app.get('/account-deletion.js', (_req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+  res.setHeader('Cache-Control', 'public, max-age=3600')
+  res.send(renderAccountDeletionScript())
 })
 
 // Mobile authentication: login and refresh have dedicated limiters; logout is never rate-limited

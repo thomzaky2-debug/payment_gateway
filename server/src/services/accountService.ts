@@ -4,6 +4,8 @@ import { verifyPassword, hashPassword } from './authService.js'
 import {
   verifyOtpCode,
   normalizeEmail,
+  generateOtp,
+  hashOtp,
 } from '../lib/emailDelivery.js'
 import { isExplicitDevAuthEnabled, issueOtpVerification, OTP_TTL_MS } from '../routes/authRoutes.js'
 
@@ -149,20 +151,30 @@ export async function deleteMerchantAccount(
 
 /**
  * Public request handler for merchants requesting deletion outside the app.
+ * Gives balanced timing and identical responses for known and unknown emails to prevent enumeration.
  */
 export async function requestPublicAccountDeletion(email: string): Promise<boolean> {
   const cleanEmail = normalizeEmail(email)
   const client = await db.client.findUnique({ where: { email: cleanEmail } })
-  if (!client || !client.isActive || client.approvalStatus !== 'APPROVED') {
-    // Return gracefully to prevent account enumeration
-    return false
+  const isEligible = Boolean(client && client.isActive && client.approvalStatus === 'APPROVED')
+
+  if (isEligible) {
+    try {
+      await issueOtpVerification(cleanEmail, 'ACCOUNT_DELETION')
+      return true
+    } catch (err) {
+      console.error('[accountService] Failed to issue public deletion OTP:', err)
+      return false
+    }
   }
 
-  try {
-    await issueOtpVerification(cleanEmail, 'ACCOUNT_DELETION')
-    return true
-  } catch (err) {
-    console.error('[accountService] Failed to issue public deletion OTP:', err)
-    return false
-  }
+  // Balanced timing path: perform equivalent crypto operation and database query
+  // to ensure request durations are indistinguishable for existing and non-existing accounts.
+  const dummyOtp = generateOtp()
+  hashOtp(cleanEmail, dummyOtp)
+  await db.emailVerification.findFirst({
+    where: { email: cleanEmail, purpose: 'ACCOUNT_DELETION' },
+  }).catch(() => null)
+
+  return false
 }

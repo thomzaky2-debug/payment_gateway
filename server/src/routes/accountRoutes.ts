@@ -12,6 +12,8 @@ import { renderAccountDeletionHtml } from '../views/accountDeletionHtml.js'
 
 export const accountRouter = Router()
 
+import { normalizeEmail } from '../lib/emailDelivery.js'
+
 // Rate limiter for account deletion: 5 attempts per 15 min per merchant and IP (fails closed)
 const accountDeletionLimiter = createRateLimiterWithKey(
   15 * 60 * 1000,
@@ -24,11 +26,22 @@ const accountDeletionLimiter = createRateLimiterWithKey(
 )
 
 // Public rate limiter for deletion requests: 5 per 15 min per IP
-const deletionRequestLimiter = createRateLimiterWithKey(
+const deletionRequestIpLimiter = createRateLimiterWithKey(
   15 * 60 * 1000,
   5,
-  'Too many deletion requests. Please try again later.',
-  (req) => `account-delete-request:${getRequestIp(req)}`
+  'Too many deletion requests from this network. Please try again later.',
+  (req) => `account-delete-request:ip:${getRequestIp(req)}`
+)
+
+// Public rate limiter for deletion requests: 3 per 15 min per email
+const deletionRequestEmailLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  3,
+  'Too many deletion requests for this email address. Please try again later.',
+  (req) => {
+    const rawEmail = typeof req.body?.email === 'string' ? req.body.email : 'missing'
+    return `account-delete-request:email:${normalizeEmail(rawEmail).slice(0, 320)}`
+  }
 )
 
 /**
@@ -70,7 +83,11 @@ accountRouter.delete('/', requireMerchant, accountDeletionLimiter, async (req: R
  * POST /api/account/deletion-request
  * Public endpoint for users who no longer have the app to request deletion.
  */
-accountRouter.post('/deletion-request', deletionRequestLimiter, async (req: Request, res: Response) => {
+accountRouter.post(
+  '/deletion-request',
+  deletionRequestIpLimiter,
+  deletionRequestEmailLimiter,
+  async (req: Request, res: Response) => {
   try {
     const { email } = req.body
     if (!email || typeof email !== 'string') {

@@ -117,32 +117,26 @@ export async function rotateMobileSession(
     return { ok: false, error: 'Invalid or expired refresh token', status: 401 }
   }
 
-  // ─── REUSE DETECTION: If token was already rotated, revoke whole family ───
-  if (session.rotatedAt != null) {
-    console.error(
-      `[SECURITY ALERT] [mobileAuth] Refresh token reuse detected for family ${session.familyId}. Revoking entire session family.`
+  const now = new Date()
+
+  // ─── DEVICE BINDING CHECK ─────────────────────────────────────────────────
+  // If session has a deviceId and the refresh request's deviceId differs, return 401 and revoke the family.
+  // Never overwrite a session's deviceId with a request value.
+  const normalizedReqDeviceId = typeof deviceId === 'string' && deviceId.trim() ? deviceId.trim() : null
+  if (session.deviceId && session.deviceId !== normalizedReqDeviceId) {
+    console.warn(
+      `[SECURITY ALERT] [mobileAuth] Device binding mismatch for session ${session.id} (bound: ${session.deviceId}, requested: ${normalizedReqDeviceId}). Revoking entire session family.`
     )
     await db.authSession.updateMany({
       where: { familyId: session.familyId, revokedAt: null },
-      data: { revokedAt: new Date() },
+      data: { revokedAt: now },
     })
     return {
       ok: false,
-      error: 'Refresh token has already been used. Session family revoked.',
+      error: 'Device binding mismatch. Session family revoked.',
       status: 401,
       familyRevoked: true,
     }
-  }
-
-  // ─── REVOKED CHECK ────────────────────────────────────────────────────────
-  if (session.revokedAt != null) {
-    return { ok: false, error: 'Session has been revoked', status: 401 }
-  }
-
-  // ─── EXPIRY CHECK ─────────────────────────────────────────────────────────
-  const now = new Date()
-  if (session.refreshExpiresAt && session.refreshExpiresAt.getTime() <= now.getTime()) {
-    return { ok: false, error: 'Refresh token has expired', status: 401 }
   }
 
   // ─── ADMIN 12-HOUR HARD CEILING CHECK ─────────────────────────────────────
@@ -179,16 +173,11 @@ export async function rotateMobileSession(
     refreshExpiresAt = new Date(now.getTime() + DETECTOR_REFRESH_TOKEN_TTL_MS)
   }
 
-  // Mark the current session as rotated
-  await db.authSession.update({
-    where: { id: session.id },
-    data: {
-      rotatedAt: now,
-      lastSeenAt: now,
-    },
-  })
-
-  // Issue new tokens in the SAME family
+  // ─── ATOMIC CAS ROTATION & SESSION CREATION TRANSACTION ───────────────────
+  // Replace the read-then-update with one compare-and-set:
+  // updateMany where { id, rotatedAt: null, revokedAt: null, refreshExpiresAt > now } set rotatedAt.
+  // If count is 0, treat it as reuse: revoke the whole familyId and return 401.
+  // Create the new session in the same transaction as the rotation.
   const newAccessToken = createOpaqueSessionToken(session.kind as 'MERCHANT' | 'OWNER')
   const newAccessTokenHash = hashToken(newAccessToken)
 
@@ -196,33 +185,68 @@ export async function rotateMobileSession(
   const newRefreshToken = `${refreshPrefix}${crypto.randomBytes(32).toString('base64url')}`
   const newRefreshTokenHash = hashToken(newRefreshToken)
 
-  await db.authSession.create({
-    data: {
-      tokenHash: newAccessTokenHash,
+  const transactionResult = await db.$transaction(async (tx) => {
+    const cas = await tx.authSession.updateMany({
+      where: {
+        id: session.id,
+        rotatedAt: null,
+        revokedAt: null,
+        refreshExpiresAt: { gt: now },
+      },
+      data: {
+        rotatedAt: now,
+        lastSeenAt: now,
+      },
+    })
+
+    if (cas.count === 0) {
+      console.error(
+        `[SECURITY ALERT] [mobileAuth] Refresh token reuse detected for family ${session.familyId}. Revoking entire session family.`
+      )
+      await tx.authSession.updateMany({
+        where: { familyId: session.familyId, revokedAt: null },
+        data: { revokedAt: now },
+      })
+      return {
+        ok: false as const,
+        error: 'Refresh token has already been used or expired. Session family revoked.',
+        status: 401,
+        familyRevoked: true,
+      }
+    }
+
+    // cas.count === 1: Create new session in the same transaction.
+    // Retain session.deviceId: never overwrite with a request value.
+    await tx.authSession.create({
+      data: {
+        tokenHash: newAccessTokenHash,
+        kind: session.kind,
+        clientId: session.clientId,
+        userAgent: userAgent?.trim().slice(0, 512) || session.userAgent,
+        ipAddress: ipAddress?.trim().slice(0, 128) || session.ipAddress,
+        credentialFingerprint: session.credentialFingerprint,
+        expiresAt: accessExpiresAt,
+        refreshTokenHash: newRefreshTokenHash,
+        refreshExpiresAt,
+        familyId: session.familyId,
+        deviceId: session.deviceId,
+      },
+    })
+
+    return {
+      ok: true as const,
+      tokens: {
+        accessToken: newAccessToken,
+        accessExpiresAt: accessExpiresAt.toISOString(),
+        refreshToken: newRefreshToken,
+        refreshExpiresAt: refreshExpiresAt.toISOString(),
+      },
       kind: session.kind,
       clientId: session.clientId,
-      userAgent: userAgent?.trim().slice(0, 512) || session.userAgent,
-      ipAddress: ipAddress?.trim().slice(0, 128) || session.ipAddress,
-      credentialFingerprint: session.credentialFingerprint,
-      expiresAt: accessExpiresAt,
-      refreshTokenHash: newRefreshTokenHash,
-      refreshExpiresAt,
-      familyId: session.familyId,
-      deviceId: deviceId?.trim().slice(0, 128) || session.deviceId,
-    },
+    }
   })
 
-  return {
-    ok: true,
-    tokens: {
-      accessToken: newAccessToken,
-      accessExpiresAt: accessExpiresAt.toISOString(),
-      refreshToken: newRefreshToken,
-      refreshExpiresAt: refreshExpiresAt.toISOString(),
-    },
-    kind: session.kind,
-    clientId: session.clientId,
-  }
+  return transactionResult
 }
 
 /**

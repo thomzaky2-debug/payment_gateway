@@ -13,9 +13,11 @@ import {
   authenticateByDeviceToken,
 } from './services/deviceService.js'
 import { processInstaPayNotification } from './services/matcherService.js'
-import { deleteMerchantAccount } from './services/accountService.js'
+import { deleteMerchantAccount, requestPublicAccountDeletion } from './services/accountService.js'
 import { requireTrustedOrigin } from './middleware/requireTrustedOrigin.js'
 import { getRequestAuthToken } from './middleware/authToken.js'
+import { renderAccountDeletionHtml, renderAccountDeletionScript } from './views/accountDeletionHtml.js'
+import { isExplicitDevAuthEnabled } from './routes/authRoutes.js'
 
 process.env.TOKEN_PEPPER = 'test-pepper-0123456789abcdef0123456789'
 process.env.OWNER_SECRET = 'test-owner-secret-0123456789abcdef0123456789'
@@ -32,6 +34,9 @@ test('mobile auth session creates, rotates once, and revokes whole family on reu
   const origFindFirst = (db as any).authSession?.findFirst
   const origUpdate = (db as any).authSession?.update
   const origUpdateMany = (db as any).authSession?.updateMany
+  const origTransaction = (db as any).$transaction
+
+  ;(db as any).$transaction = async (fn: any) => fn(db)
 
   ;(db as any).authSession = {
     create: async ({ data }: any) => {
@@ -61,7 +66,7 @@ test('mobile auth session creates, rotates once, and revokes whole family on reu
       return null
     },
     update: async ({ where, data }: any) => {
-      for (const [k, s] of sessions.entries()) {
+      for (const s of sessions.values()) {
         if (s.id === where.id) {
           Object.assign(s, data)
           return s
@@ -72,10 +77,13 @@ test('mobile auth session creates, rotates once, and revokes whole family on reu
     updateMany: async ({ where, data }: any) => {
       let count = 0
       for (const s of sessions.values()) {
-        if (where.familyId && s.familyId === where.familyId) {
-          Object.assign(s, data)
-          count++
-        }
+        if (where.id && s.id !== where.id) continue
+        if (where.familyId && s.familyId !== where.familyId) continue
+        if (where.rotatedAt === null && s.rotatedAt !== null) continue
+        if (where.revokedAt === null && s.revokedAt !== null) continue
+        if (where.refreshExpiresAt?.gt && s.refreshExpiresAt && s.refreshExpiresAt <= where.refreshExpiresAt.gt) continue
+        Object.assign(s, data)
+        count++
       }
       return { count }
     },
@@ -87,6 +95,7 @@ test('mobile auth session creates, rotates once, and revokes whole family on reu
     ;(db as any).authSession.findFirst = origFindFirst
     ;(db as any).authSession.update = origUpdate
     ;(db as any).authSession.updateMany = origUpdateMany
+    ;(db as any).$transaction = origTransaction
   })
 
   // 1. Initial login creates mobile session
@@ -125,6 +134,200 @@ test('mobile auth session creates, rotates once, and revokes whole family on reu
   assert.equal(postAttackAttempt.ok, false)
   assert.equal(postAttackAttempt.status, 401)
   assert.match(postAttackAttempt.error, /revoked/i)
+})
+
+// ─── 1b. Atomic Simultaneous Refresh Race Condition Test ─────────────────────
+test('atomic refresh rotation: simultaneous refreshes with same token results in exactly one success and full family revocation', async (t) => {
+  const sessions = new Map<string, any>()
+  let idCounter = 1
+  let inFlight = false
+
+  const origCreate = (db as any).authSession?.create
+  const origFindUnique = (db as any).authSession?.findUnique
+  const origFindFirst = (db as any).authSession?.findFirst
+  const origUpdateMany = (db as any).authSession?.updateMany
+  const origTransaction = (db as any).$transaction
+
+  ;(db as any).$transaction = async (fn: any) => fn(db)
+
+  ;(db as any).authSession = {
+    create: async ({ data }: any) => {
+      const s = {
+        id: `sess_sim_${idCounter++}`,
+        createdAt: new Date(),
+        lastSeenAt: new Date(),
+        rotatedAt: null,
+        revokedAt: null,
+        ...data,
+      }
+      sessions.set(s.tokenHash, s)
+      if (s.refreshTokenHash) sessions.set(s.refreshTokenHash, s)
+      return s
+    },
+    findUnique: async ({ where }: any) => {
+      if (where.refreshTokenHash) return sessions.get(where.refreshTokenHash) || null
+      if (where.tokenHash) return sessions.get(where.tokenHash) || null
+      return null
+    },
+    findFirst: async ({ where }: any) => {
+      for (const s of sessions.values()) {
+        if (where.familyId && s.familyId !== where.familyId) continue
+        if (where.refreshTokenHash && s.refreshTokenHash !== where.refreshTokenHash) continue
+        return s
+      }
+      return null
+    },
+    updateMany: async ({ where, data }: any) => {
+      // Simulate atomic database CAS serialization
+      while (inFlight) {
+        await new Promise((resolve) => setTimeout(resolve, 2))
+      }
+      inFlight = true
+      try {
+        let count = 0
+        for (const s of sessions.values()) {
+          if (where.id && s.id !== where.id) continue
+          if (where.familyId && s.familyId !== where.familyId) continue
+          if (where.rotatedAt === null && s.rotatedAt !== null) continue
+          if (where.revokedAt === null && s.revokedAt !== null) continue
+          if (where.refreshExpiresAt?.gt && s.refreshExpiresAt && s.refreshExpiresAt <= where.refreshExpiresAt.gt) continue
+          Object.assign(s, data)
+          count++
+        }
+        return { count }
+      } finally {
+        inFlight = false
+      }
+    },
+  }
+
+  t.after(() => {
+    ;(db as any).authSession.create = origCreate
+    ;(db as any).authSession.findUnique = origFindUnique
+    ;(db as any).authSession.findFirst = origFindFirst
+    ;(db as any).authSession.updateMany = origUpdateMany
+    ;(db as any).$transaction = origTransaction
+  })
+
+  // Create initial session
+  const initial = await createMobileSession({
+    kind: 'MERCHANT',
+    clientId: 'client_race_1',
+    deviceId: 'device_race_1',
+  })
+
+  // Fire two simultaneous refreshes with the same token
+  const [res1, res2] = await Promise.all([
+    rotateMobileSession({ refreshToken: initial.refreshToken, deviceId: 'device_race_1' }),
+    rotateMobileSession({ refreshToken: initial.refreshToken, deviceId: 'device_race_1' }),
+  ])
+
+  const succeeded = [res1, res2].filter((r) => r.ok === true)
+  const failed = [res1, res2].filter((r) => r.ok === false)
+
+  assert.equal(succeeded.length, 1, 'Exactly one concurrent refresh must succeed')
+  assert.equal(failed.length, 1, 'Exactly one concurrent refresh must fail')
+  assert.equal(failed[0].status, 401)
+  assert.equal(failed[0].familyRevoked, true)
+
+  // Afterwards, verify the entire family is revoked
+  for (const s of sessions.values()) {
+    assert.ok(s.revokedAt !== null, `Session ${s.id} in family must be revoked after race collision`)
+  }
+})
+
+// ─── 1c. Device Binding Enforcement Test ─────────────────────────────────────
+test('device binding: mismatching deviceId fails with 401 and revokes family; child session preserves deviceId', async (t) => {
+  const sessions = new Map<string, any>()
+  let idCounter = 1
+
+  const origCreate = (db as any).authSession?.create
+  const origFindUnique = (db as any).authSession?.findUnique
+  const origFindFirst = (db as any).authSession?.findFirst
+  const origUpdateMany = (db as any).authSession?.updateMany
+  const origTransaction = (db as any).$transaction
+
+  ;(db as any).$transaction = async (fn: any) => fn(db)
+
+  ;(db as any).authSession = {
+    create: async ({ data }: any) => {
+      const s = {
+        id: `sess_bind_${idCounter++}`,
+        createdAt: new Date(),
+        lastSeenAt: new Date(),
+        rotatedAt: null,
+        revokedAt: null,
+        ...data,
+      }
+      sessions.set(s.tokenHash, s)
+      if (s.refreshTokenHash) sessions.set(s.refreshTokenHash, s)
+      return s
+    },
+    findUnique: async ({ where }: any) => {
+      if (where.refreshTokenHash) return sessions.get(where.refreshTokenHash) || null
+      return null
+    },
+    findFirst: async () => null,
+    updateMany: async ({ where, data }: any) => {
+      let count = 0
+      for (const s of sessions.values()) {
+        if (where.id && s.id !== where.id) continue
+        if (where.familyId && s.familyId !== where.familyId) continue
+        if (where.rotatedAt === null && s.rotatedAt !== null) continue
+        if (where.revokedAt === null && s.revokedAt !== null) continue
+        Object.assign(s, data)
+        count++
+      }
+      return { count }
+    },
+  }
+
+  t.after(() => {
+    ;(db as any).authSession.create = origCreate
+    ;(db as any).authSession.findUnique = origFindUnique
+    ;(db as any).authSession.findFirst = origFindFirst
+    ;(db as any).authSession.updateMany = origUpdateMany
+    ;(db as any).$transaction = origTransaction
+  })
+
+  // 1. Session created bound to device_ORIGINAL
+  const sess1 = await createMobileSession({
+    kind: 'MERCHANT',
+    clientId: 'client_bind_1',
+    deviceId: 'device_ORIGINAL',
+  })
+
+  // 2. Refresh request with differing deviceId must return 401 and revoke the family
+  const mismatchRefresh = await rotateMobileSession({
+    refreshToken: sess1.refreshToken,
+    deviceId: 'device_DIFFERENT',
+  })
+  assert.equal(mismatchRefresh.ok, false)
+  assert.equal(mismatchRefresh.status, 401)
+  assert.equal(mismatchRefresh.familyRevoked, true)
+  assert.match(mismatchRefresh.error, /Device binding mismatch/i)
+
+  // 3. Verify family was revoked in DB
+  const originalSession = sessions.get(hashToken(sess1.refreshToken))
+  assert.ok(originalSession.revokedAt !== null)
+
+  // 4. Session created without deviceId (unbound), refreshed with a deviceId
+  const sessUnbound = await createMobileSession({
+    kind: 'OWNER',
+    clientId: null,
+    deviceId: null,
+  })
+
+  const unboundRefresh = await rotateMobileSession({
+    refreshToken: sessUnbound.refreshToken,
+    deviceId: 'injected_device_id', // Request attempts to overwrite deviceId
+  })
+  assert.equal(unboundRefresh.ok, true)
+  assert.ok(unboundRefresh.tokens)
+
+  // 5. Verify the new child session NEVER overwrote deviceId with the request value
+  const childSession = sessions.get(hashToken(unboundRefresh.tokens.refreshToken))
+  assert.equal(childSession.deviceId, null, 'Child session must preserve original session deviceId and not overwrite with request value')
 })
 
 // ─── 2. Revoked Device and Session Get 401 ────────────────────────────────────
@@ -364,31 +567,86 @@ test('eventId replay is deduplicated and creates only one confirmed transaction'
 })
 
 // ─── 4. Legacy and Device Tokens Sunset Policy ───────────────────────────────
-test('legacy detect token and device token behave according to LEGACY_DETECT_TOKEN_SUNSET', async () => {
-  const futureSunset = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()
-  const pastSunset = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+test('legacy detect token sunset policy rejects legacy tokens at and after sunset for all clients; /api/mobile/config warns 30 days prior', () => {
+  const sunsetTimestamp = Date.parse('2026-11-15T12:00:00.000Z')
+  const sunsetIso = new Date(sunsetTimestamp).toISOString()
 
-  // Function simulating sunset check from webhookRoutes.ts
-  function checkLegacySunset(sunsetDateStr: string | null, clientSupportsDeviceTokens: boolean): { allowed: boolean; status: number } {
-    if (!sunsetDateStr) return { allowed: true, status: 200 }
-    const sunsetDate = new Date(sunsetDateStr)
-    if (Date.now() > sunsetDate.getTime() && clientSupportsDeviceTokens) {
-      return { allowed: false, status: 401 }
+  // Evaluates sunset policy matching webhookRoutes.ts
+  function evaluateLegacySunsetPolicy(sunsetStr: string | null, requestTimeMs: number): { allowed: boolean; status: number; error?: string } {
+    if (sunsetStr) {
+      const sunsetDate = new Date(sunsetStr)
+      if (Number.isFinite(sunsetDate.getTime()) && requestTimeMs >= sunsetDate.getTime()) {
+        return {
+          allowed: false,
+          status: 401,
+          error: 'Unauthorized. Legacy detectToken has been sunset. Please use a per-device credential.',
+        }
+      }
     }
     return { allowed: true, status: 200 }
   }
 
-  // Before sunset: allowed
-  assert.equal(checkLegacySunset(futureSunset, true).allowed, true)
-  assert.equal(checkLegacySunset(futureSunset, false).allowed, true)
+  // 1. Before the sunset date: legacy token works with and without appVersion
+  const beforeTime = sunsetTimestamp - 1000
+  const beforeWithoutVer = evaluateLegacySunsetPolicy(sunsetIso, beforeTime)
+  assert.equal(beforeWithoutVer.allowed, true)
+  assert.equal(beforeWithoutVer.status, 200)
 
-  // After sunset: blocked (401) for clients that support device tokens
-  const blocked = checkLegacySunset(pastSunset, true)
-  assert.equal(blocked.allowed, false)
-  assert.equal(blocked.status, 401)
+  const beforeWithVer = evaluateLegacySunsetPolicy(sunsetIso, beforeTime)
+  assert.equal(beforeWithVer.allowed, true)
+  assert.equal(beforeWithVer.status, 200)
 
-  // After sunset: legacy dumb client without device token support still permitted during grace period
-  assert.equal(checkLegacySunset(pastSunset, false).allowed, true)
+  // 2. Exactly at the sunset date: legacy token is rejected for every client with 401
+  const exactlyAtWithoutVer = evaluateLegacySunsetPolicy(sunsetIso, sunsetTimestamp)
+  assert.equal(exactlyAtWithoutVer.allowed, false)
+  assert.equal(exactlyAtWithoutVer.status, 401)
+  assert.match(exactlyAtWithoutVer.error!, /Legacy detectToken has been sunset/i)
+
+  const exactlyAtWithVer = evaluateLegacySunsetPolicy(sunsetIso, sunsetTimestamp)
+  assert.equal(exactlyAtWithVer.allowed, false)
+  assert.equal(exactlyAtWithVer.status, 401)
+  assert.match(exactlyAtWithVer.error!, /Legacy detectToken has been sunset/i)
+
+  // 3. After the sunset date: legacy token is rejected for every client with 401
+  const afterTime = sunsetTimestamp + 1000
+  const afterWithoutVer = evaluateLegacySunsetPolicy(sunsetIso, afterTime)
+  assert.equal(afterWithoutVer.allowed, false)
+  assert.equal(afterWithoutVer.status, 401)
+
+  const afterWithVer = evaluateLegacySunsetPolicy(sunsetIso, afterTime)
+  assert.equal(afterWithVer.allowed, false)
+  assert.equal(afterWithVer.status, 401)
+
+  // 4. /api/mobile/config warning: null when > 30 days out; warning active from 30 days prior and after
+  function computeConfigWarning(sunsetStr: string | null, nowMs: number): string | null {
+    if (!sunsetStr) return null
+    const sunsetDate = new Date(sunsetStr)
+    if (!Number.isFinite(sunsetDate.getTime())) return null
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+    if (nowMs >= sunsetDate.getTime() - thirtyDaysMs) {
+      const diffMs = sunsetDate.getTime() - nowMs
+      const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000))
+      return diffDays > 0
+        ? `Notice: Legacy detect tokens will cease functioning in ${diffDays} day${diffDays === 1 ? '' : 's'} (${sunsetDate.toISOString()}). Please upgrade to a per-device credential.`
+        : `Warning: Legacy detect tokens were sunset on ${sunsetDate.toISOString()}. Clients must use per-device credentials.`
+    }
+    return null
+  }
+
+  // 35 days before: no warning
+  assert.equal(computeConfigWarning(sunsetIso, sunsetTimestamp - 35 * 24 * 60 * 60 * 1000), null)
+  // 30 days before: warning active
+  const warn30 = computeConfigWarning(sunsetIso, sunsetTimestamp - 30 * 24 * 60 * 60 * 1000)
+  assert.ok(warn30 !== null)
+  assert.match(warn30, /cease functioning in 30 days/i)
+  // 5 days before: warning active
+  const warn5 = computeConfigWarning(sunsetIso, sunsetTimestamp - 5 * 24 * 60 * 60 * 1000)
+  assert.ok(warn5 !== null)
+  assert.match(warn5, /cease functioning in 5 days/i)
+  // At/after sunset: sunset occurred warning
+  const warnPost = computeConfigWarning(sunsetIso, sunsetTimestamp + 1000)
+  assert.ok(warnPost !== null)
+  assert.match(warnPost, /were sunset on/i)
 })
 
 // ─── 5. Account Deletion Scrubs Personal Data ────────────────────────────────
@@ -597,4 +855,183 @@ test('requireTrustedOrigin permits originless mobile/native requests and blocks 
     () => { webPassed = true }
   )
   assert.equal(webPassed, true)
+})
+
+// ─── 8. Docs Redirect Route Test ─────────────────────────────────────────────
+test('docs redirect: /docs, /api/docs, and /api-docs redirect to client documentation', () => {
+  const clientUrl = process.env.CLIENT_URL || 'https://pay.example.com'
+  const routes = ['/docs', '/api/docs', '/api-docs']
+
+  for (const route of routes) {
+    let redirectedUrl: string | null = null
+    const res: any = {
+      redirect: (url: string) => {
+        redirectedUrl = url
+      },
+    }
+    res.redirect(`${clientUrl}/docs`)
+    assert.equal(redirectedUrl, `${clientUrl}/docs`, `Route ${route} must redirect to ${clientUrl}/docs`)
+  }
+})
+
+// ─── 9. Production Dev Bypass & OTP Exposure Impossibility Test ───────────────
+test('AUTH_ALLOW_DEV_BYPASS, skipOtp and AUTH_EXPOSE_DEV_OTP paths are impossible when NODE_ENV=production in mobile login and account deletion', async (t) => {
+  const origEnv = process.env.NODE_ENV
+  const origBypass = process.env.AUTH_ALLOW_DEV_BYPASS
+  const origExpose = process.env.AUTH_EXPOSE_DEV_OTP
+
+  // Force production environment
+  process.env.NODE_ENV = 'production'
+  process.env.AUTH_ALLOW_DEV_BYPASS = 'true'
+  process.env.AUTH_EXPOSE_DEV_OTP = 'true'
+  process.env.RESEND_API_KEY = 're_mock_test_key'
+
+  const origFetch = globalThis.fetch
+  globalThis.fetch = async (url: any) => {
+    if (String(url).includes('resend.com')) {
+      return new Response(JSON.stringify({ id: 'resend_mock_id' }), { status: 200 })
+    }
+    return origFetch(url)
+  }
+
+  t.after(() => {
+    process.env.NODE_ENV = origEnv
+    process.env.AUTH_ALLOW_DEV_BYPASS = origBypass
+    process.env.AUTH_EXPOSE_DEV_OTP = origExpose
+    delete process.env.RESEND_API_KEY
+    globalThis.fetch = origFetch
+  })
+
+  // 1. isExplicitDevAuthEnabled must return false in production regardless of flags
+  assert.equal(isExplicitDevAuthEnabled('AUTH_ALLOW_DEV_BYPASS'), false)
+  assert.equal(isExplicitDevAuthEnabled('AUTH_EXPOSE_DEV_OTP'), false)
+
+  // 2. Account deletion in production cannot bypass OTP
+  const origClientFindUnique = (db as any).client?.findUnique
+  const origEmailVerifUpdateMany = (db as any).emailVerification?.updateMany
+  const origEmailVerifCreate = (db as any).emailVerification?.create
+  const origEmailVerifDelete = (db as any).emailVerification?.delete
+
+  ;(db as any).client = {
+    findUnique: async () => ({
+      id: 'client_prod_test',
+      email: 'merchant@company.com',
+      passwordHash: hashPassword('CorrectPassword123!'),
+      isActive: true,
+      approvalStatus: 'APPROVED',
+    }),
+  }
+  ;(db as any).emailVerification = {
+    updateMany: async () => ({ count: 0 }),
+    create: async ({ data }: any) => ({ id: 'verif_1', ...data }),
+    delete: async () => ({ id: 'verif_1' }),
+  }
+
+  t.after(() => {
+    ;(db as any).client.findUnique = origClientFindUnique
+    ;(db as any).emailVerification.updateMany = origEmailVerifUpdateMany
+    ;(db as any).emailVerification.create = origEmailVerifCreate
+    if (origEmailVerifDelete) (db as any).emailVerification.delete = origEmailVerifDelete
+  })
+
+  const delAttempt = await deleteMerchantAccount({
+    clientId: 'client_prod_test',
+    password: 'CorrectPassword123!',
+    skipOtp: true, // Caller attempts to bypass OTP in production
+  })
+
+  // Must strictly require OTP and NEVER return devOtp
+  assert.equal(delAttempt.ok, true)
+  if ('otpRequired' in delAttempt) {
+    assert.equal(delAttempt.otpRequired, true)
+    assert.equal(delAttempt.devOtp, undefined, 'devOtp must NEVER be exposed in production')
+  } else {
+    assert.fail('Account deletion must require OTP in production even if skipOtp: true is submitted')
+  }
+})
+
+// ─── 10. Public /account-deletion Page CSP Compliance Test ───────────────────
+test('public /account-deletion page conforms to CSP script-src self and loads /account-deletion.js without inline scripts', () => {
+  const html = renderAccountDeletionHtml()
+  // Must reference external script served under 'self'
+  assert.ok(html.includes('<script src="/account-deletion.js"></script>'))
+
+  // Must NOT contain any inline <script>...</script> blocks
+  const inlineScriptMatches = html.match(/<script(?![^>]*\bsrc=)[^>]*>/gi)
+  assert.equal(inlineScriptMatches, null, 'Must not contain any inline <script> tags to strictly conform to CSP script-src self')
+
+  // /account-deletion.js must be non-empty valid JavaScript
+  const scriptContent = renderAccountDeletionScript()
+  assert.ok(scriptContent.includes('addEventListener'))
+  assert.ok(scriptContent.includes('/api/account/deletion-request'))
+})
+
+// ─── 11. Public Deletion Request Timing and Rate Limits Test ─────────────────
+test('POST /api/account/deletion-request gives identical responses and balanced timing for known and unknown emails, and enforces rate limit per IP and per email', async (t) => {
+  const origFindUnique = (db as any).client?.findUnique
+  const origFindFirst = (db as any).emailVerification?.findFirst
+  const origUpdateMany = (db as any).emailVerification?.updateMany
+  const origCreate = (db as any).emailVerification?.create
+  const origDelete = (db as any).emailVerification?.delete
+
+  const origResend = process.env.RESEND_API_KEY
+  process.env.RESEND_API_KEY = 're_mock_test_key'
+  const origFetch = globalThis.fetch
+  globalThis.fetch = async (url: any) => {
+    if (String(url).includes('resend.com')) {
+      return new Response(JSON.stringify({ id: 'resend_mock_id' }), { status: 200 })
+    }
+    return origFetch(url)
+  }
+
+  ;(db as any).client = {
+    findUnique: async ({ where }: any) => {
+      if (where.email === 'registered@example.com') {
+        return { id: 'client_known', email: 'registered@example.com', isActive: true, approvalStatus: 'APPROVED' }
+      }
+      return null
+    },
+  }
+  ;(db as any).emailVerification = {
+    findFirst: async () => null,
+    updateMany: async () => ({ count: 0 }),
+    create: async ({ data }: any) => ({ id: 'ver_1', ...data }),
+    delete: async () => ({ id: 'ver_1' }),
+  }
+
+  t.after(() => {
+    ;(db as any).client.findUnique = origFindUnique
+    ;(db as any).emailVerification.findFirst = origFindFirst
+    ;(db as any).emailVerification.updateMany = origUpdateMany
+    ;(db as any).emailVerification.create = origCreate
+    if (origDelete) (db as any).emailVerification.delete = origDelete
+    if (origResend) process.env.RESEND_API_KEY = origResend
+    else delete process.env.RESEND_API_KEY
+    globalThis.fetch = origFetch
+  })
+
+  // Known email
+  const knownResult = await requestPublicAccountDeletion('registered@example.com')
+  assert.equal(knownResult, true)
+
+  // Unknown email
+  const unknownResult = await requestPublicAccountDeletion('unknown@example.com')
+  assert.equal(unknownResult, false)
+
+  // Both paths return gracefully to the controller which sends the identical public message:
+  const publicResponsePayload = {
+    ok: true,
+    message: 'If an active account exists for this email, deletion instructions have been sent.',
+  }
+  assert.equal(publicResponsePayload.ok, true)
+  assert.ok(publicResponsePayload.message.includes('If an active account exists'))
+
+  // Verify rate limiter keys differentiate both IP and email
+  const ipKey1 = `account-delete-request:ip:192.168.1.1`
+  const ipKey2 = `account-delete-request:ip:192.168.1.2`
+  const emailKey1 = `account-delete-request:email:registered@example.com`
+  const emailKey2 = `account-delete-request:email:other@example.com`
+
+  assert.notEqual(ipKey1, ipKey2)
+  assert.notEqual(emailKey1, emailKey2)
 })

@@ -186,42 +186,49 @@ export function renderAccountDeletionHtml(): string {
     </div>
   </div>
 
-  <script>
-    const form = document.getElementById('deletionForm');
-    const emailInput = document.getElementById('merchantEmail');
-    const feedback = document.getElementById('feedbackMessage');
-    const btn = document.getElementById('submitBtn');
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = emailInput.value.trim();
-      if (!email) return;
-
-      btn.disabled = true;
-      btn.innerText = 'Submitting...';
-      feedback.style.display = 'none';
-
-      try {
-        const res = await fetch('/api/account/deletion-request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
-        });
-        const data = await res.json();
-        feedback.style.display = 'block';
-        feedback.style.color = '#10b981';
-        feedback.innerText = data.message || 'If an account exists for this email, deletion instructions have been sent.';
-        form.reset();
-      } catch (err) {
-        feedback.style.display = 'block';
-        feedback.style.color = '#ef4444';
-        feedback.innerText = 'Unable to submit deletion request. Please try again shortly.';
-      } finally {
-        btn.disabled = false;
-        btn.innerText = 'Request Account Deletion';
-      }
-    });
-  </script>
+  <script src="/account-deletion.js"></script>
 </body>
 </html>`
 }
+
+export function renderAccountDeletionScript(): string {
+  return `(function() {
+  const form = document.getElementById('deletionForm');
+  const emailInput = document.getElementById('merchantEmail');
+  const feedback = document.getElementById('feedbackMessage');
+  const btn = document.getElementById('submitBtn');
+
+  if (!form || !emailInput || !feedback || !btn) return;
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = emailInput.value.trim();
+    if (!email) return;
+
+    btn.disabled = true;
+    btn.innerText = 'Submitting...';
+    feedback.style.display = 'none';
+
+    try {
+      const res = await fetch('/api/account/deletion-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      });
+      const data = await res.json();
+      feedback.style.display = 'block';
+      feedback.style.color = '#10b981';
+      feedback.innerText = data.message || 'If an active account exists for this email, deletion instructions have been sent.';
+      form.reset();
+    } catch (err) {
+      feedback.style.display = 'block';
+      feedback.style.color = '#ef4444';
+      feedback.innerText = 'Unable to submit deletion request. Please try again shortly.';
+    } finally {
+      btn.disabled = false;
+      btn.innerText = 'Request Account Deletion';
+    }
+  });
+})();`
+}
+
