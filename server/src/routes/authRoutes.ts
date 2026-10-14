@@ -37,14 +37,14 @@ authRouter.use((_req, res, next) => {
   next()
 })
 
-const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
-const AUTH_PURPOSES = new Set(['MERCHANT_SIGNUP', 'MERCHANT_LOGIN', 'PASSWORD_RESET'])
+export const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
+export const AUTH_PURPOSES = new Set(['MERCHANT_SIGNUP', 'MERCHANT_LOGIN', 'PASSWORD_RESET', 'ACCOUNT_DELETION'])
 
-function isExplicitDevAuthEnabled(flag: 'AUTH_ALLOW_DEV_BYPASS' | 'AUTH_EXPOSE_DEV_OTP'): boolean {
-  return process.env.NODE_ENV === 'development' && process.env[flag] === 'true'
+export function isExplicitDevAuthEnabled(flag: 'AUTH_ALLOW_DEV_BYPASS' | 'AUTH_EXPOSE_DEV_OTP'): boolean {
+  return (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') && process.env[flag] === 'true'
 }
 
-async function issueOtpVerification(email: string, purpose: string) {
+export async function issueOtpVerification(email: string, purpose: string) {
   const now = new Date()
   await db.emailVerification.updateMany({
     where: { email, purpose, consumedAt: null },
