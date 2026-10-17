@@ -38,7 +38,7 @@ authRouter.use((_req, res, next) => {
 })
 
 export const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
-export const AUTH_PURPOSES = new Set(['MERCHANT_SIGNUP', 'MERCHANT_LOGIN', 'PASSWORD_RESET', 'ACCOUNT_DELETION'])
+export const AUTH_PURPOSES = new Set(['MERCHANT_SIGNUP', 'MERCHANT_LOGIN', 'PASSWORD_RESET', 'ACCOUNT_DELETION', 'ACCOUNT_DELETION_PUBLIC'])
 
 export function isExplicitDevAuthEnabled(flag: 'AUTH_ALLOW_DEV_BYPASS' | 'AUTH_EXPOSE_DEV_OTP'): boolean {
   return (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') && process.env[flag] === 'true'

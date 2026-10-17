@@ -210,17 +210,25 @@ export async function sendOtpEmail(input: SendOtpEmailInput): Promise<void> {
 }
 
 function renderOtpText(otp: string, purpose?: string): string {
+  const isDeletion = purpose === 'ACCOUNT_DELETION' || purpose === 'ACCOUNT_DELETION_PUBLIC'
+  const expiryText = purpose === 'ACCOUNT_DELETION_PUBLIC' ? '30 minutes' : '10 minutes'
   return [
     `InstaPay Payment Gateway Verification`,
     ``,
-    `Your verification code is: ${otp}`,
+    isDeletion ? `Your account deletion confirmation code is: ${otp}` : `Your verification code is: ${otp}`,
     ``,
-    `This code will expire in 10 minutes. If you did not request this code, please ignore this email.`,
+    `This code will expire in ${expiryText}. If you did not request this code, please ignore this email.`,
   ].join('\n')
 }
 
 function renderOtpHtml(otp: string, purpose?: string): string {
-  const title = purpose === 'MERCHANT_LOGIN' ? 'Merchant Sign-In Code' : 'Merchant Verification Code'
+  const isDeletion = purpose === 'ACCOUNT_DELETION' || purpose === 'ACCOUNT_DELETION_PUBLIC'
+  const title = isDeletion
+    ? 'Account Deletion Confirmation Code'
+    : purpose === 'MERCHANT_LOGIN'
+    ? 'Merchant Sign-In Code'
+    : 'Merchant Verification Code'
+  const expiryText = purpose === 'ACCOUNT_DELETION_PUBLIC' ? '30 minutes' : '10 minutes'
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -244,7 +252,7 @@ function renderOtpHtml(otp: string, purpose?: string): string {
     </div>
 
     <p style="font-size: 13px; color: #94a3b8; line-height: 1.6; margin: 0 0 16px;">
-      ⏱️ This code is valid for <strong>10 minutes</strong> and can only be used once. Never share this code with anyone.
+      ⏱️ This code is valid for <strong>${expiryText}</strong> and can only be used once. Never share this code with anyone.
     </p>
 
     <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 20px; font-size: 12px; color: #64748b; text-align: center;">

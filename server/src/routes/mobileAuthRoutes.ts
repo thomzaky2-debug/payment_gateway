@@ -107,6 +107,11 @@ mobileAuthRouter.post('/login', mobileLoginLimiter, async (req: Request, res: Re
     }
 
     // ─── MERCHANT / DETECTOR MOBILE LOGIN ────────────────────────────────
+    const cleanDeviceId = typeof deviceId === 'string' ? deviceId.trim() : ''
+    if (!cleanDeviceId) {
+      return res.status(400).json({ ok: false, error: 'deviceId is required for merchant mobile login' })
+    }
+
     const client = await db.client.findUnique({ where: { email: cleanEmail } })
     if (!client || !verifyPassword(password, client.passwordHash)) {
       return res.status(401).json({ ok: false, error: 'Invalid credentials' })

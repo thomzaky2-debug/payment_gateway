@@ -13,11 +13,19 @@ import {
   authenticateByDeviceToken,
 } from './services/deviceService.js'
 import { processInstaPayNotification } from './services/matcherService.js'
-import { deleteMerchantAccount, requestPublicAccountDeletion } from './services/accountService.js'
+import {
+  deleteMerchantAccount,
+  requestPublicAccountDeletion,
+  confirmPublicAccountDeletion,
+  ACCOUNT_RECORD_RETENTION_DAYS,
+  PUBLIC_DELETION_OTP_TTL_MS,
+} from './services/accountService.js'
 import { requireTrustedOrigin } from './middleware/requireTrustedOrigin.js'
 import { getRequestAuthToken } from './middleware/authToken.js'
 import { renderAccountDeletionHtml, renderAccountDeletionScript } from './views/accountDeletionHtml.js'
 import { isExplicitDevAuthEnabled } from './routes/authRoutes.js'
+import { mobileAuthRouter } from './routes/mobileAuthRoutes.js'
+import { accountRouter } from './routes/accountRoutes.js'
 
 process.env.TOKEN_PEPPER = 'test-pepper-0123456789abcdef0123456789'
 process.env.OWNER_SECRET = 'test-owner-secret-0123456789abcdef0123456789'
@@ -960,14 +968,72 @@ test('public /account-deletion page conforms to CSP script-src self and loads /a
   const inlineScriptMatches = html.match(/<script(?![^>]*\bsrc=)[^>]*>/gi)
   assert.equal(inlineScriptMatches, null, 'Must not contain any inline <script> tags to strictly conform to CSP script-src self')
 
-  // /account-deletion.js must be non-empty valid JavaScript
+  // Multi-step elements must be present in HTML
+  assert.ok(html.includes('id="step1"'))
+  assert.ok(html.includes('id="step2"'))
+  assert.ok(html.includes('id="step3"'))
+
+  // /account-deletion.js must be non-empty valid JavaScript referencing deletion endpoints
   const scriptContent = renderAccountDeletionScript()
   assert.ok(scriptContent.includes('addEventListener'))
   assert.ok(scriptContent.includes('/api/account/deletion-request'))
+  assert.ok(scriptContent.includes('/api/account/deletion-confirm'))
 })
 
+// Helper to invoke Express Router middleware directly with mock request/response
+function invokeRouter(
+  router: any,
+  options: { method: string; url: string; body?: any; headers?: Record<string, string>; ip?: string }
+): Promise<{ statusCode: number; body: any; headers: Record<string, string> }> {
+  return new Promise((resolve) => {
+    const resHeaders: Record<string, string> = {}
+    const res: any = {
+      statusCode: 200,
+      headers: resHeaders,
+      setHeader(k: string, v: string) {
+        resHeaders[k.toLowerCase()] = String(v)
+        return this
+      },
+      status(code: number) {
+        this.statusCode = code
+        return this
+      },
+      json(data: any) {
+        this.body = data
+        resolve({ statusCode: this.statusCode, body: this.body, headers: resHeaders })
+        return this
+      },
+      send(data: any) {
+        this.body = data
+        resolve({ statusCode: this.statusCode, body: this.body, headers: resHeaders })
+        return this
+      },
+    }
+    const ip = options.ip || `198.51.100.${Math.floor(Math.random() * 200) + 1}`
+    const reqHeaders: Record<string, string | undefined> = {
+      'content-type': 'application/json',
+      ...(options.headers || {}),
+    }
+    const req: any = {
+      method: options.method,
+      url: options.url,
+      path: options.url,
+      body: options.body || {},
+      headers: reqHeaders,
+      get(header: string) {
+        return reqHeaders[header.toLowerCase()]
+      },
+      ip,
+      socket: { remoteAddress: ip },
+    }
+    router(req, res, (err: any) => {
+      resolve({ statusCode: err ? 500 : 404, body: { error: err ? String(err) : 'Not Found' }, headers: resHeaders })
+    })
+  })
+}
+
 // ─── 11. Public Deletion Request Timing and Rate Limits Test ─────────────────
-test('POST /api/account/deletion-request gives identical responses and balanced timing for known and unknown emails, and enforces rate limit per IP and per email', async (t) => {
+test('POST /api/account/deletion-request gives identical responses and balanced timing for known and unknown emails, never awaits SMTP, and enforces rate limit per IP and per email', async (t) => {
   const origFindUnique = (db as any).client?.findUnique
   const origFindFirst = (db as any).emailVerification?.findFirst
   const origUpdateMany = (db as any).emailVerification?.updateMany
@@ -977,8 +1043,11 @@ test('POST /api/account/deletion-request gives identical responses and balanced 
   const origResend = process.env.RESEND_API_KEY
   process.env.RESEND_API_KEY = 're_mock_test_key'
   const origFetch = globalThis.fetch
+
+  // Simulate slow SMTP / network provider: if awaited, this would take 150ms
   globalThis.fetch = async (url: any) => {
     if (String(url).includes('resend.com')) {
+      await new Promise((r) => setTimeout(r, 150))
       return new Response(JSON.stringify({ id: 'resend_mock_id' }), { status: 200 })
     }
     return origFetch(url)
@@ -1010,23 +1079,52 @@ test('POST /api/account/deletion-request gives identical responses and balanced 
     globalThis.fetch = origFetch
   })
 
-  // Known email
-  const knownResult = await requestPublicAccountDeletion('registered@example.com')
-  assert.equal(knownResult, true)
+  // Measure known email via HTTP endpoint
+  const startKnown = Date.now()
+  const resKnown = await invokeRouter(accountRouter, {
+    method: 'POST',
+    url: '/deletion-request',
+    body: { email: 'registered@example.com' },
+    ip: '198.51.100.11',
+  })
+  const durationKnown = Date.now() - startKnown
 
-  // Unknown email
-  const unknownResult = await requestPublicAccountDeletion('unknown@example.com')
-  assert.equal(unknownResult, false)
+  // Measure unknown email via HTTP endpoint
+  const startUnknown = Date.now()
+  const resUnknown = await invokeRouter(accountRouter, {
+    method: 'POST',
+    url: '/deletion-request',
+    body: { email: 'unknown@example.com' },
+    ip: '198.51.100.12',
+  })
+  const durationUnknown = Date.now() - startUnknown
 
-  // Both paths return gracefully to the controller which sends the identical public message:
-  const publicResponsePayload = {
+  // 1. Both return HTTP 200
+  assert.equal(resKnown.statusCode, 200)
+  assert.equal(resUnknown.statusCode, 200)
+
+  // 2. Both return identical response body
+  const expectedPayload = {
     ok: true,
     message: 'If an active account exists for this email, deletion instructions have been sent.',
   }
-  assert.equal(publicResponsePayload.ok, true)
-  assert.ok(publicResponsePayload.message.includes('If an active account exists'))
+  assert.deepEqual(resKnown.body, expectedPayload)
+  assert.deepEqual(resUnknown.body, expectedPayload)
 
-  // Verify rate limiter keys differentiate both IP and email
+  // 3. SMTP must NOT be awaited in the request cycle (should complete far faster than 150ms mock SMTP delay)
+  assert.ok(
+    durationKnown < 100,
+    `Known email request handler must not await SMTP (took ${durationKnown}ms, expected < 100ms)`
+  )
+
+  // 4. Uniform timing: difference between known and unknown must be small with generous tolerance
+  const timingDifference = Math.abs(durationKnown - durationUnknown)
+  assert.ok(
+    timingDifference < 50,
+    `Duration difference (${timingDifference}ms) between known (${durationKnown}ms) and unknown (${durationUnknown}ms) must be under 50ms`
+  )
+
+  // 5. Verify rate limiter keys differentiate both IP and email
   const ipKey1 = `account-delete-request:ip:192.168.1.1`
   const ipKey2 = `account-delete-request:ip:192.168.1.2`
   const emailKey1 = `account-delete-request:email:registered@example.com`
@@ -1035,3 +1133,389 @@ test('POST /api/account/deletion-request gives identical responses and balanced 
   assert.notEqual(ipKey1, ipKey2)
   assert.notEqual(emailKey1, emailKey2)
 })
+
+// ─── 12. Require deviceId at Mobile Login ─────────────────────────────────────
+test('POST /api/auth/mobile/login requires deviceId for MERCHANT and permits omission for OWNER/admin', async (t) => {
+  const origFindUnique = (db as any).client?.findUnique
+  const origAuthSession = (db as any).authSession
+  const origAdminPassword = process.env.ADMIN_PASSWORD
+  const origAdminEmail = process.env.ADMIN_EMAIL
+  const origAdminTotpSecret = process.env.ADMIN_TOTP_SECRET
+
+  process.env.ADMIN_PASSWORD = 'admin-secret-password-123!'
+  process.env.ADMIN_EMAIL = 'admin@nilepay.internal'
+  delete process.env.ADMIN_TOTP_SECRET // In test mode without totp secret, test bypass is permitted
+
+  ;(db as any).client = {
+    findUnique: async ({ where }: any) => {
+      if (where.email === 'merchant_device_test@example.com') {
+        return {
+          id: 'client_dev_test',
+          email: 'merchant_device_test@example.com',
+          passwordHash: hashPassword('ValidMerchantPassword123!'),
+          isActive: true,
+          approvalStatus: 'APPROVED',
+        }
+      }
+      return null
+    },
+  }
+
+  ;(db as any).authSession = {
+    create: async ({ data }: any) => ({
+      id: 'sess_admin_test_1',
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      revokedAt: null,
+      rotatedAt: null,
+    }),
+  }
+
+  t.after(() => {
+    ;(db as any).client.findUnique = origFindUnique
+    ;(db as any).authSession = origAuthSession
+    if (origAdminPassword) process.env.ADMIN_PASSWORD = origAdminPassword
+    else delete process.env.ADMIN_PASSWORD
+    if (origAdminEmail) process.env.ADMIN_EMAIL = origAdminEmail
+    else delete process.env.ADMIN_EMAIL
+    if (origAdminTotpSecret) process.env.ADMIN_TOTP_SECRET = origAdminTotpSecret
+    else delete process.env.ADMIN_TOTP_SECRET
+  })
+
+  // 1. Merchant login without deviceId must return 400
+  const missingDeviceRes = await invokeRouter(mobileAuthRouter, {
+    method: 'POST',
+    url: '/login',
+    body: {
+      email: 'merchant_device_test@example.com',
+      password: 'ValidMerchantPassword123!',
+      // deviceId omitted
+    },
+  })
+  assert.equal(missingDeviceRes.statusCode, 400)
+  assert.equal(missingDeviceRes.body.ok, false)
+  assert.equal(missingDeviceRes.body.error, 'deviceId is required for merchant mobile login')
+
+  // 2. Merchant login with empty/whitespace deviceId must return 400
+  const emptyDeviceRes = await invokeRouter(mobileAuthRouter, {
+    method: 'POST',
+    url: '/login',
+    body: {
+      email: 'merchant_device_test@example.com',
+      password: 'ValidMerchantPassword123!',
+      deviceId: '   ',
+    },
+  })
+  assert.equal(emptyDeviceRes.statusCode, 400)
+  assert.equal(emptyDeviceRes.body.ok, false)
+  assert.equal(emptyDeviceRes.body.error, 'deviceId is required for merchant mobile login')
+
+  // 3. Merchant login with deviceId succeeds past device validation (reaches OTP step)
+  const validDeviceRes = await invokeRouter(mobileAuthRouter, {
+    method: 'POST',
+    url: '/login',
+    body: {
+      email: 'merchant_device_test@example.com',
+      password: 'ValidMerchantPassword123!',
+      deviceId: 'detector-android-uuid-456',
+    },
+  })
+  // Should NOT be 400 (it issues OTP with 200 or returns OTP challenge)
+  assert.notEqual(validDeviceRes.statusCode, 400)
+
+  // 4. OWNER/Admin login may omit deviceId
+  const adminRes = await invokeRouter(mobileAuthRouter, {
+    method: 'POST',
+    url: '/login',
+    body: {
+      email: 'admin@nilepay.internal',
+      password: 'admin-secret-password-123!',
+      appType: 'admin',
+      skipOtp: true,
+      // deviceId omitted
+    },
+  })
+  assert.equal(adminRes.statusCode, 200)
+  assert.equal(adminRes.body.ok, true)
+  assert.equal(adminRes.body.role, 'admin')
+  assert.ok(adminRes.body.accessToken)
+})
+
+// ─── 13. Public Account Deletion End-to-End Flow ──────────────────────────────
+test('public account deletion: stores single-use ACCOUNT_DELETION_PUBLIC code with 30-min TTL, isolates in-app codes, locks after 5 wrong attempts, and completely scrubs account on confirm', async (t) => {
+  const origClient = (db as any).client
+  const origVerification = (db as any).emailVerification
+  const origSession = (db as any).authSession
+  const origDevice = (db as any).detectorDevice
+  const origWebhook = (db as any).webhookLog
+
+  const targetEmail = 'merchant_public_delete@example.com'
+  let clientRecord: any = {
+    id: 'client_pub_del_1',
+    email: targetEmail,
+    firstName: 'Mohamed',
+    lastName: 'Kamel',
+    businessName: 'Kamel Store',
+    businessType: 'Retail',
+    whatsappNumber: '+201012345678',
+    apiKey: 'key_123',
+    apiKeyHash: 'hash_123',
+    detectToken: 'dt_123',
+    detectTokenHash: 'dthash_123',
+    webhookUrl: 'https://kamel.example.com/webhook',
+    webhookSecret: 'whsec_123',
+    webhookSecretHash: 'whsechash_123',
+    instapayHandle: 'kamel@instapay',
+    instapayPaymentUrl: 'https://instapay.eg/pay/kamel',
+    isActive: true,
+    approvalStatus: 'APPROVED',
+    passwordHash: hashPassword('SecretMerchantPassword123!'),
+    deletedAt: null,
+  }
+
+  // Pre-existing in-app OTP verification record (should NEVER be invalidated by public flow)
+  const verifications: any[] = [
+    {
+      id: 'ver_in_app',
+      email: targetEmail,
+      purpose: 'ACCOUNT_DELETION',
+      otpHash: 'dummy_in_app_hash',
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      attempts: 0,
+      consumedAt: null,
+      createdAt: new Date(),
+    },
+  ]
+
+  const sessions = [
+    { id: 'sess_1', clientId: 'client_pub_del_1', revokedAt: null },
+    { id: 'sess_2', clientId: 'client_pub_del_1', revokedAt: null },
+  ]
+  const devices = [
+    { id: 'dev_1', clientId: 'client_pub_del_1', revokedAt: null },
+  ]
+  const webhooks = [
+    {
+      id: 'wh_1',
+      clientId: 'client_pub_del_1',
+      url: 'https://kamel.example.com/webhook',
+      payload: '{"secret":"personal_data"}',
+      isSuccess: false,
+      nextAttemptAt: new Date(),
+    },
+  ]
+
+  ;(db as any).client = {
+    findUnique: async ({ where }: any) => {
+      if (where.email === clientRecord.email || (where.email && clientRecord.email.toLowerCase() === where.email.toLowerCase())) {
+        return clientRecord
+      }
+      if (where.id === clientRecord.id) {
+        return clientRecord
+      }
+      return null
+    },
+    update: async ({ where, data }: any) => {
+      if (where.id === clientRecord.id) {
+        clientRecord = { ...clientRecord, ...data }
+        return clientRecord
+      }
+      return null
+    },
+  }
+
+  ;(db as any).emailVerification = {
+    findFirst: async ({ where }: any) => {
+      const matches = verifications.filter((v) => {
+        if (where.email && v.email !== where.email) return false
+        if (where.purpose && v.purpose !== where.purpose) return false
+        if (where.consumedAt === null && v.consumedAt !== null) return false
+        return true
+      })
+      return matches.length > 0 ? matches[matches.length - 1] : null
+    },
+    updateMany: async ({ where, data }: any) => {
+      let count = 0
+      for (const v of verifications) {
+        let match = true
+        if (where.id && v.id !== where.id) match = false
+        if (where.email && v.email !== where.email) match = false
+        if (where.purpose && v.purpose !== where.purpose) match = false
+        if (where.consumedAt === null && v.consumedAt !== null) match = false
+        if (where.otpHash && v.otpHash !== where.otpHash) match = false
+        if (where.attempts?.lt !== undefined && v.attempts >= where.attempts.lt) match = false
+        if (where.expiresAt?.gt && v.expiresAt <= where.expiresAt.gt) match = false
+        if (match) {
+          Object.assign(v, data)
+          count++
+        }
+      }
+      return { count }
+    },
+    update: async ({ where, data }: any) => {
+      const v = verifications.find((item) => item.id === where.id)
+      if (v) {
+        if (data.attempts?.increment) {
+          v.attempts += data.attempts.increment
+        } else {
+          Object.assign(v, data)
+        }
+      }
+      return v
+    },
+    create: async ({ data }: any) => {
+      const created = { id: `ver_${verifications.length + 1}`, attempts: 0, consumedAt: null, createdAt: new Date(), ...data }
+      verifications.push(created)
+      return created
+    },
+  }
+
+  ;(db as any).authSession = {
+    updateMany: async ({ where, data }: any) => {
+      let count = 0
+      for (const s of sessions) {
+        if (where.clientId === s.clientId && (where.revokedAt === null ? s.revokedAt === null : true)) {
+          Object.assign(s, data)
+          count++
+        }
+      }
+      return { count }
+    },
+  }
+
+  ;(db as any).detectorDevice = {
+    updateMany: async ({ where, data }: any) => {
+      let count = 0
+      for (const d of devices) {
+        if (where.clientId === d.clientId && (where.revokedAt === null ? d.revokedAt === null : true)) {
+          Object.assign(d, data)
+          count++
+        }
+      }
+      return { count }
+    },
+  }
+
+  ;(db as any).webhookLog = {
+    updateMany: async ({ where, data }: any) => {
+      let count = 0
+      for (const w of webhooks) {
+        if (where.clientId === w.clientId) {
+          Object.assign(w, data)
+          count++
+        }
+      }
+      return { count }
+    },
+  }
+
+  t.after(() => {
+    ;(db as any).client = origClient
+    ;(db as any).emailVerification = origVerification
+    ;(db as any).authSession = origSession
+    ;(db as any).detectorDevice = origDevice
+    ;(db as any).webhookLog = origWebhook
+  })
+
+  // 1. Request public deletion
+  const reqResult = await requestPublicAccountDeletion(targetEmail)
+  assert.equal(reqResult, true)
+
+  // Verify created verification record has ACCOUNT_DELETION_PUBLIC and ~30 min TTL
+  const publicVer = verifications.find((v) => v.purpose === 'ACCOUNT_DELETION_PUBLIC')
+  assert.ok(publicVer, 'Must create emailVerification with purpose ACCOUNT_DELETION_PUBLIC')
+  assert.equal(publicVer.consumedAt, null)
+  const ttlMs = publicVer.expiresAt.getTime() - Date.now()
+  assert.ok(ttlMs > 28 * 60 * 1000 && ttlMs <= 30 * 60 * 1000, `TTL must be ~30 min (got ${ttlMs / 1000}s)`)
+  assert.equal(PUBLIC_DELETION_OTP_TTL_MS, 30 * 60 * 1000)
+  assert.equal(ACCOUNT_RECORD_RETENTION_DAYS, 5 * 365)
+
+  // Verify in-app verification code is NOT touched or consumed
+  const inAppVer = verifications.find((v) => v.purpose === 'ACCOUNT_DELETION')
+  assert.equal(inAppVer.consumedAt, null, 'Public deletion request must NOT invalidate in-app ACCOUNT_DELETION code')
+
+  // 2. Test wrong confirmation code: attempts increment and locks after 5 tries
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const wrongRes = await confirmPublicAccountDeletion({ email: targetEmail, code: '000000' })
+    assert.equal(wrongRes.ok, false)
+    if (!wrongRes.ok) {
+      assert.equal(wrongRes.status, 400)
+      assert.ok(wrongRes.error.includes(`${5 - attempt} attempt`), `Should report remaining attempts: ${wrongRes.error}`)
+    }
+  }
+
+  // 5th wrong attempt locks the code
+  const lockRes = await confirmPublicAccountDeletion({ email: targetEmail, code: '000000' })
+  assert.equal(lockRes.ok, false)
+  if (!lockRes.ok) {
+    assert.equal(lockRes.status, 400)
+    assert.ok(lockRes.error.includes('Maximum attempts reached') || lockRes.error.includes('locked'))
+  }
+
+  // 6th attempt is rejected because code is locked
+  const lockedRes = await confirmPublicAccountDeletion({ email: targetEmail, code: '123456' })
+  assert.equal(lockedRes.ok, false)
+  if (!lockedRes.ok) {
+    assert.equal(lockedRes.status, 400)
+    assert.ok(lockedRes.error.includes('locked'))
+  }
+
+  // 3. Issue a fresh code and confirm successfully
+  // Invalidate previous code by requesting anew
+  await requestPublicAccountDeletion(targetEmail)
+  const freshVer = verifications.filter((v) => v.purpose === 'ACCOUNT_DELETION_PUBLIC' && v.consumedAt === null).pop()
+  assert.ok(freshVer)
+
+  // Extract the generated code by checking all 6-digit combinations or setting mock
+  // In our test, we know the hashOtp helper. Let's find matching code or override freshVer.otpHash for a known code:
+  const knownTestCode = '654321'
+  const { hashOtp } = await import('./lib/emailDelivery.js')
+  freshVer.otpHash = hashOtp(targetEmail, knownTestCode)
+
+  // Confirm deletion via HTTP route
+  const confirmHttpRes = await invokeRouter(accountRouter, {
+    method: 'POST',
+    url: '/deletion-confirm',
+    body: {
+      email: targetEmail,
+      code: knownTestCode,
+    },
+  })
+  assert.equal(confirmHttpRes.statusCode, 200)
+  assert.equal(confirmHttpRes.body.ok, true)
+  assert.ok(confirmHttpRes.body.message.includes('Account deleted successfully'))
+
+  // 4. Verify single-use code is consumed
+  assert.ok(freshVer.consumedAt !== null, 'Code must be marked consumed')
+
+  // 5. Verify all active sessions and devices revoked
+  assert.ok(sessions.every((s) => s.revokedAt !== null), 'All sessions must be revoked')
+  assert.ok(devices.every((d) => d.revokedAt !== null), 'All detector devices must be revoked')
+
+  // 6. Verify pending webhooks canceled and payload scrubbed
+  assert.equal(webhooks[0].nextAttemptAt, null)
+  assert.equal(webhooks[0].url, 'https://deleted.local/webhook')
+
+  // 7. Verify personal fields scrubbed on Client record
+  assert.equal(clientRecord.firstName, null)
+  assert.equal(clientRecord.lastName, null)
+  assert.equal(clientRecord.whatsappNumber, null)
+  assert.equal(clientRecord.isActive, false)
+  assert.equal(clientRecord.approvalStatus, 'DELETED')
+  assert.ok(clientRecord.email.startsWith('deleted_'), `Email must be anonymized (got ${clientRecord.email})`)
+  assert.ok(clientRecord.deletedAt instanceof Date)
+
+  // 8. Subsequent login with original credentials fails
+  const postDeleteLoginRes = await invokeRouter(mobileAuthRouter, {
+    method: 'POST',
+    url: '/login',
+    body: {
+      email: targetEmail,
+      password: 'SecretMerchantPassword123!',
+      deviceId: 'device-test',
+    },
+  })
+  assert.notEqual(postDeleteLoginRes.statusCode, 200, 'Subsequent login with original email must fail after deletion')
+})
+

@@ -3,16 +3,16 @@ import { requireMerchant } from '../middleware/requireMerchant.js'
 import {
   deleteMerchantAccount,
   requestPublicAccountDeletion,
+  confirmPublicAccountDeletion,
 } from '../services/accountService.js'
 import { clearMerchantSessionCookie } from '../lib/authCookies.js'
 import { getRequestIp } from '../middleware/authToken.js'
 import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { renderAccountDeletionHtml } from '../views/accountDeletionHtml.js'
+import { normalizeEmail } from '../lib/emailDelivery.js'
 
 export const accountRouter = Router()
-
-import { normalizeEmail } from '../lib/emailDelivery.js'
 
 // Rate limiter for account deletion: 5 attempts per 15 min per merchant and IP (fails closed)
 const accountDeletionLimiter = createRateLimiterWithKey(
@@ -41,6 +41,25 @@ const deletionRequestEmailLimiter = createRateLimiterWithKey(
   (req) => {
     const rawEmail = typeof req.body?.email === 'string' ? req.body.email : 'missing'
     return `account-delete-request:email:${normalizeEmail(rawEmail).slice(0, 320)}`
+  }
+)
+
+// Public rate limiter for deletion confirmations: 10 per 15 min per IP
+const deletionConfirmIpLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  10,
+  'Too many confirmation attempts from this network. Please try again later.',
+  (req) => `account-delete-confirm:ip:${getRequestIp(req)}`
+)
+
+// Public rate limiter for deletion confirmations: 5 per 15 min per email
+const deletionConfirmEmailLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  5,
+  'Too many confirmation attempts for this email address. Please try again later.',
+  (req) => {
+    const rawEmail = typeof req.body?.email === 'string' ? req.body.email : 'missing'
+    return `account-delete-confirm:email:${normalizeEmail(rawEmail).slice(0, 320)}`
   }
 )
 
@@ -104,6 +123,34 @@ accountRouter.post(
     return sendInternalError(res, err, 'Deletion request failed')
   }
 })
+
+/**
+ * POST /api/account/deletion-confirm
+ * Public endpoint to confirm account deletion using the 6-digit confirmation code.
+ */
+accountRouter.post(
+  '/deletion-confirm',
+  deletionConfirmIpLimiter,
+  deletionConfirmEmailLimiter,
+  async (req: Request, res: Response) => {
+    try {
+      const { email, code } = req.body
+      if (!email || typeof email !== 'string' || !code || typeof code !== 'string') {
+        return res.status(400).json({ ok: false, error: 'Email and confirmation code are required' })
+      }
+
+      const result = await confirmPublicAccountDeletion({ email, code })
+      if (!result.ok) {
+        const failed = result as { ok: false; error: string; status: number }
+        return res.status(failed.status).json({ ok: false, error: failed.error })
+      }
+
+      return res.json({ ok: true, message: result.message })
+    } catch (err: unknown) {
+      return sendInternalError(res, err, 'Deletion confirmation failed')
+    }
+  }
+)
 
 /**
  * GET /account-deletion
