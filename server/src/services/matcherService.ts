@@ -169,19 +169,22 @@ export async function processInstaPayNotification(
     throw new Error('A payment reference, eventId, or notificationTimestamp is required for replay protection.')
   }
 
-  // Deduplicate on bank reference when available to prevent replay attacks with changed timestamps
+  // Deduplicate on eventId if provided, or bank reference, or identity tuple
+  const cleanEventId = (input.eventId || '').trim()
   const eventKey = crypto
     .createHash('sha256')
     .update(
-      reference
-        ? [client.id, 'bank-ref', reference].join('|')
-        : [
-            client.id,
-            sourceIdentity || 'timestamp-event',
-            senderHandle,
-            String(receivedAmountCents),
-            occurredAt?.toISOString() || '',
-          ].join('|')
+      cleanEventId
+        ? [client.id, 'event-id', cleanEventId].join('|')
+        : reference
+          ? [client.id, 'bank-ref', reference].join('|')
+          : [
+              client.id,
+              sourceIdentity || 'timestamp-event',
+              senderHandle,
+              String(receivedAmountCents),
+              occurredAt?.toISOString() || '',
+            ].join('|')
     )
     .digest('hex')
 
@@ -203,15 +206,15 @@ export async function processInstaPayNotification(
     if (err?.code !== 'P2002') throw err
     const existingEvent = await db.incomingPaymentEvent.findUnique({ where: { eventKey } })
 
-    // If an earlier attempt ALREADY confirmed a checkout, reject as duplicate replay
-    if (existingEvent?.result === 'CONFIRMED') {
+    // If an earlier attempt ALREADY matched or confirmed a checkout, reject as duplicate replay
+    if (existingEvent?.result === 'CONFIRMED' || existingEvent?.sessionId) {
       return {
         ok: true,
         matched: true,
         duplicate: true,
         reason: 'DUPLICATE_NOTIFICATION',
         sessionId: existingEvent.sessionId || undefined,
-        status: 'CONFIRMED',
+        status: existingEvent.result || 'CONFIRMED',
         received: { senderHandle, amountEgp: receivedAmountRounded, reference },
       }
     }

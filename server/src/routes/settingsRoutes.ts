@@ -113,21 +113,47 @@ settingsRouter.get('/sessions', requireMerchant, async (req: Request, res: Respo
     const client = (req as unknown as { client: any }).client
     const credential = getRequestAuthToken(req, MERCHANT_SESSION_COOKIE_NAME)
     const currentTokenHash = credential ? hashToken(credential.token) : null
+    const now = new Date()
     const sessions = await db.authSession.findMany({
-      where: { clientId: client.id, kind: 'MERCHANT', revokedAt: null, expiresAt: { gt: new Date() } },
+      where: {
+        clientId: client.id,
+        kind: 'MERCHANT',
+        revokedAt: null,
+        OR: [
+          { expiresAt: { gt: now } },
+          { refreshExpiresAt: { gt: now } },
+        ],
+      },
       orderBy: { lastSeenAt: 'desc' },
-      select: { id: true, tokenHash: true, userAgent: true, ipAddress: true, createdAt: true, lastSeenAt: true },
+      select: {
+        id: true,
+        tokenHash: true,
+        userAgent: true,
+        ipAddress: true,
+        createdAt: true,
+        lastSeenAt: true,
+        deviceId: true,
+        familyId: true,
+        refreshTokenHash: true,
+      },
     })
 
     return res.json({
       ok: true,
-      sessions: sessions.map(({ tokenHash, userAgent, ipAddress, ...session }) => ({
-        ...session,
-        ...describeSessionUserAgent(userAgent),
-        ipAddress: ipAddress || 'IP unavailable',
-        location: 'Location unavailable',
-        current: Boolean(currentTokenHash && tokenHash === currentTokenHash),
-      })),
+      sessions: sessions.map(({ tokenHash, userAgent, ipAddress, deviceId, familyId, refreshTokenHash, ...session }) => {
+        const uaDesc = describeSessionUserAgent(userAgent)
+        const isMobile = Boolean(deviceId || refreshTokenHash)
+        return {
+          ...session,
+          device: deviceId ? `Mobile (${deviceId})` : (isMobile ? 'Android / Mobile device' : uaDesc.device),
+          browser: isMobile ? 'NilePay Mobile App' : uaDesc.browser,
+          deviceId: deviceId || null,
+          isMobile,
+          ipAddress: ipAddress || 'IP unavailable',
+          location: 'Location unavailable',
+          current: Boolean(currentTokenHash && tokenHash === currentTokenHash),
+        }
+      }),
     })
   } catch (err: unknown) {
     return sendInternalError(res, err, 'Failed to retrieve active sessions')
@@ -140,11 +166,34 @@ settingsRouter.delete('/sessions/:id', requireMerchant, async (req: Request, res
     const credential = getRequestAuthToken(req, MERCHANT_SESSION_COOKIE_NAME)
     const currentTokenHash = credential ? hashToken(credential.token) : null
     const id = String(req.params.id)
-    const result = await db.authSession.updateMany({
-      where: { id, clientId: client.id, kind: 'MERCHANT', revokedAt: null, ...(currentTokenHash ? { tokenHash: { not: currentTokenHash } } : {}) },
-      data: { revokedAt: new Date() },
+
+    const targetSession = await db.authSession.findFirst({
+      where: {
+        id,
+        clientId: client.id,
+        kind: 'MERCHANT',
+        revokedAt: null,
+        ...(currentTokenHash ? { tokenHash: { not: currentTokenHash } } : {}),
+      },
     })
-    if (!result.count) return res.status(404).json({ ok: false, error: 'Session was not found or cannot be revoked.' })
+
+    if (!targetSession) {
+      return res.status(404).json({ ok: false, error: 'Session was not found or cannot be revoked.' })
+    }
+
+    const revokedAt = new Date()
+    if (targetSession.familyId) {
+      await db.authSession.updateMany({
+        where: { familyId: targetSession.familyId, clientId: client.id },
+        data: { revokedAt },
+      })
+    } else {
+      await db.authSession.update({
+        where: { id: targetSession.id },
+        data: { revokedAt },
+      })
+    }
+
     return res.json({ ok: true })
   } catch (err: unknown) {
     return sendInternalError(res, err, 'Failed to revoke session')
