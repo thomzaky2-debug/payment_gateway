@@ -71,6 +71,9 @@ jobs:
       - name: Run Unit & Policy Tests (test:auth)
         run: npm run test:auth
 
+      - name: Run Real Database Integration Tests (test:integration)
+        run: npm run test:integration
+
       - name: Run TypeScript Typecheck
         run: npm run typecheck
 

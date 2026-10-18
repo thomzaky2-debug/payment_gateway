@@ -690,7 +690,7 @@ test('account deletion anonymizes merchant PII, cancels webhooks, and preserves 
   ;(db as any).transaction = { updateMany: async () => ({ count: 0 }) }
   ;(db as any).emailVerification = { deleteMany: async () => ({ count: 0 }) }
   ;(db as any).merchantNotification = { deleteMany: async () => ({ count: 0 }) }
-  ;(db as any).auditLog = { findMany: async () => [], update: async () => ({}) }
+  ;(db as any).auditLog = { findMany: async () => [], update: async () => ({}), create: async () => ({}) }
   ;(db as any).specialOffer = { updateMany: async () => ({ count: 0 }) }
 
   ;(db as any).client = {
@@ -721,6 +721,11 @@ test('account deletion anonymizes merchant PII, cancels webhooks, and preserves 
   }
 
   ;(db as any).detectorDevice = {
+    findMany: async () => [{ id: 'dev_1' }, { id: 'dev_2' }],
+    update: async () => {
+      revokedDevices++
+      return {}
+    },
     updateMany: async () => {
       revokedDevices += 2
       return { count: 2 }
@@ -2009,6 +2014,11 @@ test('performAccountDataScrub eliminates original email, name, phone, and IP acr
       if (idx !== -1) auditLogTable[idx] = { ...auditLogTable[idx], ...data }
       return auditLogTable[idx]
     },
+    create: async ({ data }: any) => {
+      const entry = { id: `aud_${Date.now()}_${Math.random()}`, ...data }
+      auditLogTable.push(entry)
+      return entry
+    },
   }
   ;(db as any).webhookLog = {
     updateMany: async ({ where, data }: any) => {
@@ -2035,6 +2045,13 @@ test('performAccountDataScrub eliminates original email, name, phone, and IP acr
     },
   }
   ;(db as any).mismatchedPayment = {
+    count: async ({ where }: any) => {
+      return mismatchedTable.filter((m) => {
+        if (where?.clientId && m.clientId !== where.clientId) return false
+        if (where?.status && m.status !== where.status) return false
+        return true
+      }).length
+    },
     updateMany: async ({ where, data }: any) => {
       let count = 0
       for (const m of mismatchedTable) {
@@ -2117,11 +2134,14 @@ test('deleteMerchantAccount refuses deletion with HTTP 409 when merchant has uns
   const origTx = (db as any).transaction
   const origVer = (db as any).emailVerification
   const origNotif = (db as any).merchantNotification
+  const origAudit = (db as any).auditLog
+  const origOffer = (db as any).specialOffer
   const orig$transaction = (db as any).$transaction
   ;(db as any).$transaction = async (fn: any) => fn(db)
 
-  let hasUnmatched = true
-  let hasInFlight = false
+  let hasUnmatched = false
+  let hasInFlight = true
+  const createdAuditLogs: any[] = []
 
   ;(db as any).client = {
     findUnique: async () => ({
@@ -2134,16 +2154,32 @@ test('deleteMerchantAccount refuses deletion with HTTP 409 when merchant has uns
     update: async ({ where, data }: any) => ({ id: where.id, ...data }),
   }
 
-  ;(db as any).mismatchedPayment = {
-    count: async ({ where }: any) => (where.status === 'UNMATCHED' && hasUnmatched ? 1 : 0),
-  }
-
   ;(db as any).incomingPaymentEvent = {
-    count: async ({ where }: any) => (where.result === 'PROCESSING' && hasInFlight ? 1 : 0),
+    count: async ({ where }: any) => (where?.result === 'PROCESSING' && hasInFlight ? 1 : 0),
+    updateMany: async () => ({ count: 0 }),
   }
 
+  ;(db as any).mismatchedPayment = {
+    count: async ({ where }: any) => (where?.status === 'UNMATCHED' && hasUnmatched ? 1 : 0),
+    updateMany: async () => ({ count: 0 }),
+  }
+
+  ;(db as any).auditLog = {
+    findMany: async () => [],
+    update: async () => ({}),
+    create: async ({ data }: any) => {
+      createdAuditLogs.push(data)
+      return { id: 'aud_' + createdAuditLogs.length, ...data }
+    },
+  }
+
+  ;(db as any).specialOffer = { updateMany: async () => ({ count: 0 }) }
   ;(db as any).authSession = { updateMany: async () => ({ count: 0 }) }
-  ;(db as any).detectorDevice = { updateMany: async () => ({ count: 0 }), findMany: async () => [] }
+  ;(db as any).detectorDevice = {
+    updateMany: async () => ({ count: 0 }),
+    findMany: async () => [],
+    update: async () => ({}),
+  }
   ;(db as any).webhookLog = { updateMany: async () => ({ count: 0 }) }
   ;(db as any).transaction = { updateMany: async () => ({ count: 0 }) }
   ;(db as any).emailVerification = { deleteMany: async () => ({ count: 0 }) }
@@ -2159,11 +2195,13 @@ test('deleteMerchantAccount refuses deletion with HTTP 409 when merchant has uns
     ;(db as any).transaction = origTx
     ;(db as any).emailVerification = origVer
     ;(db as any).merchantNotification = origNotif
+    ;(db as any).auditLog = origAudit
+    ;(db as any).specialOffer = origOffer
     if (orig$transaction) (db as any).$transaction = orig$transaction
     else delete (db as any).$transaction
   })
 
-  // 1. Refusal with 409 when unmatched payments exist
+  // 1. Refusal with 409 when in-flight payment event (PROCESSING) exists
   const res1 = await deleteMerchantAccount({
     clientId: 'client_with_funds',
     password: 'ValidPass123!',
@@ -2172,26 +2210,26 @@ test('deleteMerchantAccount refuses deletion with HTTP 409 when merchant has uns
   assert.equal(res1.ok, false)
   if (!res1.ok) {
     assert.equal(res1.status, 409)
-    assert.match(res1.error, /unsettled funds|unmatched payment/i)
+    assert.match(res1.error, /processing completes|retry later/i)
   }
 
-  // 2. Resolve unmatched payments, but in-flight processing exists
-  hasUnmatched = false
-  hasInFlight = true
+  // 2. Unmatched payments do NOT block deletion; they are retained and flagged for admin review
+  hasInFlight = false
+  hasUnmatched = true
 
   const res2 = await deleteMerchantAccount({
     clientId: 'client_with_funds',
     password: 'ValidPass123!',
     skipOtp: true,
   })
-  assert.equal(res2.ok, false)
-  if (!res2.ok) {
-    assert.equal(res2.status, 409)
-    assert.match(res2.error, /settlements.*in progress/i)
-  }
+  assert.equal(res2.ok, true)
+  assert.ok(
+    createdAuditLogs.some((l) => l.action === 'MERCHANT_DELETION_UNMATCHED_PAYMENTS_FLAGGED'),
+    'Must log audit entry flagging UNMATCHED payments for admin review'
+  )
 
-  // 3. When settlements are resolved, deletion proceeds
-  hasInFlight = false
+  // 3. Clean account with neither in-flight nor unmatched proceeds normally
+  hasUnmatched = false
   const res3 = await deleteMerchantAccount({
     clientId: 'client_with_funds',
     password: 'ValidPass123!',
