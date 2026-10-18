@@ -134,11 +134,7 @@ accountRouter.post(
   deletionConfirmEmailLimiter,
   async (req: Request, res: Response) => {
     try {
-      const { email, code } = req.body
-      if (!email || typeof email !== 'string' || !code || typeof code !== 'string') {
-        return res.status(400).json({ ok: false, error: 'Email and confirmation code are required' })
-      }
-
+      const { email, code } = req.body || {}
       const result = await confirmPublicAccountDeletion({ email, code })
       if (!result.ok) {
         const failed = result as { ok: false; error: string; status: number }

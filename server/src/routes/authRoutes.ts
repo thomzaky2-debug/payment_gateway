@@ -28,6 +28,7 @@ import { sendInternalError } from '../lib/safeError.js'
 import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
 import { normalizeEgyptianMobileNumber } from '../lib/phoneValidation.js'
 import { parseInstaPayPaymentLink } from '../lib/instapayPaymentLink.js'
+import { isWithinDeletionGracePeriod, cancelPublicDeletionRequest } from '../services/accountService.js'
 
 export const authRouter = Router()
 
@@ -282,7 +283,9 @@ authRouter.post('/login', credentialAttemptLimiter, async (req: Request, res: Re
       return res.status(401).json({ ok: false, error: 'Invalid email or password' })
     }
 
-    if (!isApprovedActiveMerchant(client)) {
+    const isPendingDeletion = isWithinDeletionGracePeriod(client)
+
+    if (!isApprovedActiveMerchant(client) && !isPendingDeletion) {
       if (client.approvalStatus === 'PENDING') {
         return res.status(403).json({
           ok: false,
@@ -325,6 +328,12 @@ authRouter.post('/login', credentialAttemptLimiter, async (req: Request, res: Re
     // Ensure all integration tokens exist for approved merchant
     if (client.approvalStatus === 'APPROVED') {
       await ensureMerchantIntegrationTokens(client)
+    }
+
+    if (isPendingDeletion) {
+      await cancelPublicDeletionRequest(client.id)
+      client.isActive = true
+      client.deletionRequestedAt = null
     }
 
     // Sign session token

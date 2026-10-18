@@ -11,6 +11,7 @@ import path from 'path'
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
 import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanupWorker.js'
+import { startRetentionPurgeWorker, stopRetentionPurgeWorker } from './workers/retentionPurgeWorker.js'
 import { syncApprovedMerchantsTokens, migratePlaintextCredentialsAtRest } from './services/authService.js'
 import { safeErrorMessage } from './lib/safeError.js'
 import { parseTrustProxy } from './lib/proxyTrust.js'
@@ -135,6 +136,7 @@ initSocketIO(server, allowedOrigins)
 // ─── Initialize Background Webhook Retry Worker ────────────────────
 startWebhookRetryWorker(30000) // Poll every 30 seconds
 startOtpCleanupWorker(60 * 60 * 1000) // Cleanup expired OTPs every hour
+startRetentionPurgeWorker(24 * 60 * 60 * 1000) // Daily retention purge and deferred deletions
 
 // ─── Auto-Sync Integration Tokens for Approved Merchants ───────────
 syncApprovedMerchantsTokens().catch((err) => console.warn('[Startup] Token sync warning:', err))
@@ -230,6 +232,7 @@ process.on('SIGINT', () => {
   console.log('\n[Server] Shutting down gracefully...')
   stopWebhookRetryWorker()
   stopOtpCleanupWorker()
+  stopRetentionPurgeWorker()
   server.close(() => {
     console.log('[Server] Closed HTTP & Socket.IO server')
     process.exit(0)
@@ -239,6 +242,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   stopWebhookRetryWorker()
   stopOtpCleanupWorker()
+  stopRetentionPurgeWorker()
   server.close(() => {
     process.exit(0)
   })

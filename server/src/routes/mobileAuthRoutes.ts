@@ -18,6 +18,7 @@ import { verifyTotp } from '../lib/totp.js'
 import { getRequestIp, getRequestAuthToken } from '../middleware/authToken.js'
 import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
 import { isExplicitDevAuthEnabled, issueOtpVerification, OTP_TTL_MS } from './authRoutes.js'
+import { cancelPublicDeletionRequest, isWithinDeletionGracePeriod } from '../services/accountService.js'
 import { sendInternalError } from '../lib/safeError.js'
 
 export const mobileAuthRouter = Router()
@@ -117,7 +118,12 @@ mobileAuthRouter.post('/login', mobileLoginLimiter, async (req: Request, res: Re
       return res.status(401).json({ ok: false, error: 'Invalid credentials' })
     }
 
-    if (!client.isActive || client.approvalStatus !== 'APPROVED') {
+    // Grace-period cancellation: if the account is deactivated due to a pending
+    // public deletion (approvalStatus still APPROVED, deletionRequestedAt is in the future),
+    // allow the merchant to log in, which cancels the deletion request.
+    const isPendingDeletion = isWithinDeletionGracePeriod(client)
+
+    if (!client.isActive && !isPendingDeletion) {
       return res.status(403).json({
         ok: false,
         error:
@@ -150,8 +156,13 @@ mobileAuthRouter.post('/login', mobileLoginLimiter, async (req: Request, res: Re
       }
     }
 
-    // Ensure merchant tokens exist for approved merchant
-    const provisioned = await ensureMerchantIntegrationTokens(client)
+    // Ensure merchant tokens exist for approved merchant.
+    // If the merchant is logging in during the 72-h grace period, cancel the deletion.
+    let provisioned = await ensureMerchantIntegrationTokens(client)
+    if (isPendingDeletion) {
+      await cancelPublicDeletionRequest(client.id)
+      provisioned = await ensureMerchantIntegrationTokens({ ...provisioned, isActive: true })
+    }
 
     // Create rotating mobile session
     const session = await createMobileSession({
