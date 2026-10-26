@@ -38,6 +38,7 @@ jobs:
       SUPERADMIN_KEY: ci_superadmin_test_key_minimum_32_characters_long
       TOKEN_PEPPER: ci_deterministic_token_pepper_value_32_chars
       CREDENTIAL_ENCRYPTION_KEY: ci_credential_encryption_aes256_key_32_chars!
+      OWNER_SECRET: ci_owner_secret_test_value_32_chars_long!
       ADMIN_PASSWORD: ci_admin_test_password_secure_1234
       ADMIN_EMAIL: admin@testgateway.internal
       ADMIN_TOTP_SECRET: JBSWY3DPEHPK3PXP
@@ -70,6 +71,9 @@ jobs:
 
       - name: Run Unit & Policy Tests (test:auth)
         run: npm run test:auth
+
+      - name: Run Real Database Integration Tests (test:integration)
+        run: npm run test:integration
 
       - name: Run TypeScript Typecheck
         run: npm run typecheck

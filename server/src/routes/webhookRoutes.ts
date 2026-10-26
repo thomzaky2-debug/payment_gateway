@@ -1,15 +1,19 @@
 import { Router, Request, Response } from 'express'
 import { authenticateByDetectToken } from '../services/authService.js'
+import { authenticateByDeviceToken } from '../services/deviceService.js'
 import { processInstaPayNotification } from '../services/matcherService.js'
 import { getRequestIp } from '../middleware/authToken.js'
 import { safeErrorMessage } from '../lib/safeError.js'
+import type { Client } from '@prisma/client'
 
 export const webhookRouter = Router()
 
 /**
  * Android Detector Webhook Ingestion Endpoint
  *
- * The companion Android Detector APK sends receipt notifications here.
+ * Accepts either:
+ * 1. Per-device credentials (deviceToken) via Authorization: Bearer npdt_...
+ * 2. Legacy shared detectToken until LEGACY_DETECT_TOKEN_SUNSET date.
  */
 webhookRouter.post('/instapay', async (req: Request, res: Response) => {
   try {
@@ -18,12 +22,48 @@ webhookRouter.post('/instapay', async (req: Request, res: Response) => {
     const token = bearerMatch?.[1]
 
     if (!token) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized. Missing detectToken.' })
+      return res.status(401).json({ ok: false, error: 'Unauthorized. Missing authentication token.' })
     }
 
-    const client = await authenticateByDetectToken(token)
+    let client: Client | null = null
+
+    // 1. Try per-device credential authentication first
+    const deviceAuth = await authenticateByDeviceToken(token, getRequestIp(req))
+    if (deviceAuth.success) {
+      client = deviceAuth.client
+    } else {
+      const failed = deviceAuth as { success: false; error: string }
+      if (failed.error === 'DEVICE_REVOKED') {
+        return res.status(401).json({ ok: false, error: 'Unauthorized. Device is revoked.' })
+      }
+      if (failed.error === 'MERCHANT_INACTIVE') {
+        return res.status(401).json({ ok: false, error: 'Unauthorized. Merchant account is inactive.' })
+      }
+    }
+
+    // 2. If not a device token, evaluate legacy detectToken
     if (!client) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized. Invalid detectToken.' })
+      const legacyClient = await authenticateByDetectToken(token)
+      if (legacyClient) {
+        // Enforce legacy detect token sunset policy:
+        // Before LEGACY_DETECT_TOKEN_SUNSET: legacy token works.
+        // At and after it: legacy token is rejected for every client.
+        const sunsetStr = process.env.LEGACY_DETECT_TOKEN_SUNSET
+        if (sunsetStr) {
+          const sunsetDate = new Date(sunsetStr)
+          if (Number.isFinite(sunsetDate.getTime()) && Date.now() >= sunsetDate.getTime()) {
+            return res.status(401).json({
+              ok: false,
+              error: 'Unauthorized. Legacy detectToken has been sunset. Please use a per-device credential.',
+            })
+          }
+        }
+        client = legacyClient
+      }
+    }
+
+    if (!client) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized. Invalid authentication token.' })
     }
 
     const {

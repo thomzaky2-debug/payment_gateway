@@ -113,7 +113,7 @@ interface LegacyOwnerSessionPayload {
   expiresAt: number
 }
 
-function createOpaqueSessionToken(kind: 'MERCHANT' | 'OWNER'): string {
+export function createOpaqueSessionToken(kind: 'MERCHANT' | 'OWNER'): string {
   const prefix = kind === 'MERCHANT' ? MERCHANT_SESSION_PREFIX : OWNER_SESSION_PREFIX
   return `${prefix}${crypto.randomBytes(32).toString('base64url')}`
 }
@@ -256,7 +256,7 @@ export async function createOwnerSessionToken(metadata?: SessionMetadata): Promi
   return token
 }
 
-function ownerCredentialFingerprint(adminPassword: string): string {
+export function ownerCredentialFingerprint(adminPassword: string): string {
   return hashToken(`owner-credential:${adminPassword}:${process.env.ADMIN_TOTP_SECRET || ''}`)
 }
 

@@ -11,6 +11,7 @@ import path from 'path'
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
 import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanupWorker.js'
+import { startRetentionPurgeWorker, stopRetentionPurgeWorker } from './workers/retentionPurgeWorker.js'
 import { syncApprovedMerchantsTokens, migratePlaintextCredentialsAtRest } from './services/authService.js'
 import { safeErrorMessage } from './lib/safeError.js'
 import { parseTrustProxy } from './lib/proxyTrust.js'
@@ -27,6 +28,10 @@ import { planCatalogRouter, planRouter } from './routes/planRoutes.js'
 import { bundleRouter } from './routes/bundleRoutes.js'
 import { notificationRouter } from './routes/notificationRoutes.js'
 import { apkRouter } from './routes/apkRoutes.js'
+import { mobileAuthRouter } from './routes/mobileAuthRoutes.js'
+import { mobileRouter } from './routes/mobileRoutes.js'
+import { accountRouter } from './routes/accountRoutes.js'
+import { renderAccountDeletionHtml, renderAccountDeletionScript } from './views/accountDeletionHtml.js'
 
 import { createRateLimiter } from './lib/rateLimiter.js'
 import { requireTrustedOrigin } from './middleware/requireTrustedOrigin.js'
@@ -131,6 +136,7 @@ initSocketIO(server, allowedOrigins)
 // ─── Initialize Background Webhook Retry Worker ────────────────────
 startWebhookRetryWorker(30000) // Poll every 30 seconds
 startOtpCleanupWorker(60 * 60 * 1000) // Cleanup expired OTPs every hour
+startRetentionPurgeWorker(24 * 60 * 60 * 1000) // Daily retention purge and deferred deletions
 
 // ─── Auto-Sync Integration Tokens for Approved Merchants ───────────
 syncApprovedMerchantsTokens().catch((err) => console.warn('[Startup] Token sync warning:', err))
@@ -181,6 +187,22 @@ app.get(['/docs', '/api/docs', '/api-docs'], (_req, res) => {
   res.redirect(`${CLIENT_URL}/docs`)
 })
 
+app.get(['/account-deletion', '/deletion-info'], (_req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.send(renderAccountDeletionHtml())
+})
+
+app.get('/account-deletion.js', (_req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+  res.setHeader('Cache-Control', 'public, max-age=3600')
+  res.send(renderAccountDeletionScript())
+})
+
+// Mobile authentication: login and refresh have dedicated limiters; logout is never rate-limited
+app.use('/api/auth/mobile', mobileAuthRouter)
+app.use('/api/mobile', generalApiLimiter, mobileRouter)
+app.use('/api/account', accountRouter)
+
 app.use('/api/auth', authLimiter, authRouter)
 app.use('/api/webhooks', webhookLimiter, webhookRouter)
 app.use('/api/v1/checkout', generalApiLimiter, v1CheckoutRouter)
@@ -210,6 +232,7 @@ process.on('SIGINT', () => {
   console.log('\n[Server] Shutting down gracefully...')
   stopWebhookRetryWorker()
   stopOtpCleanupWorker()
+  stopRetentionPurgeWorker()
   server.close(() => {
     console.log('[Server] Closed HTTP & Socket.IO server')
     process.exit(0)
@@ -219,6 +242,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   stopWebhookRetryWorker()
   stopOtpCleanupWorker()
+  stopRetentionPurgeWorker()
   server.close(() => {
     process.exit(0)
   })

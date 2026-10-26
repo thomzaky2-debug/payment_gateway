@@ -28,6 +28,7 @@ import { sendInternalError } from '../lib/safeError.js'
 import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
 import { normalizeEgyptianMobileNumber } from '../lib/phoneValidation.js'
 import { parseInstaPayPaymentLink } from '../lib/instapayPaymentLink.js'
+import { isWithinDeletionGracePeriod, cancelPublicDeletionRequest } from '../services/accountService.js'
 
 export const authRouter = Router()
 
@@ -37,14 +38,14 @@ authRouter.use((_req, res, next) => {
   next()
 })
 
-const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
-const AUTH_PURPOSES = new Set(['MERCHANT_SIGNUP', 'MERCHANT_LOGIN', 'PASSWORD_RESET'])
+export const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
+export const AUTH_PURPOSES = new Set(['MERCHANT_SIGNUP', 'MERCHANT_LOGIN', 'PASSWORD_RESET', 'ACCOUNT_DELETION', 'ACCOUNT_DELETION_PUBLIC'])
 
-function isExplicitDevAuthEnabled(flag: 'AUTH_ALLOW_DEV_BYPASS' | 'AUTH_EXPOSE_DEV_OTP'): boolean {
-  return process.env.NODE_ENV === 'development' && process.env[flag] === 'true'
+export function isExplicitDevAuthEnabled(flag: 'AUTH_ALLOW_DEV_BYPASS' | 'AUTH_EXPOSE_DEV_OTP'): boolean {
+  return (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') && process.env[flag] === 'true'
 }
 
-async function issueOtpVerification(email: string, purpose: string) {
+export async function issueOtpVerification(email: string, purpose: string) {
   const now = new Date()
   await db.emailVerification.updateMany({
     where: { email, purpose, consumedAt: null },
@@ -282,7 +283,9 @@ authRouter.post('/login', credentialAttemptLimiter, async (req: Request, res: Re
       return res.status(401).json({ ok: false, error: 'Invalid email or password' })
     }
 
-    if (!isApprovedActiveMerchant(client)) {
+    const isPendingDeletion = isWithinDeletionGracePeriod(client)
+
+    if (!isApprovedActiveMerchant(client) && !isPendingDeletion) {
       if (client.approvalStatus === 'PENDING') {
         return res.status(403).json({
           ok: false,
@@ -325,6 +328,12 @@ authRouter.post('/login', credentialAttemptLimiter, async (req: Request, res: Re
     // Ensure all integration tokens exist for approved merchant
     if (client.approvalStatus === 'APPROVED') {
       await ensureMerchantIntegrationTokens(client)
+    }
+
+    if (isPendingDeletion) {
+      await cancelPublicDeletionRequest(client.id)
+      client.isActive = true
+      client.deletionRequestedAt = null
     }
 
     // Sign session token

@@ -94,4 +94,15 @@ export function validateRuntimeConfig() {
     // deployment, true/1 only behind one known reverse proxy hop.
     parseTrustProxy(process.env.TRUST_PROXY, true)
   }
+
+  // Validate ACCOUNT_RECORD_RETENTION_DAYS whenever it is set (local or production).
+  const rawRetention = process.env.ACCOUNT_RECORD_RETENTION_DAYS
+  if (rawRetention !== undefined && rawRetention !== '') {
+    const parsed = parseInt(rawRetention, 10)
+    if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== rawRetention.trim()) {
+      throw new Error(
+        `ACCOUNT_RECORD_RETENTION_DAYS must be a positive integer (got "${rawRetention}")`
+      )
+    }
+  }
 }
