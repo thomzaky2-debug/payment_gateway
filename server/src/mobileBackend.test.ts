@@ -1230,6 +1230,21 @@ test('POST /api/auth/mobile/login requires deviceId for MERCHANT and permits omi
   assert.equal(missingDeviceRes.body.ok, false)
   assert.equal(missingDeviceRes.body.error, 'deviceId is required for merchant mobile login')
 
+  // An explicit merchant appType must win even when ADMIN_EMAIL is the same address.
+  // This prevents the merchant APK from incorrectly demanding the owner's TOTP.
+  const sharedEmailMerchantRes = await invokeRouter(mobileAuthRouter, {
+    method: 'POST',
+    url: '/login',
+    body: {
+      email: 'admin@nilepay.internal',
+      password: 'admin-secret-password-123!',
+      appType: 'merchant',
+      // deviceId omitted intentionally: reaching this validation proves merchant routing.
+    },
+  })
+  assert.equal(sharedEmailMerchantRes.statusCode, 400)
+  assert.equal(sharedEmailMerchantRes.body.error, 'deviceId is required for merchant mobile login')
+
   // 2. Merchant login with empty/whitespace deviceId must return 400
   const emptyDeviceRes = await invokeRouter(mobileAuthRouter, {
     method: 'POST',
@@ -2302,5 +2317,4 @@ test('runDailyRetentionPurge purges retained financial records older than ACCOUN
   // Old row for active merchant was preserved
   assert.ok(transactions.some((t) => t.id === 'tx_old_act'), 'Transactions for active merchant must never be purged')
 })
-
 
