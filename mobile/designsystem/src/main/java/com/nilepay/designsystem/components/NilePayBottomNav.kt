@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -46,6 +47,7 @@ fun NilePayBottomNav(
         modifier = modifier
             .fillMaxWidth()
             .background(NilePayTheme.colors.surface)
+            .navigationBarsPadding()
     ) {
         HorizontalDivider(
             thickness = 1.dp,
