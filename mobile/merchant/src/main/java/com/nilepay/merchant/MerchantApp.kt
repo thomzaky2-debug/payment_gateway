@@ -42,6 +42,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -421,40 +422,7 @@ private fun OverviewScreen(
         if (loading && dashboard == null) {
             NilePaySkeletonCard()
             NilePaySkeletonCard()
-        } else Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MetricCard(
-                label = stringResource(R.string.metric_received_today),
-                value = dashboard?.todayTotalEgp?.toString() ?: "—",
-                supporting = stringResource(R.string.currency_egp),
-                modifier = Modifier.weight(1f)
-            )
-            MetricCard(
-                label = stringResource(R.string.metric_payments_today),
-                value = dashboard?.todayCount?.toString() ?: "—",
-                supporting = stringResource(R.string.payment_count_label),
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        dashboard?.let { snapshot ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard(
-                    label = stringResource(R.string.metric_pending),
-                    value = snapshot.pendingCount.toString(),
-                    supporting = stringResource(R.string.awaiting_confirmation),
-                    modifier = Modifier.weight(1f)
-                )
-                MetricCard(
-                    label = stringResource(R.string.metric_quota),
-                    value = "${snapshot.quotaCount}/${snapshot.quotaLimit}",
-                    supporting = stringResource(R.string.current_plan_usage),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        } else dashboard?.let { DashboardSummaryCard(it) }
 
         SectionTitle(stringResource(R.string.recent_payments))
         if (payments.isEmpty()) NilePayCard {
@@ -513,26 +481,47 @@ private fun DetectorHeroCard(enabled: Boolean, onReviewSetup: () -> Unit) {
 }
 
 @Composable
-private fun MetricCard(label: String, value: String, supporting: String, modifier: Modifier = Modifier) {
-    NilePayCard(modifier = modifier) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                label,
-                style = NilePayTheme.typography.labelMedium,
-                color = NilePayTheme.colors.onSurfaceSecondary,
-                maxLines = 2
+private fun DashboardSummaryCard(snapshot: DashboardSnapshot) {
+    NilePayCard {
+        Column {
+            DashboardMetricRow(
+                label = stringResource(R.string.metric_received_today),
+                detail = stringResource(R.string.received_today_detail),
+                value = { NilePayAmountText(snapshot.todayTotalEgp, size = NilePayAmountSize.Medium) }
             )
-            if (label == stringResource(R.string.metric_received_today)) {
-                if (value == "—") {
-                    Text(value, style = NilePayTheme.typography.amountLarge, color = NilePayTheme.colors.onSurface)
-                } else {
-                    NilePayAmountText(amount = value.toDoubleOrNull() ?: 0.0, size = NilePayAmountSize.Large)
-                }
-            } else {
-                Text(value, style = NilePayTheme.typography.amountLarge, color = NilePayTheme.colors.onSurface)
-            }
-            Text(supporting, style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+            HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
+            DashboardMetricRow(
+                label = stringResource(R.string.metric_payments_today),
+                detail = stringResource(R.string.payment_count_label),
+                value = { Text(snapshot.todayCount.toString(), style = NilePayTheme.typography.amountMedium) }
+            )
+            HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
+            DashboardMetricRow(
+                label = stringResource(R.string.metric_pending),
+                detail = stringResource(R.string.awaiting_confirmation),
+                value = { Text(snapshot.pendingCount.toString(), style = NilePayTheme.typography.amountMedium) }
+            )
+            HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
+            DashboardMetricRow(
+                label = stringResource(R.string.metric_quota),
+                detail = stringResource(R.string.current_plan_usage),
+                value = { Text("${snapshot.quotaCount} / ${snapshot.quotaLimit}", style = NilePayTheme.typography.amountMedium) }
+            )
         }
+    }
+}
+
+@Composable
+private fun DashboardMetricRow(label: String, detail: String, value: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(label, style = NilePayTheme.typography.titleMedium, color = NilePayTheme.colors.onSurface)
+            Text(detail, style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+        }
+        value()
     }
 }
 
@@ -596,25 +585,28 @@ private fun PaymentsScreen(contentPadding: PaddingValues, payments: List<Merchan
 private fun PaymentCard(payment: MerchantPayment) {
     NilePayCard {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.Top) {
                 Box(
                     Modifier.size(40.dp).clip(CircleShape).background(NilePayTheme.colors.surfaceSubtle),
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Filled.Payments, null, tint = NilePayTheme.colors.primary) }
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(payment.sender, style = NilePayTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(payment.sender, style = NilePayTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(payment.createdAt.take(10), style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
                 }
-                NilePayAmountText(payment.amountEgp)
             }
-            NilePayStatusChip(
-                status = when (payment.status) {
-                    "CONFIRMED" -> NilePayStatus.Confirmed
-                    "EXPIRED" -> NilePayStatus.Expired
-                    "FAILED", "REJECTED" -> NilePayStatus.Failed
-                    else -> NilePayStatus.Pending
-                }
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                NilePayStatusChip(
+                    status = when (payment.status) {
+                        "CONFIRMED" -> NilePayStatus.Confirmed
+                        "EXPIRED" -> NilePayStatus.Expired
+                        "FAILED", "REJECTED" -> NilePayStatus.Failed
+                        else -> NilePayStatus.Pending
+                    }
+                )
+                Spacer(Modifier.weight(1f))
+                NilePayAmountText(payment.amountEgp, size = NilePayAmountSize.Medium)
+            }
         }
     }
 }

@@ -18,6 +18,7 @@
     <string name="metric_received_today">Received today</string>
     <string name="metric_payments_today">Payments today</string>
     <string name="currency_egp">EGP</string>
+    <string name="received_today_detail">Confirmed value in EGP</string>
     <string name="payment_count_label">confirmed payments</string>
     <string name="recent_payments">Recent payments</string>
     <string name="no_payments_title">No payments yet</string>
