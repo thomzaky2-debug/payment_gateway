@@ -68,4 +68,16 @@
     <string name="detection_ready_detail">NilePay is listening for supported InstaPay payment notifications.</string>
     <string name="queued_uploads">%1$d queued event(s)</string>
     <string name="attention_uploads">%1$d event(s) need attention</string>
+    <string name="action_refresh">Refresh live data</string>
+    <string name="metric_pending">Pending</string>
+    <string name="awaiting_confirmation">awaiting confirmation</string>
+    <string name="metric_quota">Plan usage</string>
+    <string name="current_plan_usage">transactions used</string>
+    <string name="search_payments">Search sender or payment ID</string>
+    <string name="filter_all">All</string>
+    <string name="filter_confirmed">Confirmed</string>
+    <string name="filter_pending">Pending</string>
+    <string name="filter_expired">Expired</string>
+    <string name="no_matching_payments">No matching payments</string>
+    <string name="change_filters">Try another search or status filter.</string>
 </resources>

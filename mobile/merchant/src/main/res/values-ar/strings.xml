@@ -68,4 +68,16 @@
     <string name="detection_ready_detail">نايل باي يستمع لإشعارات دفع إنستاباي المدعومة.</string>
     <string name="queued_uploads">%1$d حدث في قائمة الانتظار</string>
     <string name="attention_uploads">%1$d حدث يحتاج إلى مراجعة</string>
+    <string name="action_refresh">تحديث البيانات المباشرة</string>
+    <string name="metric_pending">معلّقة</string>
+    <string name="awaiting_confirmation">بانتظار التأكيد</string>
+    <string name="metric_quota">استخدام الباقة</string>
+    <string name="current_plan_usage">معاملات مستخدمة</string>
+    <string name="search_payments">ابحث بالمرسل أو رقم العملية</string>
+    <string name="filter_all">الكل</string>
+    <string name="filter_confirmed">مؤكدة</string>
+    <string name="filter_pending">معلّقة</string>
+    <string name="filter_expired">منتهية</string>
+    <string name="no_matching_payments">لا توجد مدفوعات مطابقة</string>
+    <string name="change_filters">جرّب بحثًا أو حالة مختلفة.</string>
 </resources>
