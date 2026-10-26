@@ -80,4 +80,12 @@
     <string name="filter_expired">Expired</string>
     <string name="no_matching_payments">No matching payments</string>
     <string name="change_filters">Try another search or status filter.</string>
+    <string name="appearance_and_language">Appearance &amp; language</string>
+    <string name="theme_label">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="language_label">Language</string>
+    <string name="language_english">English</string>
+    <string name="language_arabic">العربية</string>
 </resources>

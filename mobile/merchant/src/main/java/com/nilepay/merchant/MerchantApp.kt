@@ -2,9 +2,11 @@ package com.nilepay.merchant
 
 import android.content.Intent
 import android.content.ComponentName
+import android.app.Activity
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -103,12 +105,20 @@ private enum class MerchantDestination(
 fun MerchantApp() {
     val context = LocalContext.current
     val session = remember { MerchantSession(context) }
+    val preferences = remember { MerchantPreferences(context) }
+    var theme by remember { mutableStateOf(preferences.theme) }
     var signedIn by remember { mutableStateOf(session.isSignedIn) }
     var consented by remember { mutableStateOf(session.hasDisclosureConsent) }
 
-    when {
+    val darkTheme = when (theme) {
+        MerchantTheme.System -> isSystemInDarkTheme()
+        MerchantTheme.Light -> false
+        MerchantTheme.Dark -> true
+    }
+    NilePayTheme(darkTheme = darkTheme) {
+        when {
         !signedIn -> LoginScreen(session = session, onSignedIn = { signedIn = true })
-        !consented -> NilePayTheme(darkTheme = true) {
+        !consented -> {
             NilePayDisclosureLayout(
                 onAgree = {
                     session.recordConsent()
@@ -120,16 +130,26 @@ fun MerchantApp() {
         }
         else -> MerchantWorkspace(
             session = session,
+            preferences = preferences,
+            selectedTheme = theme,
+            onThemeChanged = { selected -> preferences.theme = selected; theme = selected },
             onSignOut = {
                 session.signOut()
                 signedIn = false
             }
         )
+        }
     }
 }
 
 @Composable
-private fun MerchantWorkspace(session: MerchantSession, onSignOut: () -> Unit) {
+private fun MerchantWorkspace(
+    session: MerchantSession,
+    preferences: MerchantPreferences,
+    selectedTheme: MerchantTheme,
+    onThemeChanged: (MerchantTheme) -> Unit,
+    onSignOut: () -> Unit
+) {
     val context = LocalContext.current
     var destination by remember { mutableStateOf(MerchantDestination.Overview) }
     var dashboard by remember { mutableStateOf<DashboardSnapshot?>(null) }
@@ -172,7 +192,6 @@ private fun MerchantWorkspace(session: MerchantSession, onSignOut: () -> Unit) {
         loading = false
     }
 
-    NilePayTheme(darkTheme = true) {
         Scaffold(
             containerColor = NilePayTheme.colors.background,
             topBar = {
@@ -226,14 +245,15 @@ private fun MerchantWorkspace(session: MerchantSession, onSignOut: () -> Unit) {
                         notificationAccess = hasNotificationAccess(context)
                     }
                 )
-                MerchantDestination.Settings -> SettingsScreen(contentPadding, session) {
+                MerchantDestination.Settings -> SettingsScreen(
+                    contentPadding, session, preferences, selectedTheme, onThemeChanged
+                ) {
                     kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
                         MobileGatewayClient(session).logout()
                         withContext(Dispatchers.Main) { onSignOut() }
                     }
                 }
             }
-        }
     }
 }
 
@@ -275,28 +295,27 @@ private fun LoginScreen(session: MerchantSession, onSignedIn: () -> Unit) {
         }
     }
 
-    NilePayTheme(darkTheme = true) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(NilePayTheme.colors.background)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 48.dp),
+                .padding(horizontal = 20.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.Center
         ) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(48.dp)
                     .clip(NilePayTheme.shapes.medium)
                     .background(NilePayTheme.colors.primaryGradient),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Filled.Shield, contentDescription = null, tint = NilePayTheme.colors.onPrimary)
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
             Text(
                 stringResource(R.string.login_title),
-                style = NilePayTheme.typography.displayMedium,
+                style = NilePayTheme.typography.headlineLarge,
                 color = NilePayTheme.colors.onBackground
             )
             Text(
@@ -304,7 +323,7 @@ private fun LoginScreen(session: MerchantSession, onSignedIn: () -> Unit) {
                 style = NilePayTheme.typography.bodyLarge,
                 color = NilePayTheme.colors.onSurfaceSecondary
             )
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(20.dp))
             NilePayTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -347,7 +366,6 @@ private fun LoginScreen(session: MerchantSession, onSignedIn: () -> Unit) {
                 style = NilePayTheme.typography.bodySmall,
                 color = NilePayTheme.colors.onSurfaceSecondary
             )
-        }
     }
 }
 
@@ -361,8 +379,8 @@ private fun ScreenColumn(
             .fillMaxSize()
             .padding(contentPadding)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content
     )
 }
@@ -380,7 +398,7 @@ private fun OverviewScreen(
     ScreenColumn(contentPadding) {
         Text(
             text = stringResource(R.string.overview_greeting),
-            style = NilePayTheme.typography.headlineLarge,
+            style = NilePayTheme.typography.headlineMedium,
             color = NilePayTheme.colors.onBackground,
             modifier = Modifier.semantics { heading() }
         )
@@ -714,7 +732,14 @@ private fun HealthCheckRow(icon: ImageVector, title: String, detail: String, hea
 }
 
 @Composable
-private fun SettingsScreen(contentPadding: PaddingValues, session: MerchantSession, onSignOut: () -> Unit) {
+private fun SettingsScreen(
+    contentPadding: PaddingValues,
+    session: MerchantSession,
+    preferences: MerchantPreferences,
+    selectedTheme: MerchantTheme,
+    onThemeChanged: (MerchantTheme) -> Unit,
+    onSignOut: () -> Unit
+) {
     val context = LocalContext.current
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     ScreenColumn(contentPadding) {
@@ -736,6 +761,41 @@ private fun SettingsScreen(contentPadding: PaddingValues, session: MerchantSessi
                     style = NilePayTheme.typography.bodySmall,
                     color = NilePayTheme.colors.onSurfaceSecondary
                 )
+            }
+        }
+        SectionTitle(stringResource(R.string.appearance_and_language))
+        NilePayCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.theme_label), style = NilePayTheme.typography.labelMedium, color = NilePayTheme.colors.onSurfaceSecondary)
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(
+                        MerchantTheme.System to R.string.theme_system,
+                        MerchantTheme.Light to R.string.theme_light,
+                        MerchantTheme.Dark to R.string.theme_dark
+                    ).forEach { (value, label) ->
+                        FilterChip(
+                            selected = selectedTheme == value,
+                            onClick = { onThemeChanged(value) },
+                            label = { Text(stringResource(label)) }
+                        )
+                    }
+                }
+                Text(stringResource(R.string.language_label), style = NilePayTheme.typography.labelMedium, color = NilePayTheme.colors.onSurfaceSecondary)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = preferences.language == "en",
+                        onClick = { preferences.language = "en"; (context as? Activity)?.recreate() },
+                        label = { Text(stringResource(R.string.language_english)) }
+                    )
+                    FilterChip(
+                        selected = preferences.language == "ar",
+                        onClick = { preferences.language = "ar"; (context as? Activity)?.recreate() },
+                        label = { Text(stringResource(R.string.language_arabic)) }
+                    )
+                }
             }
         }
         SettingsRow(Icons.Filled.AccountCircle, stringResource(R.string.profile_and_business), stringResource(R.string.profile_and_business_detail)) {
@@ -768,12 +828,14 @@ private fun SettingsScreen(contentPadding: PaddingValues, session: MerchantSessi
 @Composable
 private fun SettingsRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     NilePayCard(onClick = onClick) {
-        NilePayListRow(
-            title = title,
-            subtitle = subtitle,
-            leading = { Icon(icon, contentDescription = null, tint = NilePayTheme.colors.primary) },
-            trailing = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = NilePayTheme.colors.onSurfaceSecondary) }
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = NilePayTheme.colors.primary, modifier = Modifier.size(28.dp))
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(title, style = NilePayTheme.typography.titleMedium, color = NilePayTheme.colors.onSurface)
+                Text(subtitle, style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = NilePayTheme.colors.onSurfaceSecondary, modifier = Modifier.size(20.dp))
+        }
     }
 }
 

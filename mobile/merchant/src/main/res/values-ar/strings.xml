@@ -80,4 +80,12 @@
     <string name="filter_expired">منتهية</string>
     <string name="no_matching_payments">لا توجد مدفوعات مطابقة</string>
     <string name="change_filters">جرّب بحثًا أو حالة مختلفة.</string>
+    <string name="appearance_and_language">المظهر واللغة</string>
+    <string name="theme_label">السمة</string>
+    <string name="theme_system">النظام</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_dark">داكن</string>
+    <string name="language_label">اللغة</string>
+    <string name="language_english">English</string>
+    <string name="language_arabic">العربية</string>
 </resources>
