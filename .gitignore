@@ -18,6 +18,8 @@ server/dist/
 .gradle/
 android/**/build/
 android/.gradle/
+mobile/**/build/
+mobile/.gradle/
 local.properties
 
 # Local Netlify folder
@@ -30,7 +32,8 @@ local-deploy/*.log
 # Scratch scripts
 scratch/
 
-# Keystores & sensitive signing keys
+# Keystores & binary artifacts
 *.keystore
 *.jks
-apks/*.apk
+*.apk
+*.aab

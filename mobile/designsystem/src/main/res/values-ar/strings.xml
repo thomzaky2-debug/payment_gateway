@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand -->
+    <string name="brand_name">نايل باي</string>
+    <string name="merchant_app_name">نايل باي للتاجر</string>
+    <string name="admin_app_name">نايل باي للإدارة</string>
+
+    <!-- General Actions -->
+    <string name="action_confirm">تأكيد</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_retry">إعادة المحاولة</string>
+    <string name="action_agree_continue">موافق والمتابعة</string>
+    <string name="action_not_now">ليس الآن</string>
+    <string name="action_dismiss">إغلاق</string>
+    <string name="action_save">حفظ</string>
+    <string name="action_close">إغلاق</string>
+    <string name="action_view_all">عرض الكل</string>
+    <string name="action_delete">حذف</string>
+
+    <!-- Navigation -->
+    <string name="nav_dashboard">الرئيسية</string>
+    <string name="nav_transactions">المعاملات</string>
+    <string name="nav_notifications">الإشعارات</string>
+    <string name="nav_settings">الإعدادات</string>
+
+    <!-- Statuses -->
+    <string name="status_pending">معلق</string>
+    <string name="status_confirmed">مكتمل</string>
+    <string name="status_failed">فشل</string>
+    <string name="status_expired">منتهي</string>
+
+    <!-- Form Inputs & Accessibility -->
+    <string name="label_email">البريد الإلكتروني</string>
+    <string name="label_password">كلمة المرور</string>
+    <string name="label_otp">رمز التحقق (٦ أرقام)</string>
+    <string name="hint_email">name@business.com</string>
+    <string name="hint_password">••••••••</string>
+    <string name="error_required">هذا الحقل مطلوب</string>
+    <string name="error_invalid_email">يرجى إدخال بريد إلكتروني صحيح</string>
+    <string name="show_password">إظهار كلمة المرور</string>
+    <string name="hide_password">إخفاء كلمة المرور</string>
+    <string name="clear_text">مسح النص</string>
+    <string name="otp_box_cd">رقم رمز التحقق %1$d</string>
+
+    <!-- Currency & Amounts -->
+    <string name="currency_egp">ج.م</string>
+    <string name="amount_format_egp">%1$s ج.م</string>
+
+    <!-- States -->
+    <string name="empty_title_default">لا توجد بيانات متاحة</string>
+    <string name="empty_subtitle_default">ستظهر المعاملات والإشعارات هنا فور استلامها.</string>
+    <string name="error_title_default">حدث خطأ ما</string>
+    <string name="error_subtitle_default">تعذر تحميل المعلومات. يرجى التحقق من اتصالك بالإنترنت وإعادة المحاولة.</string>
+    <string name="loading">جارٍ التحميل…</string>
+
+    <!-- Disclosure Layout -->
+    <string name="disclosure_badge">إشعار أمان Google Play</string>
+    <string name="disclosure_title">إذن الوصول إلى الإشعارات مطلوب</string>
+    <string name="disclosure_intro">لكشف وتأكيد المدفوعات المستلمة على هاتفك تلقائياً، يحتاج تطبيق نايل باي إلى صلاحية قراءة الإشعارات.</string>
+    <string name="disclosure_point1_title">إشعارات إنستاباي فقط</string>
+    <string name="disclosure_point1_desc">يقرأ التطبيق الإشعارات الواردة من تطبيق إنستاباي الرسمي فقط دون غيره.</string>
+    <string name="disclosure_point2_title">الغرض: كشف المدفوعات</string>
+    <string name="disclosure_point2_desc">يكتشف التحويلات الواردة لتأكيد طلبات المتجر تلقائياً في الوقت الفعلي.</string>
+    <string name="disclosure_point3_title">أدنى حد من البيانات المستخرجة</string>
+    <string name="disclosure_point3_desc">يتم إرسال المبلغ، عنوان المحول، المرجع البنكي، والوقت فقط. لا يتم تخزين أو إرسال نص الإشعار الكامل مطلقاً.</string>
+    <string name="disclosure_point4_title">تحكم كامل</string>
+    <string name="disclosure_point4_desc">يتم تجاهل كل الإشعارات الأخرى فوراً. يمكنك إيقاف هذا الإذن في أي وقت من إعدادات النظام.</string>
+
+    <!-- Health Banner -->
+    <string name="banner_detection_off">كاشف المدفوعات متوقف حالياً</string>
+    <string name="banner_fix_action">تشغيل الآن</string>
+
+    <!-- Gallery Screen Strings -->
+    <string name="gallery_title">معرض المكونات</string>
+    <string name="gallery_section_buttons">الأزرار</string>
+    <string name="gallery_section_text_fields">حقول الإدخال والرمز</string>
+    <string name="gallery_section_chips">شارات الحالة</string>
+    <string name="gallery_section_cards">البطاقات والصفوف</string>
+    <string name="gallery_section_chart">رسم بياني للمعاملات (٧ أيام)</string>
+    <string name="gallery_section_states">حالات الفراغ والخطأ</string>
+    <string name="gallery_btn_primary">زر رئيسي</string>
+    <string name="gallery_btn_secondary">زر ثانوي</string>
+    <string name="gallery_btn_text">إجراء نصي</string>
+    <string name="gallery_btn_destructive">إجراء حرج (حذف)</string>
+    <string name="gallery_card_title">مكون بطاقة قياسي</string>
+    <string name="gallery_card_subtitle">متوافق مع ألوان وأنماط بوابة نايل باي الإلكترونية.</string>
+    <string name="gallery_row_title">طلب كوفي كورنر</string>
+    <string name="gallery_row_subtitle">المرجع: BANK_998811 • منذ دقيقتين</string>
+    <string name="gallery_dialog_title">تأكيد الإجراء</string>
+    <string name="gallery_dialog_desc">هل أنت متأكد من رغبتك في متابعة هذه العملية؟</string>
+    <string name="gallery_chart_title">نظرة عامة على حجم الأسبوع</string>
+</resources>
