@@ -89,4 +89,20 @@
     <string name="language_label">Language</string>
     <string name="language_english">English</string>
     <string name="language_arabic">العربية</string>
+    <string name="update_required">Update required</string>
+    <string name="update_required_detail">NilePay Merchant %1$s or newer is required to continue securely.</string>
+    <string name="open_download_page">Open download page</string>
+    <string name="payment_details">Payment details</string>
+    <string name="payment_sender">Sender</string>
+    <string name="payment_status">Status</string>
+    <string name="payment_date">Date</string>
+    <string name="payment_reference">Bank reference</string>
+    <string name="payment_id">Payment ID</string>
+    <string name="payment_note">Note</string>
+    <string name="not_available">Not available</string>
+    <string name="share_receipt">Share receipt</string>
+    <string name="receipt_share_template">NilePay payment receipt\nAmount: %1$.2f EGP\nSender: %2$s\nStatus: %3$s\nReference: %4$s\nPayment ID: %5$s\nDate: %6$s</string>
+    <string name="last_heartbeat">Last server heartbeat</string>
+    <string name="last_detected_payment">Last detected payment</string>
+    <string name="retry_queued_uploads">Retry queued uploads</string>
 </resources>

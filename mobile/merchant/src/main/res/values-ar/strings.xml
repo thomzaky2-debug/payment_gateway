@@ -89,4 +89,20 @@
     <string name="language_label">اللغة</string>
     <string name="language_english">English</string>
     <string name="language_arabic">العربية</string>
+    <string name="update_required">التحديث مطلوب</string>
+    <string name="update_required_detail">يلزم إصدار نايل باي للتاجر %1$s أو أحدث للمتابعة بأمان.</string>
+    <string name="open_download_page">فتح صفحة التنزيل</string>
+    <string name="payment_details">تفاصيل الدفع</string>
+    <string name="payment_sender">المرسل</string>
+    <string name="payment_status">الحالة</string>
+    <string name="payment_date">التاريخ</string>
+    <string name="payment_reference">مرجع البنك</string>
+    <string name="payment_id">رقم العملية</string>
+    <string name="payment_note">ملاحظة</string>
+    <string name="not_available">غير متاح</string>
+    <string name="share_receipt">مشاركة الإيصال</string>
+    <string name="receipt_share_template">إيصال دفع نايل باي\nالمبلغ: %1$.2f جنيه\nالمرسل: %2$s\nالحالة: %3$s\nالمرجع: %4$s\nرقم العملية: %5$s\nالتاريخ: %6$s</string>
+    <string name="last_heartbeat">آخر اتصال بالخادم</string>
+    <string name="last_detected_payment">آخر دفعة مكتشفة</string>
+    <string name="retry_queued_uploads">إعادة محاولة الرفع</string>
 </resources>

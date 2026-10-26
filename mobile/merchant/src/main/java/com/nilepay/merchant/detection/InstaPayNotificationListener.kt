@@ -43,6 +43,7 @@ class InstaPayNotificationListener : NotificationListenerService() {
         scope.launch {
             val session = com.nilepay.merchant.MerchantSession(this@InstaPayNotificationListener)
             if (!session.isSignedIn || session.deviceToken.isNullOrBlank()) return@launch
+            session.recordDetection()
             val dao = DetectionDatabase.get(this@InstaPayNotificationListener).events()
             dao.deleteOlderThan(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7))
             val overflow = dao.count() - 499

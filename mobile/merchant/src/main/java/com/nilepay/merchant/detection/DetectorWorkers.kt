@@ -4,12 +4,15 @@ import android.content.Context
 import android.os.Build
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.Constraints
+import androidx.work.BackoffPolicy
+import androidx.work.workDataOf
 import com.nilepay.core.network.NetworkFactory
 import com.nilepay.merchant.BuildConfig
 import com.nilepay.merchant.MerchantSession
@@ -73,7 +76,12 @@ class HeartbeatWorker(context: Context, params: WorkerParameters) : CoroutineWor
             .build()
         return try {
             NetworkFactory.createOkHttpClient(session.tokens, BuildConfig.API_BASE_URL, BuildConfig.DEBUG)
-                .newCall(request).execute().use { if (it.isSuccessful) Result.success() else Result.retry() }
+                .newCall(request).execute().use {
+                    if (it.isSuccessful) {
+                        session.recordHeartbeat()
+                        Result.success()
+                    } else Result.retry()
+                }
         } catch (_: Exception) { Result.retry() }
     }
 }
@@ -92,5 +100,20 @@ object DetectorWork {
 
     fun heartbeatNow(context: Context) {
         WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<HeartbeatWorker>().build())
+    }
+
+    suspend fun retryQueued(context: Context) {
+        val dao = DetectionDatabase.get(context).events()
+        dao.all().forEach { event ->
+            dao.clearAttention(event.eventId)
+            val request = OneTimeWorkRequestBuilder<PaymentUploadWorker>()
+                .setInputData(workDataOf("eventId" to event.eventId))
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "payment-${event.eventId}", ExistingWorkPolicy.REPLACE, request
+            )
+        }
     }
 }
