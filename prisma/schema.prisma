@@ -179,7 +179,6 @@ model AuthSession {
   @@index([kind, revokedAt, expiresAt])
   @@index([expiresAt])
   @@index([familyId])
-  @@index([refreshTokenHash])
   @@index([deviceId])
 }
 
