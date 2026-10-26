@@ -25,6 +25,7 @@ process.env.DIRECT_URL = resolvedDbUrl
 process.env.NODE_ENV = 'test'
 process.env.TOKEN_PEPPER = process.env.TOKEN_PEPPER || 'test_token_pepper_32_characters_minimum!'
 process.env.CREDENTIAL_ENCRYPTION_KEY = process.env.CREDENTIAL_ENCRYPTION_KEY || 'test_credential_encryption_key_32!'
+process.env.OWNER_SECRET = process.env.OWNER_SECRET || 'ci_owner_secret_test_value_32_chars_long!'
 process.env.AUTH_ALLOW_DEV_BYPASS = 'true'
 
 // Verify TCP port connectivity before test runner starts
