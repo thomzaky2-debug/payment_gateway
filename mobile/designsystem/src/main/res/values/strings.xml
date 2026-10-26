@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand -->
+    <string name="brand_name">NilePay</string>
+    <string name="merchant_app_name">NilePay Merchant</string>
+    <string name="admin_app_name">NilePay Admin</string>
+
+    <!-- General Actions -->
+    <string name="action_confirm">Confirm</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_agree_continue">Agree and Continue</string>
+    <string name="action_not_now">Not Now</string>
+    <string name="action_dismiss">Dismiss</string>
+    <string name="action_save">Save</string>
+    <string name="action_close">Close</string>
+    <string name="action_view_all">View All</string>
+    <string name="action_delete">Delete</string>
+
+    <!-- Navigation -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_transactions">Transactions</string>
+    <string name="nav_notifications">Notifications</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Statuses -->
+    <string name="status_pending">Pending</string>
+    <string name="status_confirmed">Confirmed</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_expired">Expired</string>
+
+    <!-- Form Inputs & Accessibility -->
+    <string name="label_email">Email Address</string>
+    <string name="label_password">Password</string>
+    <string name="label_otp">Verification Code (6-digit)</string>
+    <string name="hint_email">name@business.com</string>
+    <string name="hint_password">••••••••</string>
+    <string name="error_required">This field is required</string>
+    <string name="error_invalid_email">Please enter a valid email</string>
+    <string name="show_password">Show password</string>
+    <string name="hide_password">Hide password</string>
+    <string name="clear_text">Clear text</string>
+    <string name="otp_box_cd">Verification code digit %1$d</string>
+
+    <!-- Currency & Amounts -->
+    <string name="currency_egp">EGP</string>
+    <string name="amount_format_egp">%1$s EGP</string>
+
+    <!-- States -->
+    <string name="empty_title_default">No Data Available</string>
+    <string name="empty_subtitle_default">Transactions and notifications will appear here once received.</string>
+    <string name="error_title_default">Something went wrong</string>
+    <string name="error_subtitle_default">We could not load the information. Please check your connection and retry.</string>
+    <string name="loading">Loading…</string>
+
+    <!-- Disclosure Layout -->
+    <string name="disclosure_badge">Google Play Security Notice</string>
+    <string name="disclosure_title">Notification Access Required</string>
+    <string name="disclosure_intro">To automatically detect payments received on your phone, NilePay requires notification access.</string>
+    <string name="disclosure_point1_title">InstaPay notifications only</string>
+    <string name="disclosure_point1_desc">The app reads incoming notifications strictly from the official InstaPay app.</string>
+    <string name="disclosure_point2_title">Payment detection purpose</string>
+    <string name="disclosure_point2_desc">It detects incoming transfers to automatically confirm merchant orders in real time.</string>
+    <string name="disclosure_point3_title">Minimal parsed data</string>
+    <string name="disclosure_point3_desc">Only amount, sender handle, bank reference, and timestamp are transmitted. Raw notification text is never stored or sent.</string>
+    <string name="disclosure_point4_title">Full control</string>
+    <string name="disclosure_point4_desc">All other notifications are ignored immediately. You can disable this access at any time in system settings.</string>
+
+    <!-- Health Banner -->
+    <string name="banner_detection_off">Payment detection is currently OFF</string>
+    <string name="banner_fix_action">Fix Now</string>
+
+    <!-- Gallery Screen Strings -->
+    <string name="gallery_title">Component Gallery</string>
+    <string name="gallery_section_buttons">Buttons</string>
+    <string name="gallery_section_text_fields">Text Fields &amp; OTP</string>
+    <string name="gallery_section_chips">Status Chips</string>
+    <string name="gallery_section_cards">Cards &amp; List Rows</string>
+    <string name="gallery_section_chart">7-Day Transaction Chart</string>
+    <string name="gallery_section_states">Empty &amp; Error States</string>
+    <string name="gallery_btn_primary">Primary Button</string>
+    <string name="gallery_btn_secondary">Secondary Button</string>
+    <string name="gallery_btn_text">Text Action</string>
+    <string name="gallery_btn_destructive">Destructive Action</string>
+    <string name="gallery_card_title">Standard Card Component</string>
+    <string name="gallery_card_subtitle">Aligned with NilePay web portal card styling and tokens.</string>
+    <string name="gallery_row_title">Coffee Corner Checkout</string>
+    <string name="gallery_row_subtitle">Ref: BANK_998811 • 2 mins ago</string>
+    <string name="gallery_dialog_title">Confirm Action</string>
+    <string name="gallery_dialog_desc">Are you sure you want to proceed with this operation?</string>
+    <string name="gallery_chart_title">Weekly Volume Overview</string>
+</resources>
