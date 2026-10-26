@@ -49,4 +49,23 @@
     <string name="help_and_support">المساعدة والدعم</string>
     <string name="help_and_support_detail">حل المشكلات وخيارات التواصل</string>
     <string name="version_label">نايل باي للتاجر 1.0.0</string>
+    <string name="login_title">مرحبًا بك في نايل باي</string>
+    <string name="login_subtitle">سجّل الدخول باستخدام حساب التاجر المعتمد.</string>
+    <string name="login_email">البريد الإلكتروني</string>
+    <string name="login_password">كلمة المرور</string>
+    <string name="login_otp_sent">أدخل الرمز المكون من 6 أرقام المرسل إلى بريدك.</string>
+    <string name="login_continue">متابعة بأمان</string>
+    <string name="login_verify">تحقق وسجّل الدخول</string>
+    <string name="login_working">يرجى الانتظار…</string>
+    <string name="login_security_note">يتم تشفير الجلسة وبيانات الجهاز باستخدام Android Keystore.</string>
+    <string name="logout">تسجيل الخروج</string>
+    <string name="detector_service_label">كاشف مدفوعات نايل باي</string>
+    <string name="login_missing_credentials">أدخل البريد الإلكتروني وكلمة المرور.</string>
+    <string name="login_invalid_otp">أدخل الرمز المكوّن من 6 أرقام المرسل إلى بريدك.</string>
+    <string name="login_failed">تعذّر تسجيل الدخول.</string>
+    <string name="notification_access_on">مفعّل</string>
+    <string name="detection_ready">الكاشف جاهز</string>
+    <string name="detection_ready_detail">نايل باي يستمع لإشعارات دفع إنستاباي المدعومة.</string>
+    <string name="queued_uploads">%1$d حدث في قائمة الانتظار</string>
+    <string name="attention_uploads">%1$d حدث يحتاج إلى مراجعة</string>
 </resources>

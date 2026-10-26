@@ -66,7 +66,13 @@ mobileAuthRouter.post('/login', mobileLoginLimiter, async (req: Request, res: Re
 
     const cleanEmail = normalizeEmail(email)
     const expectedAdminEmail = process.env.ADMIN_EMAIL ? normalizeEmail(process.env.ADMIN_EMAIL) : null
-    const isAdminTarget = appType === 'admin' || (expectedAdminEmail && cleanEmail === expectedAdminEmail)
+    // An explicit app type is authoritative. The same address may legitimately identify an
+    // owner and a merchant account, so an admin-email fallback must never override a merchant
+    // app's requested role. Keep the email fallback only for older admin builds that omitted
+    // appType.
+    const hasExplicitAppType = appType === 'admin' || appType === 'merchant'
+    const isAdminTarget =
+      appType === 'admin' || (!hasExplicitAppType && Boolean(expectedAdminEmail && cleanEmail === expectedAdminEmail))
 
     // ─── ADMIN MOBILE LOGIN ──────────────────────────────────────────────
     if (isAdminTarget) {
