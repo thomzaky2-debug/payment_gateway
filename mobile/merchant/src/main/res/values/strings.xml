@@ -49,4 +49,23 @@
     <string name="help_and_support">Help and support</string>
     <string name="help_and_support_detail">Troubleshooting and contact options</string>
     <string name="version_label">NilePay Merchant 1.0.0</string>
+    <string name="login_title">Welcome to NilePay</string>
+    <string name="login_subtitle">Sign in with your approved merchant account.</string>
+    <string name="login_email">Email address</string>
+    <string name="login_password">Password</string>
+    <string name="login_otp_sent">Enter the 6-digit code sent to your email.</string>
+    <string name="login_continue">Continue securely</string>
+    <string name="login_verify">Verify and sign in</string>
+    <string name="login_working">Please wait…</string>
+    <string name="login_security_note">Your session and device credential are encrypted using Android Keystore.</string>
+    <string name="logout">Sign out</string>
+    <string name="detector_service_label">NilePay payment detector</string>
+    <string name="login_missing_credentials">Enter your email and password.</string>
+    <string name="login_invalid_otp">Enter the 6-digit code sent to your email.</string>
+    <string name="login_failed">Unable to sign in.</string>
+    <string name="notification_access_on">Enabled</string>
+    <string name="detection_ready">Detector ready</string>
+    <string name="detection_ready_detail">NilePay is listening for supported InstaPay payment notifications.</string>
+    <string name="queued_uploads">%1$d queued event(s)</string>
+    <string name="attention_uploads">%1$d event(s) need attention</string>
 </resources>
