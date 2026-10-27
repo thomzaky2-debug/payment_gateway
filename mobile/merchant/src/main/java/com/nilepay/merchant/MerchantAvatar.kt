@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -18,8 +19,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.nilepay.designsystem.theme.NilePayTheme
 import kotlinx.coroutines.Dispatchers
@@ -47,8 +48,26 @@ fun MerchantAvatar(imageData: String?, name: String, modifier: Modifier = Modifi
         value = null
         value = withContext(Dispatchers.IO) { decodeMerchantAvatar(imageData) }
     }
-    Box(modifier.size(40.dp).clip(CircleShape).background(NilePayTheme.colors.primary.copy(alpha = 0.12f)).semantics(mergeDescendants = true) { contentDescription = description }, contentAlignment = Alignment.Center) {
-        bitmap?.let { Image(it.asImageBitmap(), null, Modifier.matchParentSize(), contentScale = ContentScale.Crop) }
-            ?: Text(name.trim().firstOrNull()?.uppercase() ?: "N", style = NilePayTheme.typography.titleMedium, color = NilePayTheme.colors.primary)
+    Box(
+        modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(NilePayTheme.colors.primary.copy(alpha = 0.14f))
+            .border(1.5.dp, NilePayTheme.colors.primary.copy(alpha = 0.32f), CircleShape)
+            .semantics(mergeDescendants = true) { contentDescription = description },
+        contentAlignment = Alignment.Center
+    ) {
+        bitmap?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+        } ?: Text(
+            text = name.trim().firstOrNull()?.uppercase() ?: "N",
+            style = NilePayTheme.typography.titleMedium,
+            color = NilePayTheme.colors.primary
+        )
     }
 }

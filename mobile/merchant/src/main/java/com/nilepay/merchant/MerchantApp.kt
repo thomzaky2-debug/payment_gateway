@@ -1,57 +1,60 @@
 package com.nilepay.merchant
 
-import android.content.Intent
-import android.content.ComponentName
 import android.app.Activity
+import android.content.ComponentName
+import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.WifiOff
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -69,36 +72,36 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.nilepay.designsystem.R as DesignR
 import com.nilepay.designsystem.components.NilePayAmountSize
 import com.nilepay.designsystem.components.NilePayAmountText
 import com.nilepay.designsystem.components.NilePayBottomNav
-import com.nilepay.designsystem.components.NilePayBottomSheet
 import com.nilepay.designsystem.components.NilePayBottomNavItem
+import com.nilepay.designsystem.components.NilePayBottomSheet
 import com.nilepay.designsystem.components.NilePayButton
 import com.nilepay.designsystem.components.NilePayButtonStyle
 import com.nilepay.designsystem.components.NilePayCard
-import com.nilepay.designsystem.components.NilePayEmptyState
-import com.nilepay.designsystem.components.NilePayListRow
-import com.nilepay.designsystem.components.NilePaySkeletonCard
-import com.nilepay.designsystem.components.NilePayStatus
-import com.nilepay.designsystem.components.labelResource
-import com.nilepay.designsystem.R as DesignR
-import kotlinx.coroutines.delay
-import com.nilepay.designsystem.components.NilePayStatusChip
 import com.nilepay.designsystem.components.NilePayDisclosureLayout
+import com.nilepay.designsystem.components.NilePayEmptyState
+import com.nilepay.designsystem.components.NilePayLogo
 import com.nilepay.designsystem.components.NilePayOtpField
 import com.nilepay.designsystem.components.NilePayPasswordField
+import com.nilepay.designsystem.components.NilePaySkeletonCard
+import com.nilepay.designsystem.components.NilePayStatus
+import com.nilepay.designsystem.components.NilePayStatusChip
 import com.nilepay.designsystem.components.NilePayTextField
 import com.nilepay.designsystem.components.NilePayTopBar
-import com.nilepay.designsystem.components.NilePayLogo
+import com.nilepay.designsystem.components.labelResource
 import com.nilepay.designsystem.theme.NilePayTheme
 import com.nilepay.merchant.detection.DetectionDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -136,29 +139,36 @@ fun MerchantApp() {
     }
     NilePayTheme(darkTheme = darkTheme, compact = preferences.compact) {
         when {
-        mobileConfig?.updateRequired == true -> UpdateRequiredScreen(mobileConfig!!)
-        !signedIn -> LoginScreen(session = session, onSignedIn = { signedIn = true })
-        !consented -> {
-            NilePayDisclosureLayout(
-                onAgree = {
-                    session.recordConsent()
-                    consented = true
-                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                },
-                onCancel = { session.signOut(); signedIn = false; consented = false }
-            )
-        }
-        else -> MerchantWorkspace(
-            session = session,
-            preferences = preferences,
-            selectedTheme = theme,
-            onThemeChanged = { selected -> preferences.theme = selected; theme = selected },
-            onSignOut = {
-                session.signOut()
-                signedIn = false
-                consented = false
+            mobileConfig?.updateRequired == true -> UpdateRequiredScreen(mobileConfig!!)
+            !signedIn -> LoginScreen(session = session, onSignedIn = { signedIn = true })
+            !consented -> {
+                NilePayDisclosureLayout(
+                    onAgree = {
+                        session.recordConsent()
+                        consented = true
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    },
+                    onCancel = {
+                        session.signOut()
+                        signedIn = false
+                        consented = false
+                    }
+                )
             }
-        )
+            else -> MerchantWorkspace(
+                session = session,
+                preferences = preferences,
+                selectedTheme = theme,
+                onThemeChanged = { selected ->
+                    preferences.theme = selected
+                    theme = selected
+                },
+                onSignOut = {
+                    session.signOut()
+                    signedIn = false
+                    consented = false
+                }
+            )
         }
     }
 }
@@ -218,79 +228,79 @@ private fun MerchantWorkspace(
         loading = false
     }
 
-        Scaffold(
-            containerColor = NilePayTheme.colors.background,
-            topBar = {
-                NilePayTopBar(
-                    title = stringResource(destination.titleRes),
-                    actions = {
-                        IconButton(onClick = { refreshKey++ }, enabled = !loading) {
-                            if (loading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                            else Icon(Icons.Filled.Refresh, stringResource(R.string.action_refresh))
-                        }
-                        IconButton(onClick = { destination = MerchantDestination.Settings }) {
-                            MerchantAvatar(merchantProfile.imageData, merchantProfile.businessName, Modifier.size(32.dp))
-                        }
+    Scaffold(
+        containerColor = NilePayTheme.colors.background,
+        topBar = {
+            NilePayTopBar(
+                title = stringResource(destination.titleRes),
+                actions = {
+                    IconButton(onClick = { refreshKey++ }, enabled = !loading) {
+                        if (loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Filled.Refresh, stringResource(R.string.action_refresh))
                     }
-                )
-            },
-            bottomBar = {
-                NilePayBottomNav(
-                    items = MerchantDestination.entries.map {
-                        NilePayBottomNavItem(
-                            id = it.id,
-                            label = stringResource(it.labelRes),
-                            icon = it.icon
-                        )
-                    },
-                    selectedItemId = destination.id,
-                    onItemSelected = { selected ->
-                        destination = MerchantDestination.entries.first { it.id == selected }
-                    }
-                )
-            }
-        ) { contentPadding ->
-            when (destination) {
-                MerchantDestination.Overview -> OverviewScreen(
-                    contentPadding = contentPadding,
-                    dashboard = dashboard,
-                    dashboardError = dashboardError,
-                    payments = payments.take(3),
-                    notificationAccess = notificationAccess,
-                    loading = loading,
-                    onPaymentSelected = { selectedPayment = it },
-                    onReviewSetup = { destination = MerchantDestination.Health }
-                )
-                MerchantDestination.Payments -> PaymentsScreen(
-                    contentPadding, session, refreshKey,
-                    onPaymentSelected = { selectedPayment = it }
-                )
-                MerchantDestination.Health -> HealthScreen(
-                    contentPadding,
-                    session,
-                    notificationAccess,
-                    queuedEvents,
-                    attentionEvents,
-                    onOpenSettings = {
-                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                        notificationAccess = hasNotificationAccess(context)
-                    },
-                    onRetryQueue = {
-                        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                            com.nilepay.merchant.detection.DetectorWork.retryQueued(context)
-                            withContext(Dispatchers.Main) { refreshKey++ }
-                        }
-                    }
-                )
-                MerchantDestination.Settings -> SettingsScreen(
-                    contentPadding, session, merchantProfile, preferences, selectedTheme, onThemeChanged
-                ) {
-                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                        MobileGatewayClient(session).logout()
-                        withContext(Dispatchers.Main) { onSignOut() }
+                    IconButton(onClick = { destination = MerchantDestination.Settings }) {
+                        MerchantAvatar(merchantProfile.imageData, merchantProfile.businessName, Modifier.size(34.dp))
                     }
                 }
+            )
+        },
+        bottomBar = {
+            NilePayBottomNav(
+                items = MerchantDestination.entries.map {
+                    NilePayBottomNavItem(
+                        id = it.id,
+                        label = stringResource(it.labelRes),
+                        icon = it.icon
+                    )
+                },
+                selectedItemId = destination.id,
+                onItemSelected = { selected ->
+                    destination = MerchantDestination.entries.first { it.id == selected }
+                }
+            )
+        }
+    ) { contentPadding ->
+        when (destination) {
+            MerchantDestination.Overview -> OverviewScreen(
+                contentPadding = contentPadding,
+                dashboard = dashboard,
+                dashboardError = dashboardError ?: paymentsError,
+                payments = payments.take(3),
+                notificationAccess = notificationAccess,
+                loading = loading,
+                onPaymentSelected = { selectedPayment = it },
+                onReviewSetup = { destination = MerchantDestination.Health }
+            )
+            MerchantDestination.Payments -> PaymentsScreen(
+                contentPadding, session, refreshKey,
+                onPaymentSelected = { selectedPayment = it }
+            )
+            MerchantDestination.Health -> HealthScreen(
+                contentPadding,
+                session,
+                notificationAccess,
+                queuedEvents,
+                attentionEvents,
+                onOpenSettings = {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    notificationAccess = hasNotificationAccess(context)
+                },
+                onRetryQueue = {
+                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                        com.nilepay.merchant.detection.DetectorWork.retryQueued(context)
+                        withContext(Dispatchers.Main) { refreshKey++ }
+                    }
+                }
+            )
+            MerchantDestination.Settings -> SettingsScreen(
+                contentPadding, session, merchantProfile, preferences, selectedTheme, onThemeChanged
+            ) {
+                kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                    MobileGatewayClient(session).logout()
+                    withContext(Dispatchers.Main) { onSignOut() }
+                }
             }
+        }
     }
     selectedPayment?.let { payment ->
         PaymentDetailsSheet(payment = payment, onDismiss = { selectedPayment = null })
@@ -301,18 +311,30 @@ private fun MerchantWorkspace(
 private fun UpdateRequiredScreen(config: MobileConfig) {
     val context = LocalContext.current
     Column(
-        Modifier.fillMaxSize().background(NilePayTheme.colors.background).padding(24.dp),
+        Modifier
+            .fillMaxSize()
+            .background(NilePayTheme.colors.background)
+            .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Filled.SystemUpdate, null, tint = NilePayTheme.colors.primary, modifier = Modifier.size(56.dp))
+        Box(
+            Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(NilePayTheme.colors.primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.SystemUpdate, null, tint = NilePayTheme.colors.primary, modifier = Modifier.size(36.dp))
+        }
         Spacer(Modifier.height(16.dp))
         Text(stringResource(R.string.update_required), style = NilePayTheme.typography.headlineLarge, color = NilePayTheme.colors.onBackground)
         Spacer(Modifier.height(8.dp))
         Text(
             config.message ?: stringResource(R.string.update_required_detail, config.minimumVersion),
             style = NilePayTheme.typography.bodyMedium,
-            color = NilePayTheme.colors.onSurfaceSecondary
+            color = NilePayTheme.colors.onSurfaceSecondary,
+            textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(20.dp))
         NilePayButton(
@@ -361,70 +383,109 @@ private fun LoginScreen(session: MerchantSession, onSignedIn: () -> Unit) {
         }
     }
 
-        Column(
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(NilePayTheme.colors.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(NilePayTheme.colors.background)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.Center
+                .size(84.dp)
+                .clip(CircleShape)
+                .background(NilePayTheme.colors.primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
         ) {
-            NilePayLogo(modifier = Modifier.size(56.dp))
-            Spacer(Modifier.height(16.dp))
-            Text(
-                stringResource(R.string.login_title),
-                style = NilePayTheme.typography.headlineLarge,
-                color = NilePayTheme.colors.onBackground
-            )
-            Text(
-                stringResource(R.string.login_subtitle),
-                style = NilePayTheme.typography.bodyLarge,
-                color = NilePayTheme.colors.onSurfaceSecondary
-            )
-            Spacer(Modifier.height(20.dp))
-            NilePayTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = stringResource(R.string.login_email),
-                enabled = !busy,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Email)
-            )
-            Spacer(Modifier.height(14.dp))
-            NilePayPasswordField(
-                value = password,
-                onValueChange = { password = it },
-                label = stringResource(R.string.login_password),
-                enabled = !busy
-            )
-            if (verificationId != null) {
-                Spacer(Modifier.height(22.dp))
-                Text(
-                    stringResource(R.string.login_otp_sent),
-                    style = NilePayTheme.typography.bodyMedium,
-                    color = NilePayTheme.colors.onSurfaceSecondary
+            NilePayLogo(modifier = Modifier.size(64.dp))
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            stringResource(R.string.login_title),
+            style = NilePayTheme.typography.headlineLarge,
+            color = NilePayTheme.colors.onBackground,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.login_subtitle),
+            style = NilePayTheme.typography.bodyLarge,
+            color = NilePayTheme.colors.onSurfaceSecondary,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(22.dp))
+
+        NilePayCard {
+            Column {
+                NilePayTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = stringResource(R.string.login_email),
+                    enabled = !busy,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Email)
                 )
-                Spacer(Modifier.height(12.dp))
-                NilePayOtpField(otpValue = otp, onOtpChange = { otp = it }, enabled = !busy)
-            }
-            error?.let {
                 Spacer(Modifier.height(14.dp))
-                Text(it, style = NilePayTheme.typography.bodyMedium, color = NilePayTheme.colors.destructive)
+                NilePayPasswordField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = stringResource(R.string.login_password),
+                    enabled = !busy
+                )
+                if (verificationId != null) {
+                    Spacer(Modifier.height(20.dp))
+                    Text(
+                        stringResource(R.string.login_otp_sent),
+                        style = NilePayTheme.typography.bodyMedium,
+                        color = NilePayTheme.colors.onSurfaceSecondary
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    NilePayOtpField(otpValue = otp, onOtpChange = { otp = it }, enabled = !busy)
+                }
+                error?.let {
+                    Spacer(Modifier.height(14.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(NilePayTheme.shapes.medium)
+                            .background(NilePayTheme.colors.destructive.copy(alpha = 0.12f))
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Text(it, style = NilePayTheme.typography.bodyMedium, color = NilePayTheme.colors.destructive)
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                NilePayButton(
+                    text = if (busy) stringResource(R.string.login_working) else if (verificationId == null) stringResource(R.string.login_continue) else stringResource(R.string.login_verify),
+                    onClick = ::submit,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = NilePayButtonStyle.Primary,
+                    enabled = !busy
+                )
             }
-            Spacer(Modifier.height(24.dp))
-            NilePayButton(
-                text = if (busy) stringResource(R.string.login_working) else if (verificationId == null) stringResource(R.string.login_continue) else stringResource(R.string.login_verify),
-                onClick = ::submit,
-                modifier = Modifier.fillMaxWidth(),
-                style = NilePayButtonStyle.Primary,
-                enabled = !busy
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            Icon(
+                Icons.Filled.Shield,
+                contentDescription = null,
+                tint = NilePayTheme.colors.primary,
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 stringResource(R.string.login_security_note),
                 style = NilePayTheme.typography.bodySmall,
                 color = NilePayTheme.colors.onSurfaceSecondary
             )
-            PrivacyNoticeLink()
+        }
+        PrivacyNoticeLink()
     }
 }
 
@@ -456,26 +517,36 @@ private fun OverviewScreen(
     onReviewSetup: () -> Unit
 ) {
     ScreenColumn(contentPadding) {
-        Text(
-            text = stringResource(R.string.overview_greeting),
-            style = NilePayTheme.typography.headlineMedium,
-            color = NilePayTheme.colors.onBackground,
-            modifier = Modifier.semantics { heading() }
-        )
-        Text(
-            text = stringResource(R.string.overview_subtitle),
-            style = NilePayTheme.typography.bodyMedium,
-            color = NilePayTheme.colors.onSurfaceSecondary
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = stringResource(R.string.overview_greeting),
+                style = NilePayTheme.typography.headlineMedium,
+                color = NilePayTheme.colors.onBackground,
+                modifier = Modifier.semantics { heading() }
+            )
+            Text(
+                text = stringResource(R.string.overview_subtitle),
+                style = NilePayTheme.typography.bodyMedium,
+                color = NilePayTheme.colors.onSurfaceSecondary
+            )
+        }
 
         DetectorHeroCard(notificationAccess, onReviewSetup)
 
         dashboardError?.let {
-            Text(
-                text = it,
-                style = NilePayTheme.typography.bodySmall,
-                color = NilePayTheme.colors.destructive
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(NilePayTheme.shapes.medium)
+                    .background(NilePayTheme.colors.destructive.copy(alpha = 0.12f))
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = it,
+                    style = NilePayTheme.typography.bodySmall,
+                    color = NilePayTheme.colors.destructive
+                )
+            }
         }
 
         if (loading && dashboard == null) {
@@ -504,14 +575,15 @@ private fun DetectorHeroCard(enabled: Boolean, onReviewSetup: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(NilePayTheme.shapes.medium)
+                        .clip(CircleShape)
                         .background(if (enabled) NilePayTheme.colors.statusConfirmedContainer else NilePayTheme.colors.statusPendingContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         if (enabled) Icons.Filled.Wifi else Icons.Filled.WifiOff,
                         contentDescription = null,
-                        tint = if (enabled) NilePayTheme.colors.statusConfirmed else NilePayTheme.colors.statusPending
+                        tint = if (enabled) NilePayTheme.colors.statusConfirmed else NilePayTheme.colors.statusPending,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
                 Column(
@@ -519,11 +591,19 @@ private fun DetectorHeroCard(enabled: Boolean, onReviewSetup: () -> Unit) {
                         .weight(1f)
                         .padding(horizontal = 12.dp)
                 ) {
-                    Text(
-                        stringResource(if (enabled) R.string.detection_ready else R.string.detector_off),
-                        style = NilePayTheme.typography.titleLarge,
-                        color = NilePayTheme.colors.onSurface
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            stringResource(if (enabled) R.string.detection_ready else R.string.detector_off),
+                            style = NilePayTheme.typography.titleLarge,
+                            color = NilePayTheme.colors.onSurface
+                        )
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (enabled) NilePayTheme.colors.statusConfirmed else NilePayTheme.colors.statusPending)
+                        )
+                    }
                     Text(
                         stringResource(if (enabled) R.string.detection_ready_detail else R.string.detector_off_detail),
                         style = NilePayTheme.typography.bodySmall,
@@ -532,8 +612,10 @@ private fun DetectorHeroCard(enabled: Boolean, onReviewSetup: () -> Unit) {
                 }
             }
             if (!enabled) NilePayButton(
-                text = stringResource(R.string.review_detector_setup), onClick = onReviewSetup,
-                modifier = Modifier.fillMaxWidth(), style = NilePayButtonStyle.Primary
+                text = stringResource(R.string.review_detector_setup),
+                onClick = onReviewSetup,
+                modifier = Modifier.fillMaxWidth(),
+                style = NilePayButtonStyle.Primary
             )
         }
     }
@@ -541,47 +623,97 @@ private fun DetectorHeroCard(enabled: Boolean, onReviewSetup: () -> Unit) {
 
 @Composable
 private fun DashboardSummaryCard(snapshot: DashboardSnapshot) {
+    val quotaProgress = if (snapshot.quotaLimit > 0) {
+        (snapshot.quotaCount.toFloat() / snapshot.quotaLimit.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+
     NilePayCard {
         Column {
             Column(
-                Modifier.fillMaxWidth().clip(NilePayTheme.shapes.medium)
-                    .background(NilePayTheme.colors.primary.copy(alpha = 0.10f)).padding(16.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .clip(NilePayTheme.shapes.medium)
+                    .background(NilePayTheme.colors.primary.copy(alpha = 0.12f))
+                    .border(1.dp, NilePayTheme.colors.primary.copy(alpha = 0.24f), NilePayTheme.shapes.medium)
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(stringResource(R.string.metric_received_today), style = NilePayTheme.typography.labelMedium, color = NilePayTheme.colors.primary)
+                Text(
+                    stringResource(R.string.metric_received_today),
+                    style = NilePayTheme.typography.labelMedium,
+                    color = NilePayTheme.colors.primary
+                )
                 NilePayAmountText(snapshot.todayTotalEgp, size = NilePayAmountSize.Large)
-                Text(stringResource(R.string.received_today_detail), style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+                Text(
+                    stringResource(R.string.received_today_detail),
+                    style = NilePayTheme.typography.bodySmall,
+                    color = NilePayTheme.colors.onSurfaceSecondary
+                )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
             DashboardMetricRow(
+                icon = Icons.Filled.Payments,
                 label = stringResource(R.string.metric_payments_today),
                 detail = stringResource(R.string.payment_count_label),
                 value = { Text(snapshot.todayCount.toString(), style = NilePayTheme.typography.amountMedium) }
             )
             HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
             DashboardMetricRow(
+                icon = Icons.Filled.Refresh,
                 label = stringResource(R.string.metric_pending),
                 detail = stringResource(R.string.awaiting_confirmation),
                 value = { Text(snapshot.pendingCount.toString(), style = NilePayTheme.typography.amountMedium) }
             )
             HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
             DashboardMetricRow(
+                icon = Icons.Filled.Shield,
                 label = stringResource(R.string.metric_quota),
                 detail = stringResource(R.string.current_plan_usage),
                 value = { Text("${snapshot.quotaCount} / ${snapshot.quotaLimit}", style = NilePayTheme.typography.amountMedium) }
             )
+            if (snapshot.quotaLimit > 0) {
+                LinearProgressIndicator(
+                    progress = { quotaProgress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(CircleShape),
+                    color = NilePayTheme.colors.primary,
+                    trackColor = NilePayTheme.colors.surfaceSubtle
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun DashboardMetricRow(label: String, detail: String, value: @Composable () -> Unit) {
+private fun DashboardMetricRow(
+    icon: ImageVector,
+    label: String,
+    detail: String,
+    value: @Composable () -> Unit
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(NilePayTheme.colors.primary.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = NilePayTheme.colors.primary, modifier = Modifier.size(18.dp))
+        }
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp)
+        ) {
             Text(label, style = NilePayTheme.typography.titleMedium, color = NilePayTheme.colors.onSurface)
             Text(detail, style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
         }
@@ -617,9 +749,23 @@ private fun PaymentsScreen(
         loading = false
     }
     ScreenColumn(contentPadding) {
-        Text(stringResource(R.string.payments_subtitle), style = NilePayTheme.typography.bodyMedium, color = NilePayTheme.colors.onSurfaceSecondary)
-        NilePayTextField(value = query, onValueChange = { query = it.take(200) }, label = stringResource(R.string.search_payments_hint), leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) })
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(R.string.payments_subtitle),
+            style = NilePayTheme.typography.bodyMedium,
+            color = NilePayTheme.colors.onSurfaceSecondary
+        )
+        NilePayTextField(
+            value = query,
+            onValueChange = { query = it.take(200) },
+            label = stringResource(R.string.search_payments_hint),
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) }
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             listOf(
                 "ALL" to R.string.filter_all,
                 "PENDING" to DesignR.string.status_pending,
@@ -640,12 +786,19 @@ private fun PaymentsScreen(
         if (loading && payments.isEmpty()) {
             repeat(3) { NilePaySkeletonCard(height = 84.dp) }
         } else if (payments.isEmpty() && error == null) {
-            NilePayCard { NilePayEmptyState(title = stringResource(R.string.no_matching_payments), subtitle = stringResource(R.string.change_filters), icon = Icons.AutoMirrored.Filled.ReceiptLong) }
+            NilePayCard {
+                NilePayEmptyState(
+                    title = stringResource(R.string.no_matching_payments),
+                    subtitle = stringResource(R.string.change_filters),
+                    icon = Icons.AutoMirrored.Filled.ReceiptLong
+                )
+            }
         } else {
             payments.forEach { PaymentCard(it, onPaymentSelected) }
         }
         if (nextCursor != null) NilePayButton(
-            text = stringResource(R.string.load_more_payments), enabled = !loading,
+            text = stringResource(R.string.load_more_payments),
+            enabled = !loading,
             onClick = {
                 val cursor = nextCursor ?: return@NilePayButton
                 val requestGeneration = generation
@@ -653,11 +806,21 @@ private fun PaymentsScreen(
                     loading = true
                     error = null
                     runCatching { withContext(Dispatchers.IO) { MobileGatewayClient(session).paymentPage(filter, query.trim(), cursor) } }
-                        .onSuccess { page -> if (generation == requestGeneration) { payments = (payments + page.payments).distinctBy { it.source + ":" + it.id }; nextCursor = page.nextCursor } }
-                        .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; if (generation == requestGeneration) error = it.message }
+                        .onSuccess { page ->
+                            if (generation == requestGeneration) {
+                                payments = (payments + page.payments).distinctBy { it.source + ":" + it.id }
+                                nextCursor = page.nextCursor
+                            }
+                        }
+                        .onFailure {
+                            if (it is kotlinx.coroutines.CancellationException) throw it
+                            if (generation == requestGeneration) error = it.message
+                        }
                     if (generation == requestGeneration) loading = false
                 }
-            }, modifier = Modifier.fillMaxWidth(), style = NilePayButtonStyle.Secondary
+            },
+            modifier = Modifier.fillMaxWidth(),
+            style = NilePayButtonStyle.Secondary
         )
     }
 }
@@ -665,26 +828,64 @@ private fun PaymentsScreen(
 @Composable
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun PaymentCard(payment: MerchantPayment, onClick: (MerchantPayment) -> Unit) {
+    val paymentStatus = NilePayStatus.fromApiStatus(payment.status)
+    val iconBg = when (paymentStatus) {
+        NilePayStatus.Confirmed -> NilePayTheme.colors.statusConfirmedContainer
+        NilePayStatus.Pending -> NilePayTheme.colors.statusPendingContainer
+        else -> NilePayTheme.colors.surfaceSubtle
+    }
+    val iconTint = when (paymentStatus) {
+        NilePayStatus.Confirmed -> NilePayTheme.colors.statusConfirmed
+        NilePayStatus.Pending -> NilePayTheme.colors.statusPending
+        else -> NilePayTheme.colors.primary
+    }
+
     NilePayCard(onClick = { onClick(payment) }) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(40.dp).clip(CircleShape).background(NilePayTheme.colors.surfaceSubtle),
+                    Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(iconBg),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Payments, null, tint = NilePayTheme.colors.primary) }
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(payment.sender, style = NilePayTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(payment.createdAt.take(10), style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+                ) {
+                    Icon(Icons.Filled.Payments, null, tint = iconTint, modifier = Modifier.size(20.dp))
+                }
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp)
+                ) {
+                    Text(
+                        payment.sender,
+                        style = NilePayTheme.typography.titleMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        payment.createdAt.replace('T', ' ').take(16),
+                        style = NilePayTheme.typography.bodySmall,
+                        color = NilePayTheme.colors.onSurfaceSecondary
+                    )
                 }
             }
-            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                NilePayStatusChip(
-                    status = NilePayStatus.fromApiStatus(payment.status)
-                )
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                NilePayStatusChip(status = paymentStatus)
                 NilePayAmountText(payment.amountEgp, size = NilePayAmountSize.Medium)
             }
             payment.receivedAmountEgp?.let { received ->
-                if (payment.expectedAmountEgp != null && received != payment.expectedAmountEgp) Text(stringResource(R.string.payment_received) + ": " + "%.2f EGP".format(received), style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+                if (payment.expectedAmountEgp != null && received != payment.expectedAmountEgp) {
+                    Text(
+                        stringResource(R.string.payment_received) + ": " + "%.2f EGP".format(received),
+                        style = NilePayTheme.typography.bodySmall,
+                        color = NilePayTheme.colors.onSurfaceSecondary
+                    )
+                }
             }
         }
     }
@@ -696,7 +897,16 @@ private fun PaymentDetailsSheet(payment: MerchantPayment, onDismiss: () -> Unit)
     val context = LocalContext.current
     val paymentStatus = NilePayStatus.fromApiStatus(payment.status)
     val status = stringResource(paymentStatus.labelResource())
-    val needsReview = paymentStatus in setOf(NilePayStatus.Overpaid, NilePayStatus.Underpaid, NilePayStatus.LatePayment, NilePayStatus.Unmatched, NilePayStatus.RiskReview, NilePayStatus.DuplicateSuspect, NilePayStatus.SenderMismatch, NilePayStatus.Unknown)
+    val needsReview = paymentStatus in setOf(
+        NilePayStatus.Overpaid,
+        NilePayStatus.Underpaid,
+        NilePayStatus.LatePayment,
+        NilePayStatus.Unmatched,
+        NilePayStatus.RiskReview,
+        NilePayStatus.DuplicateSuspect,
+        NilePayStatus.SenderMismatch,
+        NilePayStatus.Unknown
+    )
     val unavailable = stringResource(R.string.not_available)
     fun amount(value: Double?) = value?.let { "%.2f EGP".format(it) } ?: unavailable
     val paymentId = payment.sessionId.ifBlank { payment.id }
@@ -713,30 +923,72 @@ private fun PaymentDetailsSheet(payment: MerchantPayment, onDismiss: () -> Unit)
     )
     NilePayBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.payment_details)) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            NilePayAmountText(payment.receivedAmountEgp ?: payment.amountEgp, size = NilePayAmountSize.Large)
-            DetailRow(stringResource(R.string.payment_sender), payment.sender)
-            DetailRow(stringResource(R.string.payment_status), status)
-            payment.productCategory?.let { DetailRow(stringResource(R.string.product_category), it) }
-            DetailRow(stringResource(R.string.payment_expected), amount(payment.expectedAmountEgp))
-            DetailRow(stringResource(R.string.payment_received), amount(payment.receivedAmountEgp))
-            if (payment.expectedAmountEgp != null && payment.receivedAmountEgp != null) DetailRow(stringResource(R.string.payment_difference), amount(payment.receivedAmountEgp - payment.expectedAmountEgp))
-            payment.expiresAt?.let { DetailRow(stringResource(R.string.payment_expiry), it) }
-            if (paymentStatus == NilePayStatus.Unknown) DetailRow("API status", payment.status)
-            if (needsReview) {
-                Text(stringResource(if (payment.source == "unmatched") R.string.payment_unmatched_hint else R.string.payment_review_hint), style = NilePayTheme.typography.bodyMedium, color = NilePayTheme.colors.onSurfaceSecondary)
-                NilePayButton(text = stringResource(R.string.review_on_website), onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://nilepay.runasp.net/#review/"))) }, modifier = Modifier.fillMaxWidth(), style = NilePayButtonStyle.Secondary)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(NilePayTheme.shapes.medium)
+                    .background(NilePayTheme.colors.surfaceSubtle)
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NilePayAmountText(payment.receivedAmountEgp ?: payment.amountEgp, size = NilePayAmountSize.Large)
+                NilePayStatusChip(status = paymentStatus)
             }
-            DetailRow(stringResource(R.string.payment_date), payment.createdAt)
-            DetailRow(stringResource(R.string.payment_reference), payment.reference ?: stringResource(R.string.not_available))
-            DetailRow(stringResource(R.string.payment_id), paymentId)
-            payment.note?.let { DetailRow(stringResource(R.string.payment_note), it) }
+
+            if (needsReview) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(NilePayTheme.shapes.medium)
+                        .background(NilePayTheme.colors.statusPendingContainer)
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        stringResource(if (payment.source == "unmatched") R.string.payment_unmatched_hint else R.string.payment_review_hint),
+                        style = NilePayTheme.typography.bodyMedium,
+                        color = NilePayTheme.colors.onSurface
+                    )
+                }
+                NilePayButton(
+                    text = stringResource(R.string.review_on_website),
+                    onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://nilepay.runasp.net/#review/"))) },
+                    modifier = Modifier.fillMaxWidth(),
+                    style = NilePayButtonStyle.Secondary
+                )
+            }
+
+            NilePayCard {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DetailRow(stringResource(R.string.payment_sender), payment.sender)
+                    DetailRow(stringResource(R.string.payment_status), status)
+                    payment.productCategory?.let { DetailRow(stringResource(R.string.product_category), it) }
+                    DetailRow(stringResource(R.string.payment_expected), amount(payment.expectedAmountEgp))
+                    DetailRow(stringResource(R.string.payment_received), amount(payment.receivedAmountEgp))
+                    if (payment.expectedAmountEgp != null && payment.receivedAmountEgp != null) {
+                        DetailRow(stringResource(R.string.payment_difference), amount(payment.receivedAmountEgp - payment.expectedAmountEgp))
+                    }
+                    payment.expiresAt?.let { DetailRow(stringResource(R.string.payment_expiry), it) }
+                    if (paymentStatus == NilePayStatus.Unknown) DetailRow("API status", payment.status)
+                    DetailRow(stringResource(R.string.payment_date), payment.createdAt)
+                    DetailRow(stringResource(R.string.payment_reference), payment.reference ?: stringResource(R.string.not_available))
+                    DetailRow(stringResource(R.string.payment_id), paymentId)
+                    payment.note?.let { DetailRow(stringResource(R.string.payment_note), it) }
+                }
+            }
+
             NilePayButton(
                 text = stringResource(R.string.share_receipt),
                 onClick = {
-                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, receipt)
-                    }, context.getString(R.string.share_receipt)))
+                    context.startActivity(
+                        Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, receipt)
+                            },
+                            context.getString(R.string.share_receipt)
+                        )
+                    )
                 },
                 modifier = Modifier.fillMaxWidth(),
                 style = NilePayButtonStyle.Secondary,
@@ -773,6 +1025,7 @@ private fun HealthScreen(
         NilePayCard {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 HealthHeader(notificationAccess)
+                HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
                 HealthCheckRow(
                     icon = Icons.Filled.HealthAndSafety,
                     title = stringResource(R.string.notification_access),
@@ -820,17 +1073,31 @@ private fun HealthScreen(
             }
         }
         NilePayCard {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    stringResource(R.string.privacy_title),
-                    style = NilePayTheme.typography.titleLarge,
-                    color = NilePayTheme.colors.onSurface
-                )
-                Text(
-                    stringResource(R.string.privacy_summary),
-                    style = NilePayTheme.typography.bodyMedium,
-                    color = NilePayTheme.colors.onSurfaceSecondary
-                )
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(NilePayTheme.colors.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Shield, contentDescription = null, tint = NilePayTheme.colors.primary, modifier = Modifier.size(20.dp))
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.privacy_title),
+                        style = NilePayTheme.typography.titleLarge,
+                        color = NilePayTheme.colors.onSurface
+                    )
+                    Text(
+                        stringResource(R.string.privacy_summary),
+                        style = NilePayTheme.typography.bodyMedium,
+                        color = NilePayTheme.colors.onSurfaceSecondary
+                    )
+                }
             }
         }
     }
@@ -848,10 +1115,18 @@ private fun HealthHeader(notificationAccess: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
-                .size(10.dp)
+                .size(44.dp)
                 .clip(CircleShape)
-                .background(if (notificationAccess) NilePayTheme.colors.statusConfirmed else NilePayTheme.colors.statusPending)
-        )
+                .background(if (notificationAccess) NilePayTheme.colors.statusConfirmedContainer else NilePayTheme.colors.statusPendingContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (notificationAccess) Icons.Filled.Wifi else Icons.Filled.WifiOff,
+                contentDescription = null,
+                tint = if (notificationAccess) NilePayTheme.colors.statusConfirmed else NilePayTheme.colors.statusPending,
+                modifier = Modifier.size(22.dp)
+            )
+        }
         Column(Modifier.padding(start = 12.dp)) {
             Text(
                 stringResource(if (notificationAccess) R.string.detection_ready else R.string.detection_needs_setup),
@@ -876,7 +1151,20 @@ private fun hasNotificationAccess(context: android.content.Context): Boolean {
 @Composable
 private fun HealthCheckRow(icon: ImageVector, title: String, detail: String, healthy: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = NilePayTheme.colors.onSurfaceSecondary)
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(if (healthy) NilePayTheme.colors.statusConfirmedContainer else NilePayTheme.colors.statusPendingContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (healthy) NilePayTheme.colors.statusConfirmed else NilePayTheme.colors.statusPending,
+                modifier = Modifier.size(18.dp)
+            )
+        }
         Column(
             Modifier
                 .weight(1f)
@@ -918,10 +1206,22 @@ private fun SettingsScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 MerchantAvatar(profile.imageData, profile.businessName, Modifier.size(64.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.merchant_account), style = NilePayTheme.typography.labelMedium, color = NilePayTheme.colors.onSurfaceSecondary)
-                    Spacer(Modifier.height(6.dp))
-                    Text(profile.businessName.ifBlank { stringResource(R.string.account_not_loaded) }, style = NilePayTheme.typography.headlineSmall, color = NilePayTheme.colors.onSurface)
-                    Text(profile.email.ifBlank { stringResource(R.string.sign_in_account_hint) }, style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+                    Text(
+                        stringResource(R.string.merchant_account),
+                        style = NilePayTheme.typography.labelMedium,
+                        color = NilePayTheme.colors.primary
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        profile.businessName.ifBlank { stringResource(R.string.account_not_loaded) },
+                        style = NilePayTheme.typography.headlineSmall,
+                        color = NilePayTheme.colors.onSurface
+                    )
+                    Text(
+                        profile.email.ifBlank { stringResource(R.string.sign_in_account_hint) },
+                        style = NilePayTheme.typography.bodySmall,
+                        color = NilePayTheme.colors.onSurfaceSecondary
+                    )
                 }
             }
         }
@@ -985,7 +1285,7 @@ private fun SettingsScreen(
             open("${BuildConfig.API_BASE_URL.trimEnd('/')}/account-deletion")
         }
         SettingsRow(Icons.AutoMirrored.Filled.HelpOutline, stringResource(R.string.help_and_support), stringResource(R.string.help_and_support_detail)) {
-            open("https://nilepay.runasp.net/#documentation/")
+            open("https://nilepay.runasp.net/#support/")
         }
         NilePayButton(
             text = stringResource(R.string.logout),
@@ -1006,7 +1306,15 @@ private fun SettingsScreen(
 private fun SettingsRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
     NilePayCard(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = NilePayTheme.colors.primary, modifier = Modifier.size(28.dp))
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(NilePayTheme.colors.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = NilePayTheme.colors.primary, modifier = Modifier.size(22.dp))
+            }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(title, style = NilePayTheme.typography.titleMedium, color = NilePayTheme.colors.onSurface)
                 Text(subtitle, style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1037,9 +1345,11 @@ private fun PrivacyNoticeLink() {
         onDismissRequest = { visible = false },
         title = { Text(stringResource(R.string.data_notice_title)) },
         text = { Text(stringResource(R.string.data_notice_body), modifier = Modifier.verticalScroll(rememberScrollState())) },
-        confirmButton = { TextButton(onClick = {
-            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${BuildConfig.API_BASE_URL.trimEnd('/')}/privacy")))
-        }) { Text(stringResource(R.string.full_privacy_policy)) } },
+        confirmButton = {
+            TextButton(onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${BuildConfig.API_BASE_URL.trimEnd('/')}/privacy")))
+            }) { Text(stringResource(R.string.full_privacy_policy)) }
+        },
         dismissButton = { TextButton(onClick = { visible = false }) { Text(stringResource(R.string.close_notice)) } }
     )
 }
