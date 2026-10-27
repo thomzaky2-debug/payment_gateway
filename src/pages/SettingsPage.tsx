@@ -565,236 +565,475 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
               TAB 1A: MERCHANT PROFILE
              ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'general' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', alignItems: 'start' }}>
-              {/* Card 1: Store Profile & Identity */}
-              <div style={{ ...card({ padding: '24px' }) }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
-                  <div style={{
-                    width: '40px', height: '40px', borderRadius: '11px',
-                    background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
-                  }}>
-                    <Store size={20} color="white" />
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
-                      {isRtl ? 'هوية المتجر وحساب الاستلام' : 'Store Identity & Receiving Account'}
-                    </h3>
-                    <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
-                      {isRtl ? 'الاسم الظاهر للعميل وحساب إنستاباي المعتمد' : 'Customer-facing store name & validated InstaPay IPA'}
-                    </p>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px', borderRadius: '12px', background: isDark ? 'rgba(30,41,59,0.6)' : '#f8fafc', border: `1px solid ${borderColor}` }}>
-                    <div className="merchant-profile-photo" style={{ width: '58px', height: '58px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '20px' }}>
-                      {profileImageData ? <img src={profileImageData} alt="Merchant profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (businessName?.[0]?.toUpperCase() || <Store size={22} />)}
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <p style={{ fontSize: '12.5px', fontWeight: 700, color: textPrimary, margin: 0 }}>{isRtl ? 'صورة الملف الشخصي' : 'Profile Photo'}</p>
-                      <p style={{ fontSize: '11px', color: textSecondary, margin: '3px 0 8px' }}>{isRtl ? 'PNG أو JPEG أو WebP حتى 750 كيلوبايت' : 'PNG, JPEG, or WebP · up to 750 KB'}</p>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', cursor: uploadingProfileImage ? 'wait' : 'pointer', color: 'white', background: '#2563eb', fontSize: '11px', fontWeight: 700, opacity: uploadingProfileImage ? 0.65 : 1 }}>
-                          <Camera size={13} />
-                          {uploadingProfileImage ? (isRtl ? 'جارٍ الرفع...' : 'Uploading...') : (profileImageData ? (isRtl ? 'تغيير الصورة' : 'Change photo') : (isRtl ? 'رفع صورة' : 'Upload photo'))}
-                          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleProfileImageSelection} disabled={uploadingProfileImage} style={{ display: 'none' }} />
-                        </label>
-                        {profileImageData && (
-                          <button type="button" onClick={() => void uploadProfileImage(null)} disabled={uploadingProfileImage} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 10px', borderRadius: '8px', cursor: uploadingProfileImage ? 'wait' : 'pointer', color: '#dc2626', background: isDark ? 'rgba(220,38,38,0.12)' : '#fef2f2', border: isDark ? '1px solid rgba(220,38,38,0.3)' : '1px solid #fecaca', fontSize: '11px', fontWeight: 700 }}>
-                            <Trash2 size={13} /> {isRtl ? 'إزالة' : 'Remove'}
-                          </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* ─── Hero Brand Identity Banner ─── */}
+              <div style={{
+                ...card({ padding: '26px 28px' }),
+                background: isDark
+                  ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.16) 0%, rgba(15, 23, 42, 0.92) 60%, rgba(6, 182, 212, 0.10) 100%)'
+                  : 'linear-gradient(135deg, #eff6ff 0%, #ffffff 60%, #f0f9ff 100%)',
+                border: isDark ? '1px solid rgba(59, 130, 246, 0.28)' : '1px solid #bfdbfe',
+                position: 'relative',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '20px',
+                  flexWrap: 'wrap',
+                  position: 'relative',
+                  zIndex: 1,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '18px', minWidth: 0, flex: '1 1 280px' }}>
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <div
+                        className="merchant-profile-photo"
+                        style={{
+                          width: '76px',
+                          height: '76px',
+                          borderRadius: '50%',
+                          overflow: 'hidden',
+                          background: 'linear-gradient(135deg, #2563eb, #06b6d4)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontWeight: 800,
+                          fontSize: '26px',
+                          border: isDark ? '3px solid rgba(96, 165, 250, 0.45)' : '3px solid #ffffff',
+                          boxShadow: '0 8px 22px rgba(37, 99, 235, 0.28)',
+                        }}
+                      >
+                        {profileImageData ? (
+                          <img src={profileImageData} alt="Merchant profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          businessName?.[0]?.toUpperCase() || <Store size={28} />
                         )}
                       </div>
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '0',
+                        [isRtl ? 'left' : 'right']: '0',
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        backgroundColor: '#10b981',
+                        border: isDark ? '2px solid #0f172a' : '2px solid #ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 6px rgba(16,185,129,0.4)',
+                      }}>
+                        <Check size={13} color="white" strokeWidth={3} />
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: textPrimary, marginBottom: '6px' }}>
-                      {isRtl ? 'الاسم التجاري للمتجر' : 'Business Display Name'}
-                    </label>
-                    <input
-                      type="text"
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder={isRtl ? 'مثال: متجر التقنية الحديثة' : 'e.g. Acme Superstore'}
-                      style={inputStyle}
-                    />
-                    <span style={{ fontSize: '11px', color: textSecondary, marginTop: '4px', display: 'block' }}>
-                      {isRtl ? 'يظهر هذا الاسم في صفحة الفاتورة وشاشات الدفع للعملاء.' : 'Appears on customer checkout receipts and hosted payment pages.'}
-                    </span>
-                  </div>
 
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '8px', flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: '12.5px', fontWeight: 600, color: textPrimary, margin: 0 }}>
-                        {isRtl ? 'عنوان الدفع اللحظي (InstaPay IPA / Handle)' : 'Receiving InstaPay IPA / Handle'}
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => switchTab('checkout')}
-                        style={{
-                          fontSize: '10.5px',
-                          fontWeight: 700,
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          backgroundColor: isDark ? 'rgba(37,99,235,0.15)' : '#eff6ff',
-                          color: isDark ? '#60a5fa' : '#2563eb',
-                          border: isDark ? '1px solid rgba(37,99,235,0.3)' : '1px solid #bfdbfe',
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                        <h3 style={{
+                          fontSize: '20px',
+                          fontWeight: 800,
+                          color: textPrimary,
+                          margin: 0,
+                          letterSpacing: '-0.3px',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {businessName.trim() || (isRtl ? 'اسم المتجر التجاري' : 'Your Business Name')}
+                        </h3>
+                        <span style={{
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
-                          cursor: 'pointer',
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          padding: '3px 9px',
+                          borderRadius: '999px',
+                          backgroundColor: isDark ? 'rgba(16, 185, 129, 0.16)' : '#dcfce7',
+                          color: isDark ? '#34d399' : '#059669',
+                          border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #86efac',
+                        }}>
+                          <ShieldCheck size={12} />
+                          {isRtl ? 'هوية تاجر موثقة' : 'Verified Brand Identity'}
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: '12.5px', color: textSecondary, margin: '0 0 10px 0', lineHeight: 1.5 }}>
+                        {isRtl
+                          ? 'تظهر هوية متجرك وصورتك الرمزية تلقائياً في صفحات الدفع المستضافة، إيصالات العملاء، وتطبيق NilePay Merchant.'
+                          : 'Your store name and circular brand avatar appear across hosted checkout pages, customer receipts, and the NilePay Merchant app.'}
+                      </p>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.65)' : 'rgba(255, 255, 255, 0.85)',
+                          color: textSecondary,
+                          border: `1px solid ${borderColor}`,
+                        }}>
+                          {profileImageData
+                            ? (isRtl ? '📸 شعار مخصص مفعّل' : '📸 Custom Avatar Active')
+                            : (isRtl ? '🔤 شعار بالحروف الأولى' : '🔤 Initials Badge Active')}
+                        </span>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.65)' : 'rgba(255, 255, 255, 0.85)',
+                          color: textSecondary,
+                          border: `1px solid ${borderColor}`,
+                        }}>
+                          {isRtl ? '🌐 متزامن مع الويب والموبايل' : '🌐 Synced Across Web & Mobile'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Avatar Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <label style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '7px',
+                      padding: '10px 16px',
+                      borderRadius: '11px',
+                      cursor: uploadingProfileImage ? 'wait' : 'pointer',
+                      color: 'white',
+                      background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                      opacity: uploadingProfileImage ? 0.65 : 1,
+                      transition: 'all 0.2s ease',
+                    }}>
+                      <Camera size={15} />
+                      <span>
+                        {uploadingProfileImage
+                          ? (isRtl ? 'جارٍ الرفع...' : 'Uploading...')
+                          : profileImageData
+                          ? (isRtl ? 'تغيير شعار المتجر' : 'Change Brand Logo')
+                          : (isRtl ? 'رفع شعار المتجر' : 'Upload Brand Logo')}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleProfileImageSelection}
+                        disabled={uploadingProfileImage}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                    {profileImageData && (
+                      <button
+                        type="button"
+                        onClick={() => void uploadProfileImage(null)}
+                        disabled={uploadingProfileImage}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '10px 14px',
+                          borderRadius: '11px',
+                          cursor: uploadingProfileImage ? 'wait' : 'pointer',
+                          color: '#dc2626',
+                          background: isDark ? 'rgba(220, 38, 38, 0.14)' : '#fef2f2',
+                          border: isDark ? '1px solid rgba(220, 38, 38, 0.32)' : '1px solid #fecaca',
+                          fontSize: '12.5px',
+                          fontWeight: 700,
                         }}
                       >
-                        <span>{isRtl ? 'تعديل من إعدادات الدفع' : 'Manage in Checkout'}</span>
-                        <ChevronRight size={12} style={{ transform: isRtl ? 'rotate(180deg)' : undefined }} />
+                        <Trash2 size={14} />
+                        <span>{isRtl ? 'إزالة الشعار' : 'Remove'}</span>
                       </button>
-                    </div>
-
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        readOnly
-                        value={instapayHandle}
-                        placeholder={isRtl ? 'يتم استخراجه تلقائياً من رابط الدفع في قسم إعدادات الدفع' : 'Auto-derived from Payment Link in Checkout settings'}
-                        style={{
-                          ...inputStyle,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.6)' : '#f1f5f9',
-                          cursor: 'default',
-                          color: instapayHandle ? textPrimary : textSecondary,
-                          paddingRight: isRtl ? '14px' : '42px',
-                          paddingLeft: isRtl ? '42px' : '14px',
-                        }}
-                      />
-                      {instapayHandle && (
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(instapayHandle, 'handle')}
-                          style={{
-                            position: 'absolute',
-                            [isRtl ? 'left' : 'right']: '10px',
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: copiedKey === 'handle' ? '#10b981' : textSecondary,
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '4px',
-                          }}
-                          title={isRtl ? 'نسخ المعرف' : 'Copy handle'}
-                        >
-                          {copiedKey === 'handle' ? <Check size={16} /> : <Copy size={16} />}
-                        </button>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '11px', color: textSecondary }}>
-                        {isRtl
-                          ? 'يتم تحديث عنوان الاستلام تلقائياً من رابط الدفع في قسم إعدادات الدفع.'
-                          : 'Your receiving address is synced from the Payment Link managed in Checkout settings.'}
-                      </span>
-                      {instapayHandle && (
-                        <span style={{
-                          fontSize: '10.5px',
-                          fontWeight: 600,
-                          padding: '1px 6px',
-                          borderRadius: '4px',
-                          backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#ecfdf5',
-                          color: isDark ? '#34d399' : '#059669',
-                          border: isDark ? '1px solid rgba(16,185,129,0.25)' : '1px solid #a7f3d0',
-                        }}>
-                          ⚡ {instapayHandle}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Card 2: Customer-Facing Brand & Checkout Receipt Preview */}
-              <div style={{ ...card({ padding: '24px' }) }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
-                  <div style={{
-                    width: '40px', height: '40px', borderRadius: '11px',
-                    background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
-                  }}>
-                    <Sparkles size={20} color="white" />
-                  </div>
+              {/* ─── Two-Column Brand Studio Grid ─── */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))', gap: '20px', alignItems: 'stretch' }}>
+                {/* Card 1: Store Brand & Display Settings */}
+                <div style={{ ...card({ padding: '24px' }), display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '20px' }}>
                   <div>
-                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
-                      {isRtl ? 'معاينة الهوية في صفحة الدفع' : 'Customer Checkout Brand Preview'}
-                    </h3>
-                    <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
-                      {isRtl ? 'كيف تظهر هوية متجرك للعملاء أثناء الدفع' : 'Live preview of how buyers see your store on hosted checkout'}
-                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                      <div style={{
+                        width: '40px', height: '40px', borderRadius: '11px',
+                        background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                      }}>
+                        <Store size={20} color="white" />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                          {isRtl ? 'إعدادات الاسم التجاري والشعار' : 'Store Brand & Display Settings'}
+                        </h3>
+                        <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                          {isRtl ? 'تخصيص الاسم التجاري وصورة العرض لعملائك' : 'Configure how your business name and logo are presented'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                      {/* Business Display Name Input */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <label style={{ fontSize: '12.5px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                            {isRtl ? 'الاسم التجاري للمتجر' : 'Business Display Name'}
+                          </label>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: textSecondary,
+                            fontFamily: "'JetBrains Mono', monospace",
+                          }}>
+                            {businessName.length}/60
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          maxLength={60}
+                          value={businessName}
+                          onChange={(e) => setBusinessName(e.target.value)}
+                          placeholder={isRtl ? 'مثال: متجر التقنية الحديثة' : 'e.g. Acme Superstore'}
+                          style={inputStyle}
+                        />
+                        <span style={{ fontSize: '11.5px', color: textSecondary, marginTop: '6px', display: 'block', lineHeight: 1.5 }}>
+                          {isRtl
+                            ? 'يظهر هذا الاسم في رأس صفحة الدفع، الإيصالات الرقمية، ولوحة تحكم التاجر.'
+                            : 'Displayed prominently at the top of hosted checkout sessions, digital receipts, and your merchant workspace.'}
+                        </span>
+                      </div>
+
+                      {/* Avatar Upload & Specifications Card */}
+                      <div style={{
+                        ...subcard({ padding: '16px' }),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ fontSize: '12.5px', fontWeight: 700, color: textPrimary }}>
+                              {isRtl ? 'مواصفات الصورة الرمزية للمتجر' : 'Brand Avatar Specifications'}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: textSecondary, marginTop: '2px' }}>
+                              {isRtl ? 'تُعرض داخل إطار دائري متناسق في جميع الشاشات' : 'Rendered inside a circular badge across web and mobile'}
+                            </div>
+                          </div>
+                          <label style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            cursor: uploadingProfileImage ? 'wait' : 'pointer',
+                            backgroundColor: isDark ? 'rgba(37, 99, 235, 0.16)' : '#eff6ff',
+                            color: isDark ? '#60a5fa' : '#2563eb',
+                            border: isDark ? '1px solid rgba(37, 99, 235, 0.3)' : '1px solid #bfdbfe',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                          }}>
+                            <Camera size={13} />
+                            <span>{isRtl ? 'اختيار ملف' : 'Browse File'}</span>
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              onChange={handleProfileImageSelection}
+                              disabled={uploadingProfileImage}
+                              style={{ display: 'none' }}
+                            />
+                          </label>
+                        </div>
+
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                          gap: '8px',
+                        }}>
+                          {[
+                            {
+                              titleEn: 'Formats',
+                              titleAr: 'الصيغ المدعومة',
+                              valEn: 'PNG, JPG, WebP',
+                              valAr: 'PNG, JPG, WebP',
+                            },
+                            {
+                              titleEn: 'Max File Size',
+                              titleAr: 'الحجم الأقصى',
+                              valEn: 'Up to 750 KB',
+                              valAr: 'حتى 750 كيلوبايت',
+                            },
+                            {
+                              titleEn: 'Aspect Ratio',
+                              titleAr: 'الأبعاد الموصى بها',
+                              valEn: '1:1 Square / Circle',
+                              valAr: '1:1 مربع / دائري',
+                            },
+                          ].map((spec, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                backgroundColor: isDark ? 'rgba(15, 23, 42, 0.55)' : '#ffffff',
+                                border: `1px solid ${borderColor}`,
+                              }}
+                            >
+                              <div style={{ fontSize: '10px', fontWeight: 600, color: textSecondary, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                {isRtl ? spec.titleAr : spec.titleEn}
+                              </div>
+                              <div style={{ fontSize: '11.5px', fontWeight: 700, color: textPrimary, marginTop: '2px' }}>
+                                {isRtl ? spec.valAr : spec.valEn}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Subtle Footer Tip */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    paddingTop: '14px',
+                    borderTop: `1px solid ${borderColor}`,
+                    flexWrap: 'wrap',
+                  }}>
+                    <span style={{ fontSize: '11.5px', color: textSecondary }}>
+                      {isRtl
+                        ? '💡 تلميح: اضغط على "حفظ التعديلات" في الأعلى بعد تعديل الاسم التجاري.'
+                        : '💡 Tip: Click "Save Changes" in the header after updating your business name.'}
+                    </span>
                   </div>
                 </div>
 
-                {/* Simulated Checkout Card Header */}
-                <div style={{
-                  ...subcard({ padding: '18px' }),
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '14px',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                {/* Card 2: Live Customer Checkout & Portal Preview */}
+                <div style={{ ...card({ padding: '24px' }), display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '18px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
                       <div style={{
-                        width: '44px',
-                        height: '44px',
-                        borderRadius: '50%',
-                        overflow: 'hidden',
-                        flexShrink: 0,
-                        background: 'linear-gradient(135deg, #2563eb, #06b6d4)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
-                        fontWeight: 800,
-                        fontSize: '17px',
-                        boxShadow: '0 3px 10px rgba(37,99,235,0.25)',
+                        width: '40px', height: '40px', borderRadius: '11px',
+                        background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
                       }}>
-                        {profileImageData ? (
-                          <img src={profileImageData} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          businessName?.[0]?.toUpperCase() || <Store size={18} />
-                        )}
+                        <Sparkles size={20} color="white" />
                       </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <strong style={{ fontSize: '14.5px', color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {businessName.trim() || (isRtl ? 'اسم المتجر التجاري' : 'Your Business Name')}
-                          </strong>
-                          <ShieldCheck size={15} color="#10b981" style={{ flexShrink: 0 }} />
-                        </div>
-                        <span style={{ fontSize: '11.5px', color: textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>
-                          {instapayHandle || 'merchant@instapay'}
-                        </span>
+                      <div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                          {isRtl ? 'معاينة الهوية المباشرة' : 'Live Brand Experience Preview'}
+                        </h3>
+                        <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                          {isRtl ? 'كيف تظهر هوية متجرك للعملاء في صفحة الدفع' : 'Real-time preview of how customers see your store at checkout'}
+                        </p>
                       </div>
                     </div>
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: 700,
-                      padding: '3px 8px',
-                      borderRadius: '999px',
-                      backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#dcfce7',
-                      color: '#10b981',
-                      border: isDark ? '1px solid rgba(16,185,129,0.3)' : '1px solid #86efac',
+
+                    {/* Simulated Hosted Checkout Card */}
+                    <div style={{
+                      ...subcard({ padding: '18px' }),
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
+                      background: isDark
+                        ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.75) 0%, rgba(15, 23, 42, 0.45) 100%)'
+                        : 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
                     }}>
-                      {isRtl ? 'تاجر موثق' : 'VERIFIED MERCHANT'}
-                    </span>
+                      {/* Mock Browser / Checkout Top Bar */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingBottom: '12px',
+                        borderBottom: `1px solid ${borderColor}`,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444', opacity: 0.75 }} />
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f59e0b', opacity: 0.75 }} />
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', opacity: 0.75 }} />
+                          <span style={{
+                            fontSize: '10.5px',
+                            color: textSecondary,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            [isRtl ? 'marginRight' : 'marginLeft']: '6px',
+                          }}>
+                            checkout.nilepay.eg
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '999px',
+                          backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#dcfce7',
+                          color: '#10b981',
+                        }}>
+                          {isRtl ? 'معاينة حية' : 'LIVE PREVIEW'}
+                        </span>
+                      </div>
+
+                      {/* Store Header inside Checkout */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '50%',
+                            overflow: 'hidden',
+                            flexShrink: 0,
+                            background: 'linear-gradient(135deg, #2563eb, #06b6d4)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            fontWeight: 800,
+                            fontSize: '18px',
+                            boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
+                          }}>
+                            {profileImageData ? (
+                              <img src={profileImageData} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              businessName?.[0]?.toUpperCase() || <Store size={20} />
+                            )}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <strong style={{ fontSize: '15px', color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {businessName.trim() || (isRtl ? 'اسم المتجر التجاري' : 'Your Business Name')}
+                              </strong>
+                              <ShieldCheck size={15} color="#10b981" style={{ flexShrink: 0 }} />
+                            </div>
+                            <span style={{ fontSize: '11.5px', color: textSecondary }}>
+                              {isRtl ? 'بوابة الدفع الموثقة عبر نايل باي' : 'Verified NilePay Merchant Checkout'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
+                          <div style={{ fontSize: '10.5px', color: textSecondary }}>
+                            {isRtl ? 'نموذج فاتورة' : 'Sample Invoice'}
+                          </div>
+                          <div style={{ fontSize: '14px', fontWeight: 800, color: textPrimary, fontFamily: "'JetBrains Mono', monospace" }}>
+                            1,250.00 EGP
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Readiness Checklist */}
+                  {/* Brand Readiness Status */}
                   <div style={{
-                    borderTop: `1px solid ${borderColor}`,
-                    paddingTop: '12px',
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                     gap: '10px',
                   }}>
                     {[
@@ -802,36 +1041,29 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                         done: Boolean(businessName.trim()),
                         labelEn: 'Display Name',
                         labelAr: 'الاسم التجاري',
-                        valueEn: businessName.trim() ? 'Configured' : 'Missing',
-                        valueAr: businessName.trim() ? 'مكتمل' : 'غير محدد',
+                        valueEn: businessName.trim() ? 'Configured & Ready' : 'Not set yet',
+                        valueAr: businessName.trim() ? 'مكتمل وجاهز' : 'غير محدد بعد',
                       },
                       {
                         done: Boolean(profileImageData),
-                        labelEn: 'Brand Logo',
+                        labelEn: 'Store Avatar',
                         labelAr: 'شعار المتجر',
-                        valueEn: profileImageData ? 'Custom photo' : 'Initials badge',
-                        valueAr: profileImageData ? 'صورة مخصصة' : 'حرف افتراضي',
-                      },
-                      {
-                        done: Boolean(instapayHandle),
-                        labelEn: 'Receiving IPA',
-                        labelAr: 'عنوان الاستلام',
-                        valueEn: instapayHandle || 'Set in Checkout',
-                        valueAr: instapayHandle || 'يُضبط في الدفع',
+                        valueEn: profileImageData ? 'Custom logo uploaded' : 'Using initials badge',
+                        valueAr: profileImageData ? 'تم رفع شعار مخصص' : 'يستخدم الحرف الافتراضي',
                       },
                     ].map((item, idx) => (
                       <div
                         key={idx}
                         style={{
-                          padding: '9px 11px',
+                          padding: '10px 12px',
                           borderRadius: '10px',
-                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.55)' : '#ffffff',
+                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.55)' : '#f8fafc',
                           border: `1px solid ${borderColor}`,
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
-                          <CheckCircle2 size={13} color={item.done ? '#10b981' : '#f59e0b'} />
-                          <span style={{ fontSize: '11px', fontWeight: 700, color: textPrimary }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                          <CheckCircle2 size={14} color={item.done ? '#10b981' : '#3b82f6'} />
+                          <span style={{ fontSize: '11.5px', fontWeight: 700, color: textPrimary }}>
                             {isRtl ? item.labelAr : item.labelEn}
                           </span>
                         </div>
