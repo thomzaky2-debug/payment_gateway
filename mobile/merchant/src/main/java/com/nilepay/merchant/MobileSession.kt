@@ -28,11 +28,16 @@ data class DashboardSnapshot(
 
 data class MerchantPayment(
     val id: String,
+    val sessionId: String,
     val sender: String,
     val amountEgp: Double,
     val status: String,
-    val createdAt: String
+    val createdAt: String,
+    val reference: String?,
+    val note: String?
 )
+
+data class MobileConfig(val updateRequired: Boolean, val minimumVersion: String, val message: String?)
 
 class MerchantSession(context: Context) {
     private val appContext = context.applicationContext
@@ -42,10 +47,12 @@ class MerchantSession(context: Context) {
     private val statePrefs = appContext.getSharedPreferences("nilepay_merchant_state", Context.MODE_PRIVATE)
 
     val isSignedIn: Boolean get() = tokens.hasValidSession()
-    val hasDisclosureConsent: Boolean get() = statePrefs.getLong("disclosure_consent_at", 0L) > 0L
+    val hasDisclosureConsent: Boolean get() = statePrefs.getInt("disclosure_version", 0) == 2 && statePrefs.getLong("disclosure_consent_at", 0L) > 0L
     val businessName: String get() = decrypt("business_name") ?: ""
     val merchantEmail: String get() = decrypt("merchant_email") ?: ""
     val deviceToken: String? get() = decrypt("device_token")
+    val lastHeartbeatAt: Long get() = statePrefs.getLong("last_heartbeat_at", 0L)
+    val lastDetectedAt: Long get() = statePrefs.getLong("last_detected_at", 0L)
 
     fun saveSignedIn(authTokens: AuthTokens, deviceToken: String, businessName: String, email: String) {
         tokens.saveTokens(authTokens)
@@ -57,10 +64,14 @@ class MerchantSession(context: Context) {
     }
 
     fun recordConsent() {
-        statePrefs.edit().putLong("disclosure_consent_at", System.currentTimeMillis()).apply()
+        statePrefs.edit().putInt("disclosure_version", 2).putLong("disclosure_consent_at", System.currentTimeMillis()).apply()
     }
 
+    fun recordHeartbeat() = statePrefs.edit().putLong("last_heartbeat_at", System.currentTimeMillis()).apply()
+    fun recordDetection() = statePrefs.edit().putLong("last_detected_at", System.currentTimeMillis()).apply()
+
     fun signOut() {
+        statePrefs.edit().clear().apply()
         tokens.clearTokens()
         prefs.edit().clear().apply()
     }
@@ -151,12 +162,31 @@ class MobileGatewayClient(
                 val item = rows.getJSONObject(index)
                 MerchantPayment(
                     id = item.optString("id"),
+                    sessionId = item.optString("sessionId"),
                     sender = item.optString("senderHandle").ifBlank { "Unknown sender" },
                     amountEgp = item.optDouble("amountEgp", 0.0),
                     status = item.optString("status", "PENDING"),
-                    createdAt = item.optString("createdAt")
+                    createdAt = item.optString("createdAt"),
+                    reference = item.optString("detectedRef").takeIf { it.isNotBlank() },
+                    note = item.optString("note").takeIf { it.isNotBlank() }
                 )
             }
+        }
+    }
+
+    fun mobileConfig(): MobileConfig {
+        val request = Request.Builder()
+            .url("$baseUrl/api/mobile/config?app=merchant&version=${BuildConfig.VERSION_NAME}")
+            .get().build()
+        client.newCall(request).execute().use { response ->
+            val parsed = runCatching { JSONObject(response.body?.string().orEmpty()) }.getOrElse { JSONObject() }
+            if (!response.isSuccessful) error("Configuration request failed (${response.code})")
+            return MobileConfig(
+                updateRequired = parsed.optBoolean("updateRequired"),
+                minimumVersion = parsed.optJSONObject("minVersions")?.optString("merchant", BuildConfig.VERSION_NAME)
+                    ?: BuildConfig.VERSION_NAME,
+                message = parsed.optString("message").takeIf { it.isNotBlank() }
+            )
         }
     }
 

@@ -54,15 +54,15 @@
     <string name="loading">جارٍ التحميل…</string>
 
     <!-- Disclosure Layout -->
-    <string name="disclosure_badge">إشعار أمان Google Play</string>
+    <string name="disclosure_badge">خصوصية الإشعارات</string>
     <string name="disclosure_title">إذن الوصول إلى الإشعارات مطلوب</string>
-    <string name="disclosure_intro">لكشف وتأكيد المدفوعات المستلمة على هاتفك تلقائياً، يحتاج تطبيق نايل باي إلى صلاحية قراءة الإشعارات.</string>
+    <string name="disclosure_intro">يقرأ نايل باي إشعارات مدفوعات إنستاباي المدعومة حتى عندما يكون التطبيق مغلقاً أو في الخلفية لمطابقة المدفوعات مع طلبات التاجر. يمكنك الرفض للعودة إلى تسجيل الدخول.</string>
     <string name="disclosure_point1_title">إشعارات إنستاباي فقط</string>
     <string name="disclosure_point1_desc">يقرأ التطبيق الإشعارات الواردة من تطبيق إنستاباي الرسمي فقط دون غيره.</string>
     <string name="disclosure_point2_title">الغرض: كشف المدفوعات</string>
     <string name="disclosure_point2_desc">يكتشف التحويلات الواردة لتأكيد طلبات المتجر تلقائياً في الوقت الفعلي.</string>
     <string name="disclosure_point3_title">أدنى حد من البيانات المستخرجة</string>
-    <string name="disclosure_point3_desc">يتم إرسال المبلغ، عنوان المحول، المرجع البنكي، والوقت فقط. لا يتم تخزين أو إرسال نص الإشعار الكامل مطلقاً.</string>
+    <string name="disclosure_point3_desc">يرسل نايل باي المبلغ وعنوان المحول والمرجع والوقت ومعرّفات الحدث والجهاز وإصدار التطبيق وأندرويد إلى خادم نايل باي عبر HTTPS. تُحفظ الأحداث المستخرجة مؤقتاً على الجهاز لإرسالها. لا يُحفظ نص الإشعار الكامل ولا يُرسل.</string>
     <string name="disclosure_point4_title">تحكم كامل</string>
     <string name="disclosure_point4_desc">يتم تجاهل كل الإشعارات الأخرى فوراً. يمكنك إيقاف هذا الإذن في أي وقت من إعدادات النظام.</string>
 

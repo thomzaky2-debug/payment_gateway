@@ -554,7 +554,7 @@ export async function confirmPublicAccountDeletion(params: {
 
   return {
     ok: true,
-    message: 'Deletion confirmed. Your account has been deactivated and will be permanently deleted in 72 hours. If you change your mind, log in before the deadline to cancel.',
+    message: 'Deletion confirmed. Access has been deactivated. After 72 hours, the daily cleanup process removes or replaces personal data. Limited payment records remain under the published retention policy. Log in before the deadline to cancel.',
   }
 }
 

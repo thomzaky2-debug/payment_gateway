@@ -1,4 +1,14 @@
 import { runDailyRetentionPurge } from '../services/accountService.js'
+import { db } from '../db.js'
+import { operationalRetentionFilters } from '../services/operationalRetention.js'
+
+async function runRetentionCycle(now = new Date()) {
+  const result = await runDailyRetentionPurge(now)
+  const filters = operationalRetentionFilters(now)
+  await db.webhookLog.deleteMany({ where: filters.webhook })
+  await db.auditLog.deleteMany({ where: filters.audit })
+  return result
+}
 
 let retentionInterval: ReturnType<typeof setInterval> | null = null
 
@@ -21,12 +31,12 @@ export function startRetentionPurgeWorker(
   if (retentionInterval) return
 
   // Run immediately on startup so deferred deletions are not delayed by one full cycle.
-  void runDailyRetentionPurge(nowOverride).catch((err) =>
+  void runRetentionCycle(nowOverride).catch((err) =>
     console.error('[retention-purge] Initial run error:', err)
   )
 
   retentionInterval = setInterval(() => {
-    void runDailyRetentionPurge().catch((err) =>
+    void runRetentionCycle().catch((err) =>
       console.error('[retention-purge] Worker error:', err)
     )
   }, intervalMs)
@@ -52,5 +62,5 @@ export async function runRetentionPurgeCycle(nowOverride?: Date): Promise<{
   deferredDeletionsCompleted: number
   retentionRowsAnonymized: number
 }> {
-  return runDailyRetentionPurge(nowOverride)
+  return runRetentionCycle(nowOverride)
 }

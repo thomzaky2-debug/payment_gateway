@@ -32,6 +32,8 @@ class InstaPayNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         if (sbn == null || sbn.packageName != InstaPayParser.INSTAPAY_PACKAGE) return
+        val session = com.nilepay.merchant.MerchantSession(this)
+        if (!session.hasDisclosureConsent || !session.isSignedIn || session.deviceToken.isNullOrBlank()) return
         val extras = sbn.notification?.extras ?: return
         val text = listOfNotNull(
             extras.getCharSequence(Notification.EXTRA_TITLE),
@@ -42,7 +44,8 @@ class InstaPayNotificationListener : NotificationListenerService() {
         val eventId = InstaPayParser.eventId(sbn.packageName, sbn.postTime, sbn.key)
         scope.launch {
             val session = com.nilepay.merchant.MerchantSession(this@InstaPayNotificationListener)
-            if (!session.isSignedIn || session.deviceToken.isNullOrBlank()) return@launch
+            if (!session.hasDisclosureConsent || !session.isSignedIn || session.deviceToken.isNullOrBlank()) return@launch
+            session.recordDetection()
             val dao = DetectionDatabase.get(this@InstaPayNotificationListener).events()
             dao.deleteOlderThan(System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7))
             val overflow = dao.count() - 499

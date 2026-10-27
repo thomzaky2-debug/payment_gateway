@@ -54,15 +54,15 @@
     <string name="loading">Loading…</string>
 
     <!-- Disclosure Layout -->
-    <string name="disclosure_badge">Google Play Security Notice</string>
+    <string name="disclosure_badge">Notification privacy</string>
     <string name="disclosure_title">Notification Access Required</string>
-    <string name="disclosure_intro">To automatically detect payments received on your phone, NilePay requires notification access.</string>
+    <string name="disclosure_intro">NilePay reads supported InstaPay payment notifications, including while the app is closed or in the background, to match received payments to merchant orders. Notification access is optional; decline to return to sign-in.</string>
     <string name="disclosure_point1_title">InstaPay notifications only</string>
     <string name="disclosure_point1_desc">The app reads incoming notifications strictly from the official InstaPay app.</string>
     <string name="disclosure_point2_title">Payment detection purpose</string>
     <string name="disclosure_point2_desc">It detects incoming transfers to automatically confirm merchant orders in real time.</string>
     <string name="disclosure_point3_title">Minimal parsed data</string>
-    <string name="disclosure_point3_desc">Only amount, sender handle, bank reference, and timestamp are transmitted. Raw notification text is never stored or sent.</string>
+    <string name="disclosure_point3_desc">NilePay sends the amount, sender handle, bank reference, timestamp, event and device identifiers, and app and Android versions to the NilePay server over HTTPS. Parsed events are queued on this device for delivery. Raw notification text is not stored or sent.</string>
     <string name="disclosure_point4_title">Full control</string>
     <string name="disclosure_point4_desc">All other notifications are ignored immediately. You can disable this access at any time in system settings.</string>
 

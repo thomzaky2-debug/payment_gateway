@@ -51,6 +51,12 @@ interface DetectionDao {
 
     @Query("SELECT COUNT(*) FROM pending_payment_events WHERE needsAttention = 1")
     suspend fun attentionCount(): Int
+
+    @Query("SELECT * FROM pending_payment_events ORDER BY createdAt ASC")
+    suspend fun all(): List<PendingPaymentEvent>
+
+    @Query("UPDATE pending_payment_events SET needsAttention = 0, lastError = NULL WHERE eventId = :id")
+    suspend fun clearAttention(id: String)
 }
 
 @Database(entities = [PendingPaymentEvent::class], version = 1, exportSchema = false)

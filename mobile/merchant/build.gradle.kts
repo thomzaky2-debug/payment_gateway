@@ -39,13 +39,6 @@ android {
                 storePassword = keystorePassword
                 this.keyAlias = keyAlias
                 this.keyPassword = keyPassword
-            } else {
-                // Fall back to debug signing key for local release builds when no production keystore is provided
-                val debugKeystore = signingConfigs.getByName("debug")
-                storeFile = debugKeystore.storeFile
-                storePassword = debugKeystore.storePassword
-                this.keyAlias = debugKeystore.keyAlias
-                this.keyPassword = debugKeystore.keyPassword
             }
         }
     }
@@ -78,6 +71,21 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+val verifyReleaseSigning by tasks.registering {
+    doLast {
+        val signing = android.signingConfigs.getByName("release")
+        check(signing.storeFile?.isFile == true && !signing.storePassword.isNullOrBlank() &&
+            !signing.keyAlias.isNullOrBlank() && !signing.keyPassword.isNullOrBlank()) {
+            "Production signing is required. Set all four NILEPAY_RELEASE_KEYSTORE_FILE, NILEPAY_RELEASE_KEYSTORE_PASSWORD, NILEPAY_RELEASE_KEY_ALIAS and NILEPAY_RELEASE_KEY_PASSWORD values. Use assembleDebug for local testing."
+        }
+    }
+}
+tasks.configureEach {
+    if (name == "validateSigningRelease" || name == "packageRelease" || name == "packageReleaseBundle") {
+        dependsOn(verifyReleaseSigning)
     }
 }
 
