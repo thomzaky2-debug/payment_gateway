@@ -205,8 +205,6 @@ function App() {
     });
   };
 
-  if (currentPage === 'support') return <SupportPage />;
-
   if (isCheckingAuth) {
     return (
       <div
@@ -239,6 +237,7 @@ function App() {
   }
 
   if (!isAuthenticated) {
+    if (currentPage === 'support') return <SupportPage inApp={false} />;
     return (
       <>
         <LoginPage onLogin={handleLogin} showToast={showToast} />
@@ -250,6 +249,8 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
+      case 'support':
+        return <SupportPage inApp={true} />;
       case 'overview':
         return <OverviewPage showToast={showToast} onNavigate={navigateTo} />;
       case 'transactions':

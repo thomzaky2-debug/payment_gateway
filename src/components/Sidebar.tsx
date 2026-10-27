@@ -11,8 +11,6 @@ import {
   Moon,
   Globe,
   X,
-  FileText,
-  LifeBuoy,
 } from 'lucide-react';
 
 export interface SidebarProps {
@@ -427,23 +425,152 @@ export function Sidebar({
             gap: '2px',
           }}
         >
-          {!isCollapsed && <span style={{ padding: '4px 8px', color: isDark ? '#94a3b8' : '#64748b', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em' }}>{isRtl ? 'إعدادات المتجر' : 'STORE SETTINGS'}</span>}
-          {settingsSections.map(section => {
-            const active = currentPage === 'settings' && parseSettingsSection(currentSubPath) === section.key;
+          {!isCollapsed && (
+            <span
+              style={{
+                padding: '4px 8px',
+                color: isDark ? '#94a3b8' : '#64748b',
+                fontSize: '10px',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+              }}
+            >
+              {isRtl ? 'إعدادات المتجر' : 'STORE SETTINGS'}
+            </span>
+          )}
+          {settingsSections.map((section) => {
+            const isActive = currentPage === 'settings' && parseSettingsSection(currentSubPath) === section.key;
             const label = isRtl ? section.ar : section.en;
-            const Icon = section.icon;
-            return <button key={section.key} type="button" title={label} aria-label={label} aria-current={active ? 'page' : undefined}
-              onClick={() => { onNavigate('settings', section.path); onCloseMobile?.(); }}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 8, minHeight: 38, padding: '7px 8px', border: 'none', borderRadius: 7, cursor: 'pointer', background: active ? '#2563eb' : 'transparent', color: active ? '#fff' : isDark ? '#cbd5e1' : '#475569', textAlign: 'start', fontSize: '11.5px', fontWeight: active ? 600 : 500 }}>
-              <Icon size={18} style={{ flexShrink: 0 }} aria-hidden="true" />
-              {!isCollapsed && <span>{label}</span>}
-            </button>;
+
+            if (isCollapsed) {
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  title={label}
+                  aria-label={label}
+                  aria-current={isActive ? 'page' : undefined}
+                  onClick={() => {
+                    onNavigate('settings', section.path);
+                    onCloseMobile?.();
+                  }}
+                  style={{
+                    width: '42px',
+                    height: '40px',
+                    margin: '0 auto',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '17px',
+                    backgroundColor: isActive ? '#2563eb' : 'transparent',
+                    color: isActive ? '#ffffff' : isDark ? '#94a3b8' : '#64748b',
+                    boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.4)' : 'none',
+                    transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = isDark ? '#1e293b' : '#f1f5f9';
+                      e.currentTarget.style.color = isDark ? '#f8fafc' : '#0f172a';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = isDark ? '#94a3b8' : '#64748b';
+                    }
+                  }}
+                >
+                  <span aria-hidden="true">{section.emoji}</span>
+                  {isActive && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        [isRtl ? 'right' : 'left']: '2px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: '3px',
+                        height: '16px',
+                        backgroundColor: '#60a5fa',
+                        borderRadius: '2px',
+                      }}
+                    />
+                  )}
+                </button>
+              );
+            }
+
+            return (
+              <button
+                key={section.key}
+                type="button"
+                title={label}
+                aria-label={label}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => {
+                  onNavigate('settings', section.path);
+                  onCloseMobile?.();
+                }}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 8px',
+                  borderRadius: '7px',
+                  fontSize: '11.5px',
+                  fontWeight: isActive ? 600 : 500,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: isActive ? '#2563eb' : 'transparent',
+                  color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
+                  boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.35)' : 'none',
+                  textAlign: isRtl ? 'right' : 'left',
+                  transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.backgroundColor = isDark ? '#1e293b' : '#f1f5f9';
+                    e.currentTarget.style.color = isDark ? '#f8fafc' : '#0f172a';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = isDark ? '#cbd5e1' : '#475569';
+                  }
+                }}
+              >
+                <span aria-hidden="true" style={{ fontSize: '15px', flexShrink: 0 }}>{section.emoji}</span>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {label}
+                </span>
+                {isActive && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      [isRtl ? 'right' : 'left']: '0',
+                      top: '6px',
+                      bottom: '6px',
+                      width: '3.5px',
+                      backgroundColor: '#60a5fa',
+                      borderRadius: isRtl ? '3px 0 0 3px' : '0 3px 3px 0',
+                    }}
+                  />
+                )}
+              </button>
+            );
           })}
-          <div style={{ borderTop: isDark ? '1px solid #334155' : '1px solid #e2e8f0', marginBlock: 6 }} />
+          <div style={{ borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0', marginBlock: 6 }} />
           {[
-            { label: isRtl ? 'سياسة الخصوصية' : 'Privacy Policy', href: apiUrl('/privacy'), icon: FileText, external: true },
-            { label: isRtl ? 'الدعم' : 'Support', href: '#support/', icon: LifeBuoy, external: false },
-          ].map(({ label, href, icon: Icon, external }) => (
+            { label: isRtl ? 'سياسة الخصوصية' : 'Privacy Policy', href: apiUrl('/privacy'), emoji: '📄', external: true, isActive: false },
+            { label: isRtl ? 'الدعم' : 'Support', href: '#support/', emoji: '🛟', external: false, isActive: currentPage === 'support' },
+          ].map(({ label, href, emoji, external, isActive }) => (
             <a
               key={href}
               href={href}
@@ -452,22 +579,91 @@ export function Sidebar({
               onClick={() => onCloseMobile?.()}
               title={label}
               aria-label={label}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: isCollapsed ? 'center' : 'flex-start',
-                gap: '8px',
-                minHeight: '40px',
-                padding: '6px 8px',
-                borderRadius: '7px',
-                color: isDark ? '#cbd5e1' : '#475569',
-                fontSize: '11.5px',
-                fontWeight: 500,
-                textDecoration: 'none',
+              aria-current={isActive ? 'page' : undefined}
+              style={
+                isCollapsed
+                  ? {
+                      width: '42px',
+                      height: '40px',
+                      margin: '0 auto',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '17px',
+                      backgroundColor: isActive ? '#2563eb' : 'transparent',
+                      color: isActive ? '#ffffff' : isDark ? '#94a3b8' : '#64748b',
+                      boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.4)' : 'none',
+                      textDecoration: 'none',
+                      transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                    }
+                  : {
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 8px',
+                      borderRadius: '7px',
+                      fontSize: '11.5px',
+                      fontWeight: isActive ? 600 : 500,
+                      backgroundColor: isActive ? '#2563eb' : 'transparent',
+                      color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
+                      boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.35)' : 'none',
+                      textAlign: isRtl ? 'right' : 'left',
+                      textDecoration: 'none',
+                      transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }
+              }
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = isDark ? '#1e293b' : '#f1f5f9';
+                  e.currentTarget.style.color = isDark ? '#f8fafc' : '#0f172a';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = isCollapsed
+                    ? isDark ? '#94a3b8' : '#64748b'
+                    : isDark ? '#cbd5e1' : '#475569';
+                }
               }}
             >
-              <Icon size={18} style={{ flexShrink: 0 }} aria-hidden="true" />
-              {!isCollapsed && <span>{label}</span>}
+              <span aria-hidden="true" style={{ fontSize: isCollapsed ? '17px' : '15px', flexShrink: 0 }}>{emoji}</span>
+              {!isCollapsed && (
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {label}
+                </span>
+              )}
+              {isActive && (
+                <span
+                  style={
+                    isCollapsed
+                      ? {
+                          position: 'absolute',
+                          [isRtl ? 'right' : 'left']: '2px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          width: '3px',
+                          height: '16px',
+                          backgroundColor: '#60a5fa',
+                          borderRadius: '2px',
+                        }
+                      : {
+                          position: 'absolute',
+                          [isRtl ? 'right' : 'left']: '0',
+                          top: '6px',
+                          bottom: '6px',
+                          width: '3.5px',
+                          backgroundColor: '#60a5fa',
+                          borderRadius: isRtl ? '3px 0 0 3px' : '0 3px 3px 0',
+                        }
+                  }
+                />
+              )}
             </a>
           ))}
         </div>

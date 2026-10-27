@@ -399,90 +399,91 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
         </div>
 
         {/* Header Actions & Live Last Synced Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div className="settings-sync-status" style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 14px',
-            borderRadius: '12px',
-            backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#eff6ff',
-            border: isDark ? '1px solid rgba(37, 99, 235, 0.25)' : '1px solid #bfdbfe',
-            fontSize: '12px',
-            color: isDark ? '#60a5fa' : '#1d4ed8',
-            fontWeight: 600,
-          }}>
-            <Clock size={14} color="#3b82f6" />
-            <span>
-              {isRtl ? 'آخر مزامنة: ' : 'Last Synced: '}
-              <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                {lastRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </strong>
-              <span style={{ opacity: 0.8, [isRtl ? 'marginRight' : 'marginLeft']: '5px' }}>
-                ({formatRelativeTime(lastRefreshedAt.toISOString())})
-              </span>
-            </span>
-          </div>
-
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            style={{
+        {activeTab !== 'notifications' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="settings-sync-status" style={{
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '10px 18px',
-              backgroundColor: isDark ? '#1e293b' : '#ffffff',
-              border: `1px solid ${borderColor}`,
+              padding: '8px 14px',
               borderRadius: '12px',
-              fontSize: '13px',
+              backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#eff6ff',
+              border: isDark ? '1px solid rgba(37, 99, 235, 0.25)' : '1px solid #bfdbfe',
+              fontSize: '12px',
+              color: isDark ? '#60a5fa' : '#1d4ed8',
               fontWeight: 600,
-              cursor: refreshing ? 'wait' : 'pointer',
-              color: textPrimary,
-              transition: 'all 0.25s ease',
-              opacity: refreshing ? 0.7 : 1,
-              boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
-            }}
-          >
-            <RefreshCw size={15} style={refreshing ? { animation: 'spin 1s linear infinite' } : {}} />
-            <span>
-              {refreshing
-                ? (isRtl ? 'جاري التحديث...' : 'Refreshing...')
-                : (isRtl ? 'تحديث الإعدادات' : 'Refresh')}
-            </span>
-          </button>
+            }}>
+              <Clock size={14} color="#3b82f6" />
+              <span>
+                {isRtl ? 'آخر مزامنة: ' : 'Last Synced: '}
+                <strong style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                  {lastRefreshedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </strong>
+                <span style={{ opacity: 0.8, [isRtl ? 'marginRight' : 'marginLeft']: '5px' }}>
+                  ({formatRelativeTime(lastRefreshedAt.toISOString())})
+                </span>
+              </span>
+            </div>
 
-          <button
-            onClick={handleSave}
-            hidden={activeTab === 'notifications'}
-            disabled={saving || loading}
-            style={{
-              display: activeTab === 'notifications' ? 'none' : 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 22px',
-              backgroundColor: '#10b981',
-              color: 'white',
-              fontSize: '13.5px',
-              fontWeight: 700,
-              borderRadius: '12px',
-              border: 'none',
-              cursor: saving ? 'wait' : 'pointer',
-              boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
-              transition: 'all 0.2s ease',
-              opacity: saving ? 0.8 : 1,
-            }}
-          >
-            {saved ? <CheckCircle2 size={16} /> : <Save size={16} />}
-            <span>
-              {saving
-                ? (isRtl ? 'جاري الحفظ...' : 'Saving...')
-                : saved
-                ? (isRtl ? 'تم الحفظ!' : 'Saved!')
-                : (isRtl ? 'حفظ التعديلات' : 'Save Changes')}
-            </span>
-          </button>
-        </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                border: `1px solid ${borderColor}`,
+                borderRadius: '12px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: refreshing ? 'wait' : 'pointer',
+                color: textPrimary,
+                transition: 'all 0.25s ease',
+                opacity: refreshing ? 0.7 : 1,
+                boxShadow: isDark ? 'none' : '0 2px 6px rgba(0,0,0,0.06)',
+              }}
+            >
+              <RefreshCw size={15} style={refreshing ? { animation: 'spin 1s linear infinite' } : {}} />
+              <span>
+                {refreshing
+                  ? (isRtl ? 'جاري التحديث...' : 'Refreshing...')
+                  : (isRtl ? 'تحديث الإعدادات' : 'Refresh')}
+              </span>
+            </button>
+
+            <button
+              onClick={handleSave}
+              disabled={saving || loading}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 22px',
+                backgroundColor: '#10b981',
+                color: 'white',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                borderRadius: '12px',
+                border: 'none',
+                cursor: saving ? 'wait' : 'pointer',
+                boxShadow: '0 4px 14px rgba(16,185,129,0.35)',
+                transition: 'all 0.2s ease',
+                opacity: saving ? 0.8 : 1,
+              }}
+            >
+              {saved ? <CheckCircle2 size={16} /> : <Save size={16} />}
+              <span>
+                {saving
+                  ? (isRtl ? 'جاري الحفظ...' : 'Saving...')
+                  : saved
+                  ? (isRtl ? 'تم الحفظ!' : 'Saved!')
+                  : (isRtl ? 'حفظ التعديلات' : 'Save Changes')}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Modern Sub-Navigation Tabs ─── */}
@@ -561,12 +562,11 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
       ) : (
         <div>
           {/* ══════════════════════════════════════════════════════════════════════
-              TAB 1: STORE & CREDENTIALS
+              TAB 1A: MERCHANT PROFILE
              ══════════════════════════════════════════════════════════════════════ */}
-          {(activeTab === 'general' || activeTab === 'checkout') && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
+          {activeTab === 'general' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', alignItems: 'start' }}>
               {/* Card 1: Store Profile & Identity */}
-              {activeTab === 'general' && (
               <div style={{ ...card({ padding: '24px' }) }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
                   <div style={{
@@ -626,24 +626,30 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                   </div>
 
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '8px', flexWrap: 'wrap' }}>
                       <label style={{ fontSize: '12.5px', fontWeight: 600, color: textPrimary, margin: 0 }}>
                         {isRtl ? 'عنوان الدفع اللحظي (InstaPay IPA / Handle)' : 'Receiving InstaPay IPA / Handle'}
                       </label>
-                      <span style={{
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        padding: '2px 7px',
-                        borderRadius: '6px',
-                        backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#eef2ff',
-                        color: isDark ? '#a5b4fc' : '#6366f1',
-                        border: isDark ? '1px solid rgba(99,102,241,0.3)' : '1px solid #c7d2fe',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}>
-                        <span>🔒</span> {isRtl ? 'تلقائي من الرابط' : 'Auto-synced from URL'}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => switchTab('checkout')}
+                        style={{
+                          fontSize: '10.5px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: isDark ? 'rgba(37,99,235,0.15)' : '#eff6ff',
+                          color: isDark ? '#60a5fa' : '#2563eb',
+                          border: isDark ? '1px solid rgba(37,99,235,0.3)' : '1px solid #bfdbfe',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span>{isRtl ? 'تعديل من إعدادات الدفع' : 'Manage in Checkout'}</span>
+                        <ChevronRight size={12} style={{ transform: isRtl ? 'rotate(180deg)' : undefined }} />
+                      </button>
                     </div>
 
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -651,7 +657,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                         type="text"
                         readOnly
                         value={instapayHandle}
-                        placeholder={isRtl ? 'يتم استخراجه تلقائياً من رابط الدفع أدناه' : 'Auto-derived from Payment URL below'}
+                        placeholder={isRtl ? 'يتم استخراجه تلقائياً من رابط الدفع في قسم إعدادات الدفع' : 'Auto-derived from Payment Link in Checkout settings'}
                         style={{
                           ...inputStyle,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -705,10 +711,147 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                     </div>
                   </div>
                 </div>
-              </div>)}
+              </div>
 
-              {/* Card 2: Checkout Link & Lifetime Configuration */}
-              {activeTab === 'checkout' && (
+              {/* Card 2: Customer-Facing Brand & Checkout Receipt Preview */}
+              <div style={{ ...card({ padding: '24px' }) }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '11px',
+                    background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
+                  }}>
+                    <Sparkles size={20} color="white" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                      {isRtl ? 'معاينة الهوية في صفحة الدفع' : 'Customer Checkout Brand Preview'}
+                    </h3>
+                    <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                      {isRtl ? 'كيف تظهر هوية متجرك للعملاء أثناء الدفع' : 'Live preview of how buyers see your store on hosted checkout'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Simulated Checkout Card Header */}
+                <div style={{
+                  ...subcard({ padding: '18px' }),
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                      <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        background: 'linear-gradient(135deg, #2563eb, #06b6d4)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontWeight: 800,
+                        fontSize: '17px',
+                        boxShadow: '0 3px 10px rgba(37,99,235,0.25)',
+                      }}>
+                        {profileImageData ? (
+                          <img src={profileImageData} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          businessName?.[0]?.toUpperCase() || <Store size={18} />
+                        )}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <strong style={{ fontSize: '14.5px', color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {businessName.trim() || (isRtl ? 'اسم المتجر التجاري' : 'Your Business Name')}
+                          </strong>
+                          <ShieldCheck size={15} color="#10b981" style={{ flexShrink: 0 }} />
+                        </div>
+                        <span style={{ fontSize: '11.5px', color: textSecondary, fontFamily: "'JetBrains Mono', monospace" }}>
+                          {instapayHandle || 'merchant@instapay'}
+                        </span>
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '999px',
+                      backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#dcfce7',
+                      color: '#10b981',
+                      border: isDark ? '1px solid rgba(16,185,129,0.3)' : '1px solid #86efac',
+                    }}>
+                      {isRtl ? 'تاجر موثق' : 'VERIFIED MERCHANT'}
+                    </span>
+                  </div>
+
+                  {/* Readiness Checklist */}
+                  <div style={{
+                    borderTop: `1px solid ${borderColor}`,
+                    paddingTop: '12px',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                    gap: '10px',
+                  }}>
+                    {[
+                      {
+                        done: Boolean(businessName.trim()),
+                        labelEn: 'Display Name',
+                        labelAr: 'الاسم التجاري',
+                        valueEn: businessName.trim() ? 'Configured' : 'Missing',
+                        valueAr: businessName.trim() ? 'مكتمل' : 'غير محدد',
+                      },
+                      {
+                        done: Boolean(profileImageData),
+                        labelEn: 'Brand Logo',
+                        labelAr: 'شعار المتجر',
+                        valueEn: profileImageData ? 'Custom photo' : 'Initials badge',
+                        valueAr: profileImageData ? 'صورة مخصصة' : 'حرف افتراضي',
+                      },
+                      {
+                        done: Boolean(instapayHandle),
+                        labelEn: 'Receiving IPA',
+                        labelAr: 'عنوان الاستلام',
+                        valueEn: instapayHandle || 'Set in Checkout',
+                        valueAr: instapayHandle || 'يُضبط في الدفع',
+                      },
+                    ].map((item, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: '9px 11px',
+                          borderRadius: '10px',
+                          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.55)' : '#ffffff',
+                          border: `1px solid ${borderColor}`,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
+                          <CheckCircle2 size={13} color={item.done ? '#10b981' : '#f59e0b'} />
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: textPrimary }}>
+                            {isRtl ? item.labelAr : item.labelEn}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {isRtl ? item.valueAr : item.valueEn}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════════════
+              TAB 1B: CHECKOUT CONFIGURATION
+             ══════════════════════════════════════════════════════════════════════ */}
+          {activeTab === 'checkout' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', alignItems: 'start' }}>
+              {/* Card 1: Checkout Link & Lifetime Configuration */}
               <div style={{ ...card({ padding: '24px' }) }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
                   <div style={{
@@ -836,7 +979,101 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                     </span>
                   </div>
                 </div>
-              </div>)}
+              </div>
+
+              {/* Card 2: Derived Receiving IPA & Session Lifecycle Summary */}
+              <div style={{ ...card({ padding: '24px' }) }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
+                  <div style={{
+                    width: '40px', height: '40px', borderRadius: '11px',
+                    background: 'linear-gradient(135deg, #2563eb, #3b82f6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.3)',
+                  }}>
+                    <Shield size={20} color="white" />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                      {isRtl ? 'ملخص التوجيه وجلسة الدفع' : 'Routing & Session Summary'}
+                    </h3>
+                    <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                      {isRtl ? 'المعرف المستخرج وقواعد مطابقة الجلسات النشطة' : 'Derived receiving IPA and active session matching window'}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ ...subcard({ padding: '14px 16px' }), display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: textSecondary, display: 'block' }}>
+                        {isRtl ? 'عنوان الاستلام المستخرج (IPA)' : 'Derived Receiving IPA'}
+                      </span>
+                      <code style={{ fontSize: '13.5px', fontWeight: 700, color: instapayHandle ? '#10b981' : textMuted, fontFamily: "'JetBrains Mono', monospace" }}>
+                        {instapayHandle || (isRtl ? 'غير مضبوط بعد' : 'Not configured yet')}
+                      </code>
+                    </div>
+                    {instapayHandle && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(instapayHandle, 'checkout-handle')}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '8px',
+                          border: `1px solid ${borderColor}`,
+                          backgroundColor: isDark ? '#111827' : '#ffffff',
+                          color: copiedKey === 'checkout-handle' ? '#10b981' : textPrimary,
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        {copiedKey === 'checkout-handle' ? <Check size={13} /> : <Copy size={13} />}
+                        <span>{isRtl ? 'نسخ' : 'Copy'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ ...subcard({ padding: '14px 16px' }), display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: textSecondary, display: 'block' }}>
+                        {isRtl ? 'نافذة المطابقة التلقائية' : 'Active Matching Window'}
+                      </span>
+                      <strong style={{ fontSize: '13.5px', color: textPrimary, fontFamily: "'JetBrains Mono', monospace" }}>
+                        {checkoutTtlMin || 10} {isRtl ? 'دقائق لكل جلسة' : 'minutes per session'}
+                      </strong>
+                    </div>
+                    <span style={{
+                      fontSize: '10.5px',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: isDark ? 'rgba(37,99,235,0.15)' : '#eff6ff',
+                      color: '#3b82f6',
+                    }}>
+                      TTL
+                    </span>
+                  </div>
+
+                  <div style={{
+                    ...subcard({ padding: '12px 14px' }),
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    borderLeft: isRtl ? 'none' : '3px solid #10b981',
+                    borderRight: isRtl ? '3px solid #10b981' : 'none',
+                  }}>
+                    <Info size={16} color="#10b981" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span style={{ fontSize: '11.5px', color: textSecondary, lineHeight: 1.55 }}>
+                      {isRtl
+                        ? 'عند فتح العميل لصفحة الدفع، يتم توجيهه مباشرة إلى رابط إنستاباي الخاص بك مع مراقبة التحويلات الواردة خلال نافذة الجلسة المحددة.'
+                        : 'Buyers are directed to your verified InstaPay share link while the detector matches incoming transfers within the active TTL window.'}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1348,7 +1585,9 @@ function verify_webhook($rawPayload, $signatureHeader, $timestampHeader, $secret
                         {isRtl ? 'صندوق التنبيهات وسجل الإشعارات' : 'Merchant Notification Inbox'}
                       </h3>
                       <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
-                        {isRtl ? `${notifications.length} إشعار غير مقروء` : `${notifications.length} unread notification${notifications.length === 1 ? '' : 's'}`}
+                        {isRtl
+                          ? `${unreadCount} إشعار غير مقروء · إجمالي ${notifications.length}`
+                          : `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'} · ${notifications.length} total`}
                       </p>
                     </div>
                   </div>

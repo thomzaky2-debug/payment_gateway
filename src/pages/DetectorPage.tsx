@@ -117,7 +117,7 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
   /* ──────────────── Device info rows ──────────────── */
   const deviceInfo = [
     { label: isRtl ? 'معرّف التاجر' : 'Merchant Handle', value: settings?.instapayHandle || (isRtl ? 'لم يتم التعيين' : 'Not set'), icon: <Signal size={15} /> },
-    { label: isRtl ? 'نسخة التطبيق' : 'App Version', value: latestDevice?.appVersion || '2.0.0', icon: <Cpu size={15} /> },
+    { label: isRtl ? 'نسخة التطبيق' : 'App Version', value: latestDevice?.appVersion || '1.0.0', icon: <Cpu size={15} /> },
     { label: isRtl ? 'إصدار أندرويد' : 'Android Version', value: latestDevice?.androidVersion || 'Android 12+', icon: <Smartphone size={15} /> },
     { label: isRtl ? 'الحزمة المستهدفة' : 'Target Package', value: 'com.egyptianbanks.instapay', icon: <Server size={15} />, copyable: true },
     { label: isRtl ? 'حالة رمز الكشف' : 'Token Status', value: settings?.detectToken ? (isRtl ? 'مُفعّل ونشط' : 'Configured & Active') : (isRtl ? 'في انتظار الموافقة' : 'Pending Approval'), icon: <Shield size={15} />, isStatus: true },
@@ -372,11 +372,40 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
             ))}
           </div>
 
-          {/* Current app distribution */}
-          <p style={{ color: textSecondary, fontSize: '13px', lineHeight: 1.6 }}>
-            {isRtl ? 'للحصول على تطبيق NilePay Merchant الحالي، ' : 'For the current NilePay Merchant app, '}
-            <a href="#support/" style={{ color: accent }}>
-              {isRtl ? 'تواصل مع الدعم' : 'contact support'}
+          {/* Download Button */}
+          <a
+            href="/releases/nilepay-merchant.apk"
+            download="NilePay-Merchant.apk"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              padding: '14px 24px',
+              background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
+              color: '#ffffff',
+              borderRadius: '14px',
+              fontWeight: 700,
+              fontSize: '14px',
+              textDecoration: 'none',
+              boxShadow: '0 6px 20px rgba(37, 99, 235, 0.35)',
+              transition: 'all 0.25s ease',
+              width: '100%',
+              textAlign: 'center',
+              marginBottom: '12px',
+            }}
+          >
+            <Download size={18} />
+            <span>
+              {isRtl ? 'تحميل تطبيق NilePay Merchant (الإصدار v1.0.0)' : 'Download NilePay Merchant APK (Release v1.0.0)'}
+            </span>
+          </a>
+
+          {/* Support note */}
+          <p style={{ color: textSecondary, fontSize: '12.5px', lineHeight: 1.6, margin: 0, textAlign: 'center' }}>
+            {isRtl ? 'هل تحتاج إلى مساعدة في التثبيت أو ربط الجهاز؟ ' : 'Need help installing or enrolling your phone? '}
+            <a href="#support/" style={{ color: accent, fontWeight: 600 }}>
+              {isRtl ? 'تواصل مع الدعم' : 'Contact support'}
             </a>.
           </p>
         </div>
