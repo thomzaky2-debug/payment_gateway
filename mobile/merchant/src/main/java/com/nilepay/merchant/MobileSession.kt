@@ -47,7 +47,7 @@ class MerchantSession(context: Context) {
     private val statePrefs = appContext.getSharedPreferences("nilepay_merchant_state", Context.MODE_PRIVATE)
 
     val isSignedIn: Boolean get() = tokens.hasValidSession()
-    val hasDisclosureConsent: Boolean get() = statePrefs.getLong("disclosure_consent_at", 0L) > 0L
+    val hasDisclosureConsent: Boolean get() = statePrefs.getInt("disclosure_version", 0) == 2 && statePrefs.getLong("disclosure_consent_at", 0L) > 0L
     val businessName: String get() = decrypt("business_name") ?: ""
     val merchantEmail: String get() = decrypt("merchant_email") ?: ""
     val deviceToken: String? get() = decrypt("device_token")
@@ -64,13 +64,14 @@ class MerchantSession(context: Context) {
     }
 
     fun recordConsent() {
-        statePrefs.edit().putLong("disclosure_consent_at", System.currentTimeMillis()).apply()
+        statePrefs.edit().putInt("disclosure_version", 2).putLong("disclosure_consent_at", System.currentTimeMillis()).apply()
     }
 
     fun recordHeartbeat() = statePrefs.edit().putLong("last_heartbeat_at", System.currentTimeMillis()).apply()
     fun recordDetection() = statePrefs.edit().putLong("last_detected_at", System.currentTimeMillis()).apply()
 
     fun signOut() {
+        statePrefs.edit().clear().apply()
         tokens.clearTokens()
         prefs.edit().clear().apply()
     }

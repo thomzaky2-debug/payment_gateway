@@ -47,6 +47,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -126,7 +129,7 @@ fun MerchantApp() {
         MerchantTheme.Light -> false
         MerchantTheme.Dark -> true
     }
-    NilePayTheme(darkTheme = darkTheme) {
+    NilePayTheme(darkTheme = darkTheme, compact = preferences.compact) {
         when {
         mobileConfig?.updateRequired == true -> UpdateRequiredScreen(mobileConfig!!)
         !signedIn -> LoginScreen(session = session, onSignedIn = { signedIn = true })
@@ -137,7 +140,7 @@ fun MerchantApp() {
                     consented = true
                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                 },
-                onCancel = { consented = true }
+                onCancel = { session.signOut(); signedIn = false; consented = false }
             )
         }
         else -> MerchantWorkspace(
@@ -148,6 +151,7 @@ fun MerchantApp() {
             onSignOut = {
                 session.signOut()
                 signedIn = false
+                consented = false
             }
         )
         }
@@ -419,6 +423,7 @@ private fun LoginScreen(session: MerchantSession, onSignedIn: () -> Unit) {
                 style = NilePayTheme.typography.bodySmall,
                 color = NilePayTheme.colors.onSurfaceSecondary
             )
+            PrivacyNoticeLink()
     }
 }
 
@@ -432,8 +437,8 @@ private fun ScreenColumn(
             .fillMaxSize()
             .padding(contentPadding)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(NilePayTheme.spacing.md),
         content = content
     )
 }
@@ -537,11 +542,16 @@ private fun DetectorHeroCard(enabled: Boolean, onReviewSetup: () -> Unit) {
 private fun DashboardSummaryCard(snapshot: DashboardSnapshot) {
     NilePayCard {
         Column {
-            DashboardMetricRow(
-                label = stringResource(R.string.metric_received_today),
-                detail = stringResource(R.string.received_today_detail),
-                value = { NilePayAmountText(snapshot.todayTotalEgp, size = NilePayAmountSize.Medium) }
-            )
+            Column(
+                Modifier.fillMaxWidth().clip(NilePayTheme.shapes.medium)
+                    .background(NilePayTheme.colors.primary.copy(alpha = 0.10f)).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(stringResource(R.string.metric_received_today), style = NilePayTheme.typography.labelMedium, color = NilePayTheme.colors.primary)
+                NilePayAmountText(snapshot.todayTotalEgp, size = NilePayAmountSize.Large)
+                Text(stringResource(R.string.received_today_detail), style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+            }
+            Spacer(Modifier.height(8.dp))
             HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
             DashboardMetricRow(
                 label = stringResource(R.string.metric_payments_today),
@@ -867,7 +877,15 @@ private fun SettingsScreen(
     onSignOut: () -> Unit
 ) {
     val context = LocalContext.current
+    var confirmSignOut by remember { mutableStateOf(false) }
     fun open(url: String) = context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    if (confirmSignOut) AlertDialog(
+        onDismissRequest = { confirmSignOut = false },
+        title = { Text(stringResource(R.string.logout)) },
+        text = { Text(stringResource(R.string.signout_explanation)) },
+        confirmButton = { TextButton(onClick = { confirmSignOut = false; onSignOut() }) { Text(stringResource(R.string.logout)) } },
+        dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(stringResource(R.string.keep_signed_in)) } }
+    )
     ScreenColumn(contentPadding) {
         NilePayCard {
             Column {
@@ -892,6 +910,17 @@ private fun SettingsScreen(
         SectionTitle(stringResource(R.string.appearance_and_language))
         NilePayCard {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(stringResource(R.string.compact_layout), style = NilePayTheme.typography.titleMedium)
+                        Text(stringResource(R.string.compact_layout_detail), style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+                    }
+                    Switch(checked = preferences.compact, onCheckedChange = {
+                        preferences.compact = it
+                        (context as? Activity)?.recreate()
+                    })
+                }
+                HorizontalDivider(color = NilePayTheme.colors.border)
                 Text(stringResource(R.string.theme_label), style = NilePayTheme.typography.labelMedium, color = NilePayTheme.colors.onSurfaceSecondary)
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -927,23 +956,27 @@ private fun SettingsScreen(
         SettingsRow(Icons.Filled.AccountCircle, stringResource(R.string.profile_and_business), stringResource(R.string.profile_and_business_detail)) {
             open("https://nilepay.runasp.net/#settings/")
         }
+        SettingsRow(Icons.Filled.Settings, stringResource(R.string.app_notifications), stringResource(R.string.app_notifications_detail)) {
+            context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+        }
         SettingsRow(Icons.Filled.HealthAndSafety, stringResource(R.string.notification_preferences), stringResource(R.string.notification_preferences_detail)) {
             context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
-        SettingsRow(Icons.Filled.Shield, stringResource(R.string.privacy_and_security), stringResource(R.string.privacy_and_security_detail)) {
-            open("https://nilepay.runasp.net/#security/")
+        PrivacyNoticeLink()
+        SettingsRow(Icons.Filled.Shield, stringResource(R.string.delete_account_title), stringResource(R.string.delete_account_detail)) {
+            open("${BuildConfig.API_BASE_URL.trimEnd('/')}/account-deletion")
         }
         SettingsRow(Icons.AutoMirrored.Filled.HelpOutline, stringResource(R.string.help_and_support), stringResource(R.string.help_and_support_detail)) {
             open("https://nilepay.runasp.net/#documentation/")
         }
         NilePayButton(
             text = stringResource(R.string.logout),
-            onClick = onSignOut,
+            onClick = { confirmSignOut = true },
             modifier = Modifier.fillMaxWidth(),
             style = NilePayButtonStyle.Destructive
         )
         Text(
-            stringResource(R.string.version_label),
+            "NilePay • ${BuildConfig.VERSION_NAME}",
             style = NilePayTheme.typography.bodySmall,
             color = NilePayTheme.colors.onSurfaceSecondary,
             modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -974,5 +1007,21 @@ private fun SectionTitle(text: String) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.semantics { heading() }
+    )
+}
+
+@Composable
+private fun PrivacyNoticeLink() {
+    val context = LocalContext.current
+    var visible by remember { mutableStateOf(false) }
+    TextButton(onClick = { visible = true }) { Text(stringResource(R.string.data_notice_title)) }
+    if (visible) AlertDialog(
+        onDismissRequest = { visible = false },
+        title = { Text(stringResource(R.string.data_notice_title)) },
+        text = { Text(stringResource(R.string.data_notice_body), modifier = Modifier.verticalScroll(rememberScrollState())) },
+        confirmButton = { TextButton(onClick = {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${BuildConfig.API_BASE_URL.trimEnd('/')}/privacy")))
+        }) { Text(stringResource(R.string.full_privacy_policy)) } },
+        dismissButton = { TextButton(onClick = { visible = false }) { Text(stringResource(R.string.close_notice)) } }
     )
 }

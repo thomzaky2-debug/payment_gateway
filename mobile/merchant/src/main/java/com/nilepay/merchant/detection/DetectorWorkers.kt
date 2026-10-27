@@ -30,6 +30,11 @@ class PaymentUploadWorker(context: Context, params: WorkerParameters) : Coroutin
         val event = dao.find(eventId) ?: return Result.success()
         if (event.needsAttention) return Result.failure()
         val session = MerchantSession(applicationContext)
+        if (!session.hasDisclosureConsent || !session.isSignedIn) return Result.failure()
+        if (event.createdAt < System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)) {
+            dao.delete(eventId)
+            return Result.success()
+        }
         val token = session.deviceToken ?: return Result.failure()
         val json = JSONObject()
             .put("amountEgp", event.amountEgp)
@@ -65,7 +70,7 @@ class PaymentUploadWorker(context: Context, params: WorkerParameters) : Coroutin
 class HeartbeatWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val session = MerchantSession(applicationContext)
-        if (!session.isSignedIn) return Result.success()
+        if (!session.isSignedIn || !session.hasDisclosureConsent) return Result.success()
         val body = JSONObject()
             .put("deviceId", session.tokens.getDeviceId())
             .put("appVersion", BuildConfig.VERSION_NAME)
@@ -112,7 +117,7 @@ object DetectorWork {
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
-                "payment-${event.eventId}", ExistingWorkPolicy.REPLACE, request
+                "payment-${event.eventId}", ExistingWorkPolicy.KEEP, request
             )
         }
     }

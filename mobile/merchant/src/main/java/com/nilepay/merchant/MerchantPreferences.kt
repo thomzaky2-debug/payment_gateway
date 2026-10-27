@@ -15,4 +15,8 @@ class MerchantPreferences(context: Context) {
     var language: String
         get() = prefs.getString("language", "en")?.takeIf { it == "en" || it == "ar" } ?: "en"
         set(value) { prefs.edit().putString("language", if (value == "ar") "ar" else "en").apply() }
+
+    var compact: Boolean
+        get() = prefs.getBoolean("compact", true)
+        set(value) { prefs.edit().putBoolean("compact", value).apply() }
 }

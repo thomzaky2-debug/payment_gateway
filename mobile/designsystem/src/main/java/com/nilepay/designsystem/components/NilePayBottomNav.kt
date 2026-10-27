@@ -22,6 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -85,6 +88,7 @@ private fun RowScope.NilePayBottomNavItemView(
         modifier = Modifier
             .weight(1f)
             .height(56.dp)
+            .semantics { selected = isSelected }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = false, radius = 28.dp),
@@ -101,7 +105,11 @@ private fun RowScope.NilePayBottomNavItemView(
                 imageVector = item.icon,
                 contentDescription = item.contentDescription,
                 tint = tint,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier
+                    .clip(NilePayTheme.shapes.large)
+                    .background(if (isSelected) NilePayTheme.colors.primary.copy(alpha = 0.14f) else androidx.compose.ui.graphics.Color.Transparent)
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+                    .size(22.dp)
             )
             Text(
                 text = item.label,

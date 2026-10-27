@@ -209,12 +209,13 @@ export function renderAccountDeletionHtml(): string {
 
       <h2>1. How to Delete Your Account</h2>
       <ul>
-        <li><strong>In the NilePay Android App:</strong> Navigate to Settings &rarr; Security &rarr; Delete Account. Verify your password and 6-digit email confirmation code.</li>
+        <li><strong>In NilePay Merchant:</strong> Open Settings &rarr; Delete account. This opens this web form. Enter your registered email and verify the confirmation code.</li>
         <li><strong>Web Form Below:</strong> If you have already uninstalled the application, submit your registered account email address below to receive confirmation instructions.</li>
       </ul>
 
-      <h2>2. What Data Is Immediately Erased</h2>
-      <p>Upon account deletion verification, the platform immediately and irrevocably erases:</p>
+      <h2>2. What Happens After Verification</h2>
+      <p>A verified public request deactivates access and starts a 72-hour cancellation period. After this period, the daily cleanup worker removes or replaces personal fields and revokes credentials. Processing settlements can delay completion. Contact <a href="mailto:nilepay.customers@gmail.com">nilepay.customers@gmail.com</a> if you need help. Do not send your password or confirmation code to support.</p>
+      <p>Cleanup covers:</p>
       <ul>
         <li>Personal contact details: Full name, business email, phone number, WhatsApp number, and profile image.</li>
         <li>Authentication credentials: Password hashes, active sessions, API keys, and webhook signing secrets.</li>
@@ -222,10 +223,10 @@ export function renderAccountDeletionHtml(): string {
         <li>All pending and queued webhook notifications.</li>
       </ul>
 
-      <h2>3. Regulatory Data Retention</h2>
+      <h2>3. Remaining Records and Retention</h2>
       <div class="notice">
         <p>
-          <strong>Statutory Compliance Retention:</strong> Under Egyptian financial regulations and banking compliance standards, payment records, settled transactions, and immutable audit logs are retained for a statutory retention period (up to 5 years). All associated merchant names and personal identifiers within retained financial records are permanently anonymized.
+          Limited payment records remain pseudonymized for reconciliation, disputes and fraud investigation. This is not a claim of irreversible anonymization or a universal statutory retention period. See the <a href="/privacy">NilePay privacy policy</a> for configured retention periods, data handling and support contact details.
         </p>
       </div>
 
@@ -420,4 +421,3 @@ export function renderAccountDeletionScript(): string {
   }
 })();`
 }
-

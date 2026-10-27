@@ -7,6 +7,7 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import fs from 'fs'
 import path from 'path'
+import { renderPrivacyHtml } from './views/privacyHtml.js'
 
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
@@ -185,6 +186,10 @@ app.get('/api/docs/integration-guide', (req, res) => {
 
 app.get(['/docs', '/api/docs', '/api-docs'], (_req, res) => {
   res.redirect(`${CLIENT_URL}/docs`)
+})
+
+app.get('/privacy', (_req, res) => {
+  res.type('html').send(renderPrivacyHtml())
 })
 
 app.get(['/account-deletion', '/deletion-info'], (_req, res) => {
