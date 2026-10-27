@@ -1,5 +1,17 @@
 import axios from 'axios'
 
+export interface PublicSiteContent {
+  operatorName: string
+  supportEmail: string
+  whatsappNumber: string
+  facebookName: string
+  facebookUrl: string
+  privacyText: string
+}
+export async function getPublicSiteContent(): Promise<PublicSiteContent> {
+  return (await axios.get(`${apiBaseUrl}/public/site-settings`)).data
+}
+
 /**
  * In hosted mode the static sites live on app/admin hostnames while the API is
  * on its own HTTPS hostname. Leave VITE_API_BASE_URL empty in local Vite
@@ -182,6 +194,8 @@ export const settingsApi = {
 // ─── Admin API ──────────────────────────────────────────────────────
 
 export const adminApi = {
+  async getPublicSiteSettings() { return (await adminHttp.get('/admin/public-site-settings')).data as PublicSiteContent },
+  async savePublicSiteSettings(content: PublicSiteContent) { return (await adminHttp.put('/admin/public-site-settings', content)).data as PublicSiteContent },
   async checkSession() {
     const res = await adminHttp.get('/admin/session')
     return res.data

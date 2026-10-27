@@ -1,6 +1,15 @@
 import { getAccountRecordRetentionDays } from '../services/accountService.js'
+import { defaultSiteSettings, escapeHtml, type PublicSiteSettings } from '../services/publicSiteSettings.js'
 
-export function renderPrivacyHtml(): string {
+export function renderPrivacyHtml(settings: PublicSiteSettings = defaultSiteSettings): string {
+  const html = renderDefaultPrivacyHtml()
+  if (settings.privacyText) {
+    return html.replace(/<main>[\s\S]*<\/main>/, () => `<main><h1>NilePay Privacy Policy</h1><p>Operator: ${escapeHtml(settings.operatorName)}</p><p style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml(settings.privacyText)}</p><p>Support: <a href="mailto:${escapeHtml(settings.supportEmail)}">${escapeHtml(settings.supportEmail)}</a></p><a href="/account-deletion">Request account deletion</a></main>`)
+  }
+  return html.replaceAll('Premium Service', () => escapeHtml(settings.operatorName)).replaceAll('nilepay.customers@gmail.com', () => escapeHtml(settings.supportEmail))
+}
+
+function renderDefaultPrivacyHtml(): string {
   const retention = getAccountRecordRetentionDays()
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NilePay Privacy Policy</title>
   <style>body{font:16px/1.7 system-ui,sans-serif;background:#0f172a;color:#e2e8f0;margin:0}main{max-width:800px;margin:auto;padding:32px 20px}a{color:#7dd3fc}h1,h2{color:#fff}li{margin:8px 0}section{margin:28px 0}</style></head><body><main>

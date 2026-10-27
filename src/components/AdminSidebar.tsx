@@ -33,6 +33,7 @@ const navigation: Array<{
   { tab: 'webhooks', label: 'Webhook Logs', emoji: '🔗' },
   { tab: 'plans', label: 'Plans & Pricing', emoji: '💎' },
   { tab: 'notifications', label: 'Notifications', emoji: '🔔' },
+  { tab: 'publicSettings', label: 'Privacy & Support', emoji: '🌐' },
 ];
 
 export function AdminSidebar({

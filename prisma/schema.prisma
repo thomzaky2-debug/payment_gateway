@@ -20,6 +20,12 @@ model Owner {
   createdAt    DateTime @default(now())
 }
 
+model PublicSiteSettings {
+  id        String   @id @default("public")
+  content   Json
+  updatedAt DateTime @updatedAt
+}
+
 // ─── Merchant email verification OTPs ─────────────────────────────
 model EmailVerification {
   id         String    @id @default(cuid())

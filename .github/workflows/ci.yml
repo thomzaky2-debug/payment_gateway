@@ -73,7 +73,7 @@ jobs:
         run: npm run test:auth
 
       - name: Verify Privacy and Retention Policy
-        run: npx tsx --test server/src/services/operationalRetention.test.ts server/src/views/privacyHtml.test.ts
+        run: npx tsx --test server/src/services/operationalRetention.test.ts server/src/views/privacyHtml.test.ts server/src/services/publicSiteSettings.test.ts
 
       - name: Run Real Database Integration Tests (test:integration)
         run: npm run test:integration

@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser'
 import fs from 'fs'
 import path from 'path'
 import { renderPrivacyHtml } from './views/privacyHtml.js'
+import { getPublicSiteSettings } from './services/publicSiteSettings.js'
 
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
@@ -188,13 +189,23 @@ app.get(['/docs', '/api/docs', '/api-docs'], (_req, res) => {
   res.redirect(`${CLIENT_URL}/docs`)
 })
 
-app.get('/privacy', (_req, res) => {
-  res.type('html').send(renderPrivacyHtml())
+app.get('/api/public/site-settings', generalApiLimiter, async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  try { res.json(await getPublicSiteSettings()) }
+  catch { res.status(503).json({ error: 'Website information is temporarily unavailable.' }) }
 })
 
-app.get(['/account-deletion', '/deletion-info'], (_req, res) => {
+app.get('/privacy', async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  try { res.type('html').send(renderPrivacyHtml(await getPublicSiteSettings())) }
+  catch { res.status(503).type('text').send('Privacy policy is temporarily unavailable. Please try again.') }
+})
+
+app.get(['/account-deletion', '/deletion-info'], async (_req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
-  res.send(renderAccountDeletionHtml())
+  res.setHeader('Cache-Control', 'no-store')
+  try { res.send(renderAccountDeletionHtml(await getPublicSiteSettings())) }
+  catch { res.status(503).type('text').send('Account deletion page is temporarily unavailable. Please try again.') }
 })
 
 app.get('/account-deletion.js', (_req, res) => {
