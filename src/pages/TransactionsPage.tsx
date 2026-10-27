@@ -37,6 +37,7 @@ interface TransactionItem {
   detectedAt?: string | null;
   createdAt: string;
   note?: string | null;
+  productCategory?: string | null;
   purpose?: string | null;
   subscriptionPlanName?: string | null;
 }
@@ -891,7 +892,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                               }}
                             >
                               <span>{purchaseInfo.icon}</span>
-                              <span>{purchaseInfo.category}</span>
+                              <span>{tx.productCategory || purchaseInfo.category}</span>
                             </span>
                           </div>
                         </td>
@@ -1204,6 +1205,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                 </div>
               )}
 
+              {selectedTx.productCategory && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span style={{ color: textSecondary }}>{isRtl ? 'فئة المنتج:' : 'Product category:'}</span><span style={{ color: textPrimary, overflowWrap: 'anywhere' }}>{selectedTx.productCategory}</span></div>}
               {selectedTx.note && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: textSecondary }}>{isRtl ? 'ملاحظة الطلب:' : 'Order Note:'}</span>

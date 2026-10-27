@@ -565,8 +565,8 @@ html:not(.dark) .admin-toast {
   padding: 7px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #512772, #2563eb);
-  box-shadow: 0 10px 22px -7px rgba(81, 39, 114, 0.9);
+  background: #081426;
+  box-shadow: 0 10px 22px -7px rgba(0, 85, 255, 0.25);
 }
 
 .merchant-login-showcase-logo img {

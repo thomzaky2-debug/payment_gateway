@@ -41,7 +41,7 @@ test('production configuration rejects shipped placeholders and malformed TOTP s
       AUTH_ALLOW_DEV_BYPASS: 'false',
       AUTH_EXPOSE_DEV_OTP: 'false',
       SMTP_HOST: 'smtp.gmail.com',
-      SMTP_USER: 'instapay.payment.gateway@gmail.com',
+      SMTP_USER: 'nilepay.customers@gmail.com',
       SMTP_PASS: 'test-only-app-password',
       UPSTASH_REDIS_REST_URL: 'https://test-rate-limit.upstash.io',
       UPSTASH_REDIS_REST_TOKEN: 'test-only-upstash-token',

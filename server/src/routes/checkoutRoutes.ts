@@ -99,6 +99,7 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
         detectedRef: tx.detectedRef,
         detectedAt: tx.detectedAt?.toISOString() ?? null,
         purpose: tx.purpose,
+        productCategory: tx.productCategory,
         subscriptionPlanName: tx.subscriptionPlanName,
         bundleInfo,
         basePeriodDays,

@@ -89,4 +89,14 @@
     <string name="gallery_dialog_title">تأكيد الإجراء</string>
     <string name="gallery_dialog_desc">هل أنت متأكد من رغبتك في متابعة هذه العملية؟</string>
     <string name="gallery_chart_title">نظرة عامة على حجم الأسبوع</string>
+    <string name="status_overpaid">دفعة زائدة</string>
+    <string name="status_underpaid">دفعة ناقصة</string>
+    <string name="status_late_payment">دفع متأخر</string>
+    <string name="status_unmatched">سجل غير مطابق</string>
+    <string name="status_risk_review">مراجعة مخاطر</string>
+    <string name="status_duplicate_suspect">اشتباه تكرار</string>
+    <string name="status_sender_mismatch">عدم تطابق المرسل</string>
+    <string name="status_rejected">مرفوض</string>
+    <string name="status_resolved">تمت التسوية</string>
+    <string name="status_unknown">حالة غير معروفة</string>
 </resources>

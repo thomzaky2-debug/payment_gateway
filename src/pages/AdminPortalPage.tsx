@@ -993,7 +993,7 @@ export function AdminPortalPage() {
                 width: '64px',
                 height: '64px',
                 borderRadius: '18px',
-                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                background: '#081426',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1001,13 +1001,13 @@ export function AdminPortalPage() {
                 boxShadow: '0 12px 24px -6px rgba(124, 58, 237, 0.5)',
               }}
             >
-              <Shield size={32} color="#ffffff" />
+              <img src="/brand/nilepay-mark.png" alt="NilePay" style={{ width: '48px', height: '48px', objectFit: 'contain' }} />
             </div>
             <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0' }}>
               Superadmin Portal
             </h1>
             <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
-              InstaPay Payment Gateway Master Administration
+              NilePay Payment Gateway Master Administration
             </p>
           </div>
 
@@ -2296,7 +2296,7 @@ export function AdminPortalPage() {
                     <Gift size={20} color="#10b981" /> Free Trial Configuration (Period & Transaction Times)
                   </h4>
                   <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, maxWidth: '640px' }}>
-                    Admins control the trial validity duration (in days) and maximum transaction checkouts permitted for testing merchants before requiring a paid subscription.
+                    Each merchant account can activate the free trial once. Duration changes apply to future activations and do not restart or extend existing trials. Transaction limits remain configurable.
                   </p>
                 </div>
 

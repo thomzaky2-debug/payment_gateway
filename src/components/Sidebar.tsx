@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import type { Page } from '../App';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { apiUrl } from '../services/api';
+import { settingsSections, parseSettingsSection } from '../config/settingsNavigation';
 import {
   ChevronLeft,
   ChevronRight,
@@ -9,11 +11,14 @@ import {
   Moon,
   Globe,
   X,
+  FileText,
+  LifeBuoy,
 } from 'lucide-react';
 
 export interface SidebarProps {
   currentPage: Page;
-  onNavigate: (page: Page) => void;
+  onNavigate: (page: Page, subPath?: string) => void;
+  currentSubPath?: string;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   mobileOpen?: boolean;
@@ -29,11 +34,11 @@ const navItems: { page: Page; key: string; label: string; emoji: string }[] = [
   { page: 'developers', key: 'developers', label: 'Developers', emoji: '💻' },
   { page: 'audit', key: 'audit', label: 'Audit Log', emoji: '📋' },
   { page: 'security', key: 'security', label: 'Security', emoji: '🔒' },
-  { page: 'settings', key: 'settings', label: 'Settings', emoji: '⚙️' },
 ];
 
 export function Sidebar({
   currentPage,
+  currentSubPath,
   onNavigate,
   isCollapsed: controlledCollapsed,
   onToggleCollapse: controlledToggle,
@@ -137,18 +142,18 @@ export function Sidebar({
                     width: '26px',
                     height: '26px',
                     borderRadius: '7px',
-                    backgroundColor: '#512772',
+                    backgroundColor: '#081426',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    boxShadow: '0 2px 8px rgba(81, 39, 114, 0.4)',
+                    boxShadow: '0 2px 8px rgba(0, 85, 255, 0.2)',
                     padding: '2px',
                   }}
                 >
                   <img
-                    src="/Logo.png"
-                    alt="InstaPay"
+                    src="/brand/nilepay-mark.png"
+                    alt="NilePay"
                     style={{
                       width: '20px',
                       height: 'auto',
@@ -161,7 +166,7 @@ export function Sidebar({
                 <div style={{ whiteSpace: 'nowrap', overflow: 'visible' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <h2 style={{ fontSize: '13px', fontWeight: 800, margin: 0, color: isDark ? '#ffffff' : '#0f172a' }}>
-                      InstaPay
+                      NilePay
                     </h2>
                     <span
                       style={{
@@ -250,19 +255,19 @@ export function Sidebar({
                 height: '34px',
                 padding: '3px 4px',
                 borderRadius: '8px',
-                backgroundColor: '#512772',
+                backgroundColor: '#081426',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
+                boxShadow: '0 3px 10px rgba(0, 85, 255, 0.2)',
                 cursor: 'pointer',
               }}
               onClick={handleToggleCollapse}
               title={t('expand_sidebar')}
             >
               <img
-                src="/Logo.png"
-                alt="InstaPay"
+                src="/brand/nilepay-mark.png"
+                alt="NilePay"
                 style={{
                   height: '14px',
                   width: 'auto',
@@ -411,6 +416,61 @@ export function Sidebar({
             </button>
           );
         })}
+
+        <div
+          style={{
+            borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
+            marginTop: '10px',
+            paddingTop: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px',
+          }}
+        >
+          {!isCollapsed && <span style={{ padding: '4px 8px', color: isDark ? '#94a3b8' : '#64748b', fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em' }}>{isRtl ? 'إعدادات المتجر' : 'STORE SETTINGS'}</span>}
+          {settingsSections.map(section => {
+            const active = currentPage === 'settings' && parseSettingsSection(currentSubPath) === section.key;
+            const label = isRtl ? section.ar : section.en;
+            const Icon = section.icon;
+            return <button key={section.key} type="button" title={label} aria-label={label} aria-current={active ? 'page' : undefined}
+              onClick={() => { onNavigate('settings', section.path); onCloseMobile?.(); }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 8, minHeight: 38, padding: '7px 8px', border: 'none', borderRadius: 7, cursor: 'pointer', background: active ? '#2563eb' : 'transparent', color: active ? '#fff' : isDark ? '#cbd5e1' : '#475569', textAlign: 'start', fontSize: '11.5px', fontWeight: active ? 600 : 500 }}>
+              <Icon size={18} style={{ flexShrink: 0 }} aria-hidden="true" />
+              {!isCollapsed && <span>{label}</span>}
+            </button>;
+          })}
+          <div style={{ borderTop: isDark ? '1px solid #334155' : '1px solid #e2e8f0', marginBlock: 6 }} />
+          {[
+            { label: isRtl ? 'سياسة الخصوصية' : 'Privacy Policy', href: apiUrl('/privacy'), icon: FileText, external: true },
+            { label: isRtl ? 'الدعم' : 'Support', href: '#support/', icon: LifeBuoy, external: false },
+          ].map(({ label, href, icon: Icon, external }) => (
+            <a
+              key={href}
+              href={href}
+              target={external ? '_blank' : undefined}
+              rel={external ? 'noopener noreferrer' : undefined}
+              onClick={() => onCloseMobile?.()}
+              title={label}
+              aria-label={label}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: isCollapsed ? 'center' : 'flex-start',
+                gap: '8px',
+                minHeight: '40px',
+                padding: '6px 8px',
+                borderRadius: '7px',
+                color: isDark ? '#cbd5e1' : '#475569',
+                fontSize: '11.5px',
+                fontWeight: 500,
+                textDecoration: 'none',
+              }}
+            >
+              <Icon size={18} style={{ flexShrink: 0 }} aria-hidden="true" />
+              {!isCollapsed && <span>{label}</span>}
+            </a>
+          ))}
+        </div>
       </nav>
 
       {/* Footer Area: System Status & Theme/Language Controls */}

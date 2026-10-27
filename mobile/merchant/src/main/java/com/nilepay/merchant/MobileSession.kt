@@ -7,6 +7,7 @@ import com.nilepay.core.security.KeystoreCryptoManager
 import com.nilepay.core.storage.EncryptedTokenStorage
 import com.nilepay.core.network.NetworkFactory
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -34,8 +35,16 @@ data class MerchantPayment(
     val status: String,
     val createdAt: String,
     val reference: String?,
-    val note: String?
+    val note: String?,
+    val expectedAmountEgp: Double? = null,
+    val receivedAmountEgp: Double? = null,
+    val expiresAt: String? = null,
+    val source: String = "checkout",
+    val productCategory: String? = null
 )
+
+data class PaymentPage(val payments: List<MerchantPayment>, val nextCursor: String?)
+data class MerchantProfile(val businessName: String, val email: String, val imageData: String?)
 
 data class MobileConfig(val updateRequired: Boolean, val minimumVersion: String, val message: String?)
 
@@ -128,6 +137,16 @@ class MobileGatewayClient(
         return LoginResult.SignedIn(name, returnedEmail)
     }
 
+    fun profile(): MerchantProfile {
+        val request = Request.Builder().url("$baseUrl/api/mobile/profile").get().build()
+        authenticatedClient().newCall(request).execute().use { response ->
+            val parsed = runCatching { JSONObject(response.body?.string().orEmpty()) }.getOrElse { JSONObject() }
+            if (!response.isSuccessful) error("Profile request failed (${response.code})")
+            val profile = parsed.getJSONObject("profile")
+            return MerchantProfile(profile.optString("businessName"), profile.optString("email"), profile.optString("profileImageData").takeIf { it.isNotBlank() && it != "null" })
+        }
+    }
+
     fun dashboard(): DashboardSnapshot {
         val request = Request.Builder().url("$baseUrl/api/transactions/stats").get().build()
         val authenticatedClient = NetworkFactory.createOkHttpClient(
@@ -152,25 +171,37 @@ class MobileGatewayClient(
         }
     }
 
-    fun recentPayments(): List<MerchantPayment> {
-        val request = Request.Builder().url("$baseUrl/api/transactions?limit=20&page=1").get().build()
+    fun recentPayments(): List<MerchantPayment> = paymentPage(limit = 20).payments
+
+    fun paymentPage(status: String = "ALL", search: String = "", cursor: String? = null, limit: Int = 30): PaymentPage {
+        // Build from the validated runtime base URL to retain staging support.
+        val paymentUrl = "$baseUrl/api/mobile/payments".toHttpUrl().newBuilder()
+            .addQueryParameter("status", status).addQueryParameter("search", search)
+            .addQueryParameter("limit", limit.toString()).apply { cursor?.let { addQueryParameter("cursor", it) } }.build()
+        val request = Request.Builder().url(paymentUrl).get().build()
         authenticatedClient().newCall(request).execute().use { response ->
             val parsed = runCatching { JSONObject(response.body?.string().orEmpty()) }.getOrElse { JSONObject() }
             if (!response.isSuccessful) error(parsed.optString("error").ifBlank { "Payments request failed (${response.code})" })
-            val rows = parsed.optJSONArray("transactions") ?: return emptyList()
-            return (0 until rows.length()).map { index ->
+            val rows = parsed.optJSONArray("payments") ?: error("Invalid payments response")
+            val payments = (0 until rows.length()).map { index ->
                 val item = rows.getJSONObject(index)
                 MerchantPayment(
                     id = item.optString("id"),
                     sessionId = item.optString("sessionId"),
                     sender = item.optString("senderHandle").ifBlank { "Unknown sender" },
                     amountEgp = item.optDouble("amountEgp", 0.0),
-                    status = item.optString("status", "PENDING"),
+                    status = item.optString("status", "UNKNOWN"),
                     createdAt = item.optString("createdAt"),
-                    reference = item.optString("detectedRef").takeIf { it.isNotBlank() },
-                    note = item.optString("note").takeIf { it.isNotBlank() }
+                    reference = item.optString("detectedRef").takeIf { it.isNotBlank() && it != "null" },
+                    note = item.optString("note").takeIf { it.isNotBlank() && it != "null" },
+                    expectedAmountEgp = if (item.isNull("expectedAmountEgp")) null else item.optDouble("expectedAmountEgp"),
+                    receivedAmountEgp = if (item.isNull("receivedAmountEgp")) null else item.optDouble("receivedAmountEgp"),
+                    expiresAt = item.optString("expiresAt").takeIf { it.isNotBlank() && it != "null" },
+                    source = item.optString("source", "checkout"),
+                    productCategory = item.optString("productCategory").takeIf { it.isNotBlank() && it != "null" }
                 )
             }
+            return PaymentPage(payments, parsed.optString("nextCursor").takeIf { it.isNotBlank() && it != "null" })
         }
     }
 

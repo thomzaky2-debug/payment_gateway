@@ -4,6 +4,12 @@ import { Prisma, type Client } from '@prisma/client'
 import { db } from '../db.js'
 import { createCheckoutSession } from './checkoutService.js'
 
+test('checkout categories reject invalid types and lengths before writing', async () => {
+  for (const productCategory of [true, ['Electronics'], 'x'.repeat(101)]) {
+    await assert.rejects(createCheckoutSession({ client: merchant(), amountEgp: 10, productCategory: productCategory as any }), /Product category/)
+  }
+})
+
 function replaceTransactionMethod(t: test.TestContext, replacement: (...args: any[]) => any) {
   const original = (db as any).$transaction
   ;(db as any).$transaction = replacement

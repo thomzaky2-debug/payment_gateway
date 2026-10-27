@@ -328,6 +328,10 @@ export const plansApi = {
 }
 
 export const subscriptionApi = {
+  async getHistory(page = 1) {
+    const res = await api.get('/subscription/history', { params: { page } })
+    return res.data
+  },
   async getSpecialOffers() {
     const res = await api.get('/subscription/special-offers')
     return res.data

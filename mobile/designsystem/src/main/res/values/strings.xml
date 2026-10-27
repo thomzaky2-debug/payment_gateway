@@ -89,4 +89,14 @@
     <string name="gallery_dialog_title">Confirm Action</string>
     <string name="gallery_dialog_desc">Are you sure you want to proceed with this operation?</string>
     <string name="gallery_chart_title">Weekly Volume Overview</string>
+    <string name="status_overpaid">Overpaid</string>
+    <string name="status_underpaid">Underpaid</string>
+    <string name="status_late_payment">Late payment</string>
+    <string name="status_unmatched">Unmatched record</string>
+    <string name="status_risk_review">Risk review</string>
+    <string name="status_duplicate_suspect">Duplication suspect</string>
+    <string name="status_sender_mismatch">Sender mismatch</string>
+    <string name="status_rejected">Rejected</string>
+    <string name="status_resolved">Resolved</string>
+    <string name="status_unknown">Unknown status</string>
 </resources>

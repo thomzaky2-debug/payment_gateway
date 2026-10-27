@@ -253,6 +253,7 @@ model Transaction {
   purpose              String  @default("CHECKOUT") // CHECKOUT | SUBSCRIPTION
   subscriptionPlanName String?
   note                 String?
+  productCategory      String?
 
   deepLinkUrl   String
   deepLinkToken String

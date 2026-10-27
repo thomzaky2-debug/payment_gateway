@@ -6,6 +6,7 @@ import { canMerchantResolveTransaction } from '../policies/transactionPolicy.js'
 import { confirmOrdinaryCheckout } from '../services/settlementService.js'
 import { kickWebhookWorker } from '../workers/webhookRetryWorker.js'
 import { sendInternalError } from '../lib/safeError.js'
+import { expirePendingTransactions } from '../services/transactionExpiryService.js'
 
 export const transactionRouter = Router()
 
@@ -14,6 +15,8 @@ export const transactionRouter = Router()
 transactionRouter.get('/', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
+    await expirePendingTransactions(client.id)
+    res.setHeader('Cache-Control', 'no-store')
     const { status, search, limit = '50', page = '1' } = req.query
 
     const take = Math.min(100, Math.max(1, Number(limit)))
@@ -61,6 +64,8 @@ transactionRouter.get('/', requireMerchant, async (req: Request, res: Response) 
 transactionRouter.get('/stats', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
+    await expirePendingTransactions(client.id)
+    res.setHeader('Cache-Control', 'no-store')
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -81,7 +86,7 @@ transactionRouter.get('/stats', requireMerchant, async (req: Request, res: Respo
         },
       }),
       db.transaction.count({
-        where: { clientId: client.id, status: 'PENDING' },
+        where: { clientId: client.id, status: 'PENDING', expiresAt: { gt: now } },
       }),
     ])
 
@@ -107,6 +112,8 @@ transactionRouter.get('/stats', requireMerchant, async (req: Request, res: Respo
 transactionRouter.get('/review-queue', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
+    await expirePendingTransactions(client.id)
+    res.setHeader('Cache-Control', 'no-store')
     const mismatched = await db.mismatchedPayment.findMany({
       where: { clientId: client.id, status: 'UNMATCHED' },
       orderBy: { createdAt: 'desc' },
@@ -127,6 +134,8 @@ transactionRouter.get('/review-queue', requireMerchant, async (req: Request, res
     const reviewTransactions = await db.transaction.findMany({
       where: {
         clientId: client.id,
+        purpose: 'CHECKOUT',
+        subscriptionPlanName: null,
         OR: [
           { status: { in: reviewStatuses } },
           { status: 'EXPIRED', detectedAmountEgp: { not: null } },
@@ -137,6 +146,11 @@ transactionRouter.get('/review-queue', requireMerchant, async (req: Request, res
     })
 
     const underpaid = reviewTransactions.filter((t) => t.status === 'UNDERPAID')
+    const expiredCheckouts = await db.transaction.findMany({
+      where: { clientId: client.id, purpose: 'CHECKOUT', subscriptionPlanName: null, status: 'EXPIRED', detectedAmountEgp: null },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
     const overpaid = reviewTransactions.filter((t) => t.status === 'OVERPAID')
     const latePayments = reviewTransactions.filter(
       (t) =>
@@ -146,11 +160,12 @@ transactionRouter.get('/review-queue', requireMerchant, async (req: Request, res
     )
     const handleMismatch = reviewTransactions.filter((t) => t.status === 'HANDLE_MISMATCH')
     const duplicateSuspect = reviewTransactions.filter((t) => t.status === 'DUPLICATE_SUSPECT')
-    const highValueRisk = reviewTransactions.filter((t) => t.status === 'HIGH_VALUE_REVIEW')
+    const highValueRisk = reviewTransactions.filter((t) => t.status === 'HIGH_VALUE_REVIEW' || t.status === 'REVIEW')
 
     return res.json({
       ok: true,
       reviewQueue: {
+        expiredCheckouts,
         mismatched,
         underpaid,
         overpaid,
@@ -181,6 +196,8 @@ function sanitizeCsvCell(value: string | number | null | undefined): string {
 transactionRouter.get('/export', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
+    await expirePendingTransactions(client.id)
+    res.setHeader('Cache-Control', 'no-store')
     const transactions = await db.transaction.findMany({
       where: { clientId: client.id },
       orderBy: { createdAt: 'desc' },

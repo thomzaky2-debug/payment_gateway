@@ -54,7 +54,7 @@ fun NilePayTopBar(
                     navigationIcon()
                 }
             } else {
-                Box(modifier = Modifier.size(NilePayTheme.spacing.sm))
+                NilePayLogo(modifier = Modifier.size(32.dp))
             }
 
             Text(

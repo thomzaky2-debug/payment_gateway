@@ -832,21 +832,8 @@ adminRouter.patch('/plans', requireAdmin, async (req: Request, res: Response) =>
           data: { txLimit: data.maxTransactions },
         })
       }
-      if (data.periodDays !== undefined) {
-        const trialClients = await db.client.findMany({
-          where: {
-            OR: [{ subscriptionPlan: 'FREE_TRIAL' }, { isFreeTrial: true }],
-          },
-        })
-        for (const tc of trialClients) {
-          const baseDate = tc.createdAt ? new Date(tc.createdAt).getTime() : Date.now()
-          const newEndsAt = new Date(Math.max(Date.now() + 24 * 60 * 60 * 1000, baseDate + data.periodDays * 24 * 60 * 60 * 1000))
-          await db.client.update({
-            where: { id: tc.id },
-            data: { subscriptionEndsAt: newEndsAt },
-          })
-        }
-      }
+      // Trial duration changes apply to future activations; never revive or restart an existing trial.
+
     }
 
     const updatedPlan = updated as any
@@ -885,10 +872,6 @@ adminRouter.patch('/trial', requireAdmin, async (req: Request, res: Response) =>
     if (isActive !== undefined) data.isActive = Boolean(isActive)
     if (description !== undefined) data.description = String(description)
 
-    // Read current trial plan to calculate the delta
-    const currentTrial = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
-    const previousPeriodDays = currentTrial?.periodDays || 14
-
     const updated = await (db.plan as any).upsert({
       where: { name: 'FREE_TRIAL' },
       update: data,
@@ -912,47 +895,7 @@ adminRouter.patch('/trial', requireAdmin, async (req: Request, res: Response) =>
       })
     }
 
-    if (data.periodDays !== undefined) {
-      const newPeriodDays = data.periodDays
-      const diffDays = newPeriodDays - previousPeriodDays
-      const nowMs = Date.now()
-
-      const trialClients = await db.client.findMany({
-        where: {
-          OR: [{ subscriptionPlan: 'FREE_TRIAL' }, { isFreeTrial: true }],
-        },
-      })
-
-      for (const tc of trialClients) {
-        let newEndsAt: Date
-
-        if (tc.subscriptionEndsAt) {
-          const currentEndsMs = new Date(tc.subscriptionEndsAt).getTime()
-          const currentRemainingDays = Math.ceil((currentEndsMs - nowMs) / (24 * 60 * 60 * 1000))
-
-          if (currentRemainingDays > 0) {
-            // Active trial: accurately shift remaining days by the change in trial duration
-            const targetDays = Math.max(1, Math.min(newPeriodDays, currentRemainingDays + diffDays))
-            newEndsAt = new Date(nowMs + targetDays * 24 * 60 * 60 * 1000)
-          } else {
-            // Expired trial: if admin extended trial duration, give them the extra days
-            if (diffDays > 0) {
-              newEndsAt = new Date(nowMs + diffDays * 24 * 60 * 60 * 1000)
-            } else {
-              newEndsAt = new Date(currentEndsMs)
-            }
-          }
-        } else {
-          // No end date recorded: grant full configured trial period
-          newEndsAt = new Date(nowMs + newPeriodDays * 24 * 60 * 60 * 1000)
-        }
-
-        await db.client.update({
-          where: { id: tc.id },
-          data: { subscriptionEndsAt: newEndsAt },
-        })
-      }
-    }
+    // Existing trial deadlines remain fixed. The new duration is used on first activation only.
 
     const updatedTrial = updated as any
     await db.auditLog.create({
@@ -999,6 +942,19 @@ adminRouter.post('/clients/:id/plan', requireAdmin, async (req: Request, res: Re
     const effectiveExtendDays = parsedExtendDays ?? (plan?.periodDays ?? 30)
     const txLimit = parsedTxLimit ?? plan?.maxTransactions ?? 1000
     const subscriptionEndsAt = new Date(Date.now() + effectiveExtendDays * 24 * 60 * 60 * 1000)
+
+    if (plan?.name === 'FREE_TRIAL') {
+      const claimed = await db.client.updateMany({
+        where: { id, trialRedeemedAt: null, subscriptionEndsAt: null, subscriptionPlan: 'FREE_TRIAL', isFreeTrial: true },
+        data: { trialRedeemedAt: new Date(), subscriptionEndsAt, txLimit, txCount: 0 },
+      })
+      if (claimed.count !== 1) {
+        return res.status(409).json({ ok: false, error: 'Free trial has already been used or this merchant is not eligible.' })
+      }
+      const trialClient = await db.client.findUniqueOrThrow({ where: { id } })
+      await db.auditLog.create({ data: { action: 'ACTIVATE_TRIAL', details: `Admin activated the one-time free trial for merchant ${id}` } }).catch(() => {})
+      return res.json({ ok: true, client: safeAdminClient(trialClient) })
+    }
 
     const updated = await db.client.update({
       where: { id },

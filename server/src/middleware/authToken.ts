@@ -1,4 +1,5 @@
 import type { Request } from 'express'
+import { normalizeIpAddress } from '../lib/sessionPresentation.js'
 
 export type AuthTransport = 'bearer' | 'cookie'
 
@@ -25,5 +26,5 @@ export function getRequestAuthToken(req: Request, cookieName: string): RequestAu
 }
 
 export function getRequestIp(req: Request): string | null {
-  return req.ip || req.socket.remoteAddress || null
+  return normalizeIpAddress(req.ip) || normalizeIpAddress(req.socket.remoteAddress)
 }

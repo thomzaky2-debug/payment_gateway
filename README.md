@@ -75,9 +75,10 @@ Gateway Matcher Service
 | `server/src/services/` | Decoupled domain services (`matcherService`, `webhookService`, `checkoutService`, etc.) |
 | `server/src/workers/` | Automated background webhook retry worker |
 | `prisma/schema.prisma` | Unified PostgreSQL schema for Supabase |
-| `android/app/` | Native Kotlin Merchant Detector APK source code (`com.instapaydetector.app`) |
-| `android/admin/` | Native Kotlin Admin Mobile App source code (`com.instapaydetector.admin`) |
-| `apks/` | Legacy APK artifacts; downloads stay disabled until replaced with current release-signed builds |
+| `mobile/merchant/` | NilePay Merchant Android app, including payment detection (`com.nilepay.merchant`) |
+| `mobile/admin/` | NilePay Admin Android app foundation (`com.nilepay.admin`) |
+| `mobile/designsystem/` | Shared Compose UI, theme, fonts, and branding |
+| `mobile/core/` | Shared Android API client and secure session handling |
 
 ---
 
@@ -199,7 +200,7 @@ npm run dev
 ## 📲 Android Companion APK Setup
 
 1. Configure the release gateway URL and external signing credentials described in [Authentication & Authorization Architecture](docs/AUTHENTICATION_AUTHORIZATION.md).
-2. Build and verify the current Detector release APK; do not distribute the legacy checked-in artifact.
+2. Build and verify the current NilePay Merchant release from `mobile/`; see `mobile/PLAY_RELEASE_READINESS.md` before distribution.
 3. Install the verified APK and sign in with your merchant email, password, and OTP.
 4. When prompted, grant **Notification Listener Permission** in Android settings.
 5. In your device's battery settings, set background activity to **Unrestricted** (prevents aggressive OEM task killers from stopping the listener).

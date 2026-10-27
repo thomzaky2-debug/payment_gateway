@@ -41,6 +41,7 @@ export async function enqueueWebhookOutbox(txDb: any, transaction: any, client: 
       detectedRef: transaction.detectedRef,
       detectedAt: transaction.detectedAt?.toISOString() ?? null,
       note: transaction.note,
+      productCategory: transaction.productCategory ?? null,
       createdAt: transaction.createdAt.toISOString(),
     },
   }
