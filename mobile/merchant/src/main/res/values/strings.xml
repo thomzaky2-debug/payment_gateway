@@ -128,4 +128,17 @@
     <string name="load_more_payments">Load more payments</string>
     <string name="search_payments_hint">Search sender, payment ID or bank reference</string>
     <string name="product_category">Product category</string>
+    <string name="keep_alive_channel_name">NilePay Continuous Detector</string>
+    <string name="keep_alive_channel_desc">Keeps payment detection active in the background without battery termination</string>
+    <string name="keep_alive_notification_title">NilePay Detector Active</string>
+    <string name="keep_alive_notification_text">Listening continuously for incoming InstaPay payments</string>
+    <string name="battery_protection_title">Unrestricted battery usage</string>
+    <string name="battery_protection_on">Unrestricted (Protected from battery kill)</string>
+    <string name="battery_protection_off">Restricted — tap below to prevent background stops</string>
+    <string name="allow_unrestricted_battery">Allow unrestricted battery usage</string>
+    <string name="continuous_service_title">Continuous background service</string>
+    <string name="continuous_service_on">Active • Auto-restarts on boot &amp; task swipe</string>
+    <string name="continuous_service_off">Starting background service…</string>
+    <string name="battery_settings_row_title">Battery &amp; background protection</string>
+    <string name="battery_settings_row_detail">Prevent Android battery saver from stopping payment detection</string>
 </resources>

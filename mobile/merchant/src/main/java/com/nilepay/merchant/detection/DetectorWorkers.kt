@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.Constraints
 import androidx.work.BackoffPolicy
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.workDataOf
 import com.nilepay.core.network.NetworkFactory
 import com.nilepay.merchant.BuildConfig
@@ -71,6 +72,15 @@ class HeartbeatWorker(context: Context, params: WorkerParameters) : CoroutineWor
     override suspend fun doWork(): Result {
         val session = MerchantSession(applicationContext)
         if (!session.isSignedIn || !session.hasDisclosureConsent) return Result.success()
+        return if (DetectorWork.sendHeartbeatSync(applicationContext)) Result.success() else Result.retry()
+    }
+}
+
+object DetectorWork {
+    fun sendHeartbeatSync(context: Context): Boolean {
+        val appContext = context.applicationContext
+        val session = MerchantSession(appContext)
+        if (!session.isSignedIn || !session.hasDisclosureConsent) return false
         val body = JSONObject()
             .put("deviceId", session.tokens.getDeviceId())
             .put("appVersion", BuildConfig.VERSION_NAME)
@@ -84,14 +94,14 @@ class HeartbeatWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 .newCall(request).execute().use {
                     if (it.isSuccessful) {
                         session.recordHeartbeat()
-                        Result.success()
-                    } else Result.retry()
+                        true
+                    } else false
                 }
-        } catch (_: Exception) { Result.retry() }
+        } catch (_: Exception) {
+            false
+        }
     }
-}
 
-object DetectorWork {
     fun scheduleHeartbeat(context: Context) {
         val request = PeriodicWorkRequestBuilder<HeartbeatWorker>(15, TimeUnit.MINUTES)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
@@ -104,7 +114,11 @@ object DetectorWork {
     }
 
     fun heartbeatNow(context: Context) {
-        WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<HeartbeatWorker>().build())
+        WorkManager.getInstance(context).enqueue(
+            OneTimeWorkRequestBuilder<HeartbeatWorker>()
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .build()
+        )
     }
 
     suspend fun retryQueued(context: Context) {
@@ -114,6 +128,7 @@ object DetectorWork {
             val request = OneTimeWorkRequestBuilder<PaymentUploadWorker>()
                 .setInputData(workDataOf("eventId" to event.eventId))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(

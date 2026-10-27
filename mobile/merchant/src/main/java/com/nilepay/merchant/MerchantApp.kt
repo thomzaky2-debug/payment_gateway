@@ -100,6 +100,7 @@ import com.nilepay.designsystem.components.NilePayTopBar
 import com.nilepay.designsystem.components.labelResource
 import com.nilepay.designsystem.theme.NilePayTheme
 import com.nilepay.merchant.detection.DetectionDatabase
+import com.nilepay.merchant.detection.DetectorKeepAliveService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -146,9 +147,14 @@ fun MerchantApp() {
                     onAgree = {
                         session.recordConsent()
                         consented = true
+                        DetectorKeepAliveService.ensureRunning(context)
+                        if (!DetectorKeepAliveService.isIgnoringBatteryOptimizations(context)) {
+                            DetectorKeepAliveService.requestIgnoreBatteryOptimizations(context)
+                        }
                         context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     },
                     onCancel = {
+                        DetectorKeepAliveService.stop(context)
                         session.signOut()
                         signedIn = false
                         consented = false
@@ -164,6 +170,7 @@ fun MerchantApp() {
                     theme = selected
                 },
                 onSignOut = {
+                    DetectorKeepAliveService.stop(context)
                     session.signOut()
                     signedIn = false
                     consented = false
@@ -188,6 +195,7 @@ private fun MerchantWorkspace(
     var payments by remember { mutableStateOf<List<MerchantPayment>>(emptyList()) }
     var paymentsError by remember { mutableStateOf<String?>(null) }
     var notificationAccess by remember { mutableStateOf(hasNotificationAccess(context)) }
+    var batteryUnrestricted by remember { mutableStateOf(DetectorKeepAliveService.isIgnoringBatteryOptimizations(context)) }
     var queuedEvents by remember { mutableStateOf(0) }
     var attentionEvents by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
@@ -201,6 +209,8 @@ private fun MerchantWorkspace(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 notificationAccess = hasNotificationAccess(context)
+                batteryUnrestricted = DetectorKeepAliveService.isIgnoringBatteryOptimizations(context)
+                DetectorKeepAliveService.ensureRunning(context)
                 if (hasObservedFirstResume) refreshKey++ else hasObservedFirstResume = true
             }
         }
@@ -210,6 +220,8 @@ private fun MerchantWorkspace(
 
     LaunchedEffect(refreshKey) {
         loading = true
+        DetectorKeepAliveService.ensureRunning(context)
+        batteryUnrestricted = DetectorKeepAliveService.isIgnoringBatteryOptimizations(context)
         runCatching { withContext(Dispatchers.IO) { MobileGatewayClient(session).profile() } }
             .onSuccess { merchantProfile = it }
             .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
@@ -279,11 +291,16 @@ private fun MerchantWorkspace(
                 contentPadding,
                 session,
                 notificationAccess,
+                batteryUnrestricted,
                 queuedEvents,
                 attentionEvents,
                 onOpenSettings = {
                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     notificationAccess = hasNotificationAccess(context)
+                },
+                onAllowUnrestrictedBattery = {
+                    DetectorKeepAliveService.requestIgnoreBatteryOptimizations(context)
+                    batteryUnrestricted = DetectorKeepAliveService.isIgnoringBatteryOptimizations(context)
                 },
                 onRetryQueue = {
                     kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
@@ -1011,11 +1028,14 @@ private fun HealthScreen(
     contentPadding: PaddingValues,
     session: MerchantSession,
     notificationAccess: Boolean,
+    batteryUnrestricted: Boolean,
     queuedEvents: Int,
     attentionEvents: Int,
     onOpenSettings: () -> Unit,
+    onAllowUnrestrictedBattery: () -> Unit,
     onRetryQueue: () -> Unit
 ) {
+    val serviceActive = DetectorKeepAliveService.running || session.isSignedIn
     ScreenColumn(contentPadding) {
         Text(
             stringResource(R.string.health_subtitle),
@@ -1024,13 +1044,25 @@ private fun HealthScreen(
         )
         NilePayCard {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                HealthHeader(notificationAccess)
+                HealthHeader(notificationAccess && batteryUnrestricted)
                 HorizontalDivider(color = NilePayTheme.colors.borderSubtle)
                 HealthCheckRow(
                     icon = Icons.Filled.HealthAndSafety,
                     title = stringResource(R.string.notification_access),
                     detail = stringResource(if (notificationAccess) R.string.notification_access_on else R.string.notification_access_off),
                     healthy = notificationAccess
+                )
+                HealthCheckRow(
+                    icon = Icons.Filled.Shield,
+                    title = stringResource(R.string.continuous_service_title),
+                    detail = stringResource(if (serviceActive) R.string.continuous_service_on else R.string.continuous_service_off),
+                    healthy = serviceActive
+                )
+                HealthCheckRow(
+                    icon = Icons.Filled.Wifi,
+                    title = stringResource(R.string.battery_protection_title),
+                    detail = stringResource(if (batteryUnrestricted) R.string.battery_protection_on else R.string.battery_protection_off),
+                    healthy = batteryUnrestricted
                 )
                 HealthCheckRow(
                     icon = Icons.Filled.Shield,
@@ -1058,6 +1090,14 @@ private fun HealthScreen(
                     detail = formatDeviceTime(session.lastDetectedAt),
                     healthy = session.lastDetectedAt > 0
                 )
+                if (!batteryUnrestricted) {
+                    NilePayButton(
+                        text = stringResource(R.string.allow_unrestricted_battery),
+                        onClick = onAllowUnrestrictedBattery,
+                        modifier = Modifier.fillMaxWidth(),
+                        style = NilePayButtonStyle.Primary
+                    )
+                }
                 if (queuedEvents > 0) NilePayButton(
                     text = stringResource(R.string.retry_queued_uploads),
                     onClick = onRetryQueue,
@@ -1068,7 +1108,7 @@ private fun HealthScreen(
                     text = stringResource(R.string.open_notification_access),
                     onClick = onOpenSettings,
                     modifier = Modifier.fillMaxWidth(),
-                    style = NilePayButtonStyle.Primary
+                    style = if (batteryUnrestricted) NilePayButtonStyle.Primary else NilePayButtonStyle.Secondary
                 )
             }
         }
@@ -1279,6 +1319,9 @@ private fun SettingsScreen(
         }
         SettingsRow(Icons.Filled.HealthAndSafety, stringResource(R.string.notification_preferences), stringResource(R.string.notification_preferences_detail)) {
             context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+        SettingsRow(Icons.Filled.Shield, stringResource(R.string.battery_settings_row_title), stringResource(R.string.battery_settings_row_detail)) {
+            DetectorKeepAliveService.requestIgnoreBatteryOptimizations(context)
         }
         PrivacyNoticeLink()
         SettingsRow(Icons.Filled.Shield, stringResource(R.string.delete_account_title), stringResource(R.string.delete_account_detail)) {

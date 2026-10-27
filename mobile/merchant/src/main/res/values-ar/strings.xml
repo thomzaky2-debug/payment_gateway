@@ -128,4 +128,17 @@
     <string name="load_more_payments">تحميل المزيد</string>
     <string name="search_payments_hint">ابحث بالمرسل أو معرّف الدفع أو مرجع البنك</string>
     <string name="product_category">فئة المنتج</string>
+    <string name="keep_alive_channel_name">كاشف نايل باي المستمر</string>
+    <string name="keep_alive_channel_desc">يحافظ على عمل كاشف المدفوعات في الخلفية دون إيقاف بسبب البطارية</string>
+    <string name="keep_alive_notification_title">كاشف نايل باي نشط</string>
+    <string name="keep_alive_notification_text">يعمل باستمرار في الخلفية لرصد مدفوعات إنستاباي</string>
+    <string name="battery_protection_title">عمل غير مقيّد في الخلفية (البطارية)</string>
+    <string name="battery_protection_on">غير مقيّد (محمي من الإغلاق التلقائي)</string>
+    <string name="battery_protection_off">مقيّد — اضغط أدناه لمنع إيقاف الكاشف في الخلفية</string>
+    <string name="allow_unrestricted_battery">السماح بالعمل غير المقيّد للبطارية</string>
+    <string name="continuous_service_title">خدمة العمل المستمر في الخلفية</string>
+    <string name="continuous_service_on">نشطة • تعمل تلقائياً عند التشغيل وإغلاق التطبيق</string>
+    <string name="continuous_service_off">جارٍ تشغيل الخدمة الخلفية…</string>
+    <string name="battery_settings_row_title">حماية البطارية والعمل في الخلفية</string>
+    <string name="battery_settings_row_detail">منع موفر البطارية في أندرويد من إيقاف رصد المدفوعات</string>
 </resources>
