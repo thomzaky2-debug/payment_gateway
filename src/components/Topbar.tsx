@@ -14,6 +14,7 @@ interface TopbarProps {
 }
 
 const pageTitles: Record<Page, { en: string; ar: string }> = {
+  support: { en: 'Support', ar: 'الدعم' },
   overview: { en: 'Dashboard Overview', ar: 'لوحة التحكم الرئيسية' },
   transactions: { en: 'Transactions', ar: 'سجل المعاملات' },
   review: { en: 'Manual Review', ar: 'المراجعة اليدوية' },

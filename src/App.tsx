@@ -16,8 +16,10 @@ import { AuditLogPage } from './pages/AuditLogPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { BillingPage } from './pages/BillingPage';
 import { ApiDocsPage } from './pages/ApiDocsPage';
+import { SupportPage } from './pages/SupportPage';
+import { PublicLinks } from './components/PublicLinks';
 
-export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'detector' | 'developers' | 'settings' | 'audit' | 'security' | 'docs';
+export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'detector' | 'developers' | 'settings' | 'audit' | 'security' | 'docs' | 'support';
 
 export interface ToastMessage {
   id: string;
@@ -47,6 +49,7 @@ export function parseRouteFromHash(hashString?: string): { page: Page; subPath?:
   const subPath = parts.slice(1).join('/');
 
   const validPages: Record<string, Page> = {
+    support: 'support',
     overview: 'overview',
     transactions: 'transactions',
     tx: 'transactions',
@@ -79,6 +82,7 @@ export function buildHash(page: Page, subPath?: string): string {
 }
 
 function App() {
+  const { isDark } = useTheme();
   const initialRoute = parseRouteFromHash();
   const [currentPage, setCurrentPage] = useState<Page>(() => initialRoute.page);
   const [currentSubPath, setCurrentSubPath] = useState<string | undefined>(() => initialRoute.subPath);
@@ -201,6 +205,8 @@ function App() {
     });
   };
 
+  if (currentPage === 'support') return <SupportPage />;
+
   if (isCheckingAuth) {
     return (
       <div
@@ -236,6 +242,7 @@ function App() {
     return (
       <>
         <LoginPage onLogin={handleLogin} showToast={showToast} />
+        <PublicLinks />
         <Toast toasts={toasts} onDismiss={(id: string) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
       </>
     );
@@ -297,7 +304,6 @@ function App() {
     }
   };
 
-  const { isDark } = useTheme();
 
   return (
     <div
@@ -341,6 +347,7 @@ function App() {
           }}
         >
           <div style={{ animation: 'fadeIn 0.4s ease-out' }}>{renderPage()}</div>
+          <PublicLinks />
         </main>
       </div>
 

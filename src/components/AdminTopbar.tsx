@@ -12,6 +12,7 @@ interface AdminTopbarProps {
 }
 
 const titles: Record<AdminTab, { title: string; subtitle: string }> = {
+  publicSettings: { title: 'Privacy & Support', subtitle: 'Manage public website information and support contacts' },
   overview: { title: 'Platform Overview', subtitle: 'Operational health, activity, and actions requiring attention' },
   merchants: { title: 'Merchant Management', subtitle: 'Review accounts, approvals, detector health, and integration access' },
   merchantDetails: { title: 'Merchant Details', subtitle: 'Review a merchant profile, operational health, and payment activity' },

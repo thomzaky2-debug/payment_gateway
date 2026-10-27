@@ -1,4 +1,10 @@
-export function renderAccountDeletionHtml(): string {
+import { defaultSiteSettings, escapeHtml, type PublicSiteSettings } from '../services/publicSiteSettings.js'
+
+export function renderAccountDeletionHtml(settings: PublicSiteSettings = defaultSiteSettings): string {
+  return renderDefaultAccountDeletionHtml().replaceAll('nilepay.customers@gmail.com', () => escapeHtml(settings.supportEmail))
+}
+
+function renderDefaultAccountDeletionHtml(): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

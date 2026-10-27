@@ -11,6 +11,7 @@ import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { renderAccountDeletionHtml } from '../views/accountDeletionHtml.js'
 import { normalizeEmail } from '../lib/emailDelivery.js'
+import { getPublicSiteSettings } from '../services/publicSiteSettings.js'
 
 export const accountRouter = Router()
 
@@ -152,7 +153,9 @@ accountRouter.post(
  * GET /account-deletion
  * Public static web page describing account and data deletion for Google Play Store compliance.
  */
-accountRouter.get('/deletion-info', (_req: Request, res: Response) => {
+accountRouter.get('/deletion-info', async (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
-  return res.send(renderAccountDeletionHtml())
+  res.setHeader('Cache-Control', 'no-store')
+  try { return res.send(renderAccountDeletionHtml(await getPublicSiteSettings())) }
+  catch (err) { return sendInternalError(res, err, 'Unable to load deletion information') }
 })

@@ -25,6 +25,27 @@ import { kickWebhookWorker } from '../workers/webhookRetryWorker.js'
 import { getWebhookDeliveryHealth } from '../services/webhookHealth.js'
 
 export const adminRouter = Router()
+import { getPublicSiteSettings, validateSiteSettings } from '../services/publicSiteSettings.js'
+
+adminRouter.get('/public-site-settings', requireAdmin, async (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  try { res.json(await getPublicSiteSettings()) }
+  catch (err) { sendInternalError(res, err, 'Unable to load website settings') }
+})
+
+adminRouter.put('/public-site-settings', requireAdmin, createRateLimiter(60 * 1000, 10, 'Too many website settings updates.'), async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  let settings
+  try { settings = validateSiteSettings(req.body) }
+  catch (err) { return res.status(400).json({ error: err instanceof Error ? err.message : 'Invalid settings' }) }
+  try {
+    await db.$transaction(async tx => {
+      await tx.publicSiteSettings.upsert({ where: { id: 'public' }, create: { id: 'public', content: settings }, update: { content: settings } })
+      await tx.auditLog.create({ data: { action: 'UPDATE_PUBLIC_SITE_SETTINGS', details: 'Administrator updated public privacy and support settings.' } })
+    })
+    res.json(settings)
+  } catch (err) { sendInternalError(res, err, 'Unable to save website settings') }
+})
 
 adminRouter.use((_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store')

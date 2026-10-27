@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { adminApi } from '../services/api';
 import { AdminSidebar } from '../components/AdminSidebar';
+import { AdminPublicSettings } from './AdminPublicSettings';
 import { AdminTopbar } from '../components/AdminTopbar';
 import { useTheme } from '../context/ThemeContext';
 
@@ -100,7 +101,7 @@ interface PlatformStats {
   unmatchedPayments: number;
 }
 
-export type AdminTab = 'overview' | 'merchants' | 'merchantDetails' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications';
+export type AdminTab = 'overview' | 'merchants' | 'merchantDetails' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications' | 'publicSettings';
 
 export interface AdminRoute {
   tab: AdminTab;
@@ -133,6 +134,8 @@ export function parseAdminRouteFromHash(hashString?: string): AdminRoute {
   }
 
   const validTabs: Record<string, AdminTab> = {
+    publicsettings: 'publicSettings',
+    'public-settings': 'publicSettings',
     overview: 'overview',
     dashboard: 'overview',
     home: 'overview',
@@ -1185,6 +1188,7 @@ export function AdminPortalPage() {
     ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
     : '0 4px 16px rgba(0,0,0,0.06)';
   const tabHeading: Record<AdminTab, { title: string; description: string }> = {
+    publicSettings: { title: 'Privacy & Support', description: 'Edit public contacts and the privacy policy' },
     overview: { title: 'Platform Overview', description: 'Live operational health and activity across the entire payment network' },
     merchants: { title: 'Merchant Management', description: 'Monitor merchant health, access, subscriptions, and integration readiness' },
     merchantDetails: { title: 'Merchant Details', description: 'Review a merchant profile, payment activity, detector health, and integration readiness' },
@@ -1332,6 +1336,8 @@ export function AdminPortalPage() {
               : `Last synced ${lastSyncedAt ? lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'}`}
           </div>
         </div>
+
+        {activeTab === 'publicSettings' && <AdminPublicSettings />}
 
         {activeTab === 'overview' && (
         <>
