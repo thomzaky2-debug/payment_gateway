@@ -13,6 +13,7 @@ import { getPublicSiteSettings } from './services/publicSiteSettings.js'
 import { initSocketIO } from './services/notificationService.js'
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webhookRetryWorker.js'
 import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanupWorker.js'
+import { startTransactionExpiryWorker, stopTransactionExpiryWorker } from './workers/transactionExpiryWorker.js'
 import { startRetentionPurgeWorker, stopRetentionPurgeWorker } from './workers/retentionPurgeWorker.js'
 import { syncApprovedMerchantsTokens, migratePlaintextCredentialsAtRest } from './services/authService.js'
 import { safeErrorMessage } from './lib/safeError.js'
@@ -29,7 +30,6 @@ import { settingsRouter } from './routes/settingsRoutes.js'
 import { planCatalogRouter, planRouter } from './routes/planRoutes.js'
 import { bundleRouter } from './routes/bundleRoutes.js'
 import { notificationRouter } from './routes/notificationRoutes.js'
-import { apkRouter } from './routes/apkRoutes.js'
 import { mobileAuthRouter } from './routes/mobileAuthRoutes.js'
 import { mobileRouter } from './routes/mobileRoutes.js'
 import { accountRouter } from './routes/accountRoutes.js'
@@ -138,6 +138,7 @@ initSocketIO(server, allowedOrigins)
 // ─── Initialize Background Webhook Retry Worker ────────────────────
 startWebhookRetryWorker(30000) // Poll every 30 seconds
 startOtpCleanupWorker(60 * 60 * 1000) // Cleanup expired OTPs every hour
+startTransactionExpiryWorker(60_000)
 startRetentionPurgeWorker(24 * 60 * 60 * 1000) // Daily retention purge and deferred deletions
 
 // ─── Auto-Sync Integration Tokens for Approved Merchants ───────────
@@ -230,7 +231,6 @@ app.use('/api/plans', generalApiLimiter, planCatalogRouter)
 app.use('/api/subscription', generalApiLimiter, planRouter)
 app.use('/api/bundles', generalApiLimiter, bundleRouter)
 app.use('/api/notifications', generalApiLimiter, notificationRouter)
-app.use('/api/apks', generalApiLimiter, apkRouter)
 
 // ─── Global Error Handler ──────────────────────────────────────────
 
@@ -248,6 +248,7 @@ process.on('SIGINT', () => {
   console.log('\n[Server] Shutting down gracefully...')
   stopWebhookRetryWorker()
   stopOtpCleanupWorker()
+  stopTransactionExpiryWorker()
   stopRetentionPurgeWorker()
   server.close(() => {
     console.log('[Server] Closed HTTP & Socket.IO server')
@@ -258,6 +259,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   stopWebhookRetryWorker()
   stopOtpCleanupWorker()
+  stopTransactionExpiryWorker()
   stopRetentionPurgeWorker()
   server.close(() => {
     process.exit(0)

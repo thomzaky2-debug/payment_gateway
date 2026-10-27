@@ -1,0 +1,14 @@
+NilePay — Merchant Gateway
+
+Reset your password
+
+Use this code on the NilePay password reset page to choose a new password.
+
+Your verification code: 482915
+Expires in 10 minutes. This code can only be used once.
+
+Never share this code. NilePay support will never ask for your verification code or password.
+If you did not request this code, you can ignore this email.
+
+Need help? nilepay.customers@gmail.com
+Support: https://nilepay.runasp.net/#support/

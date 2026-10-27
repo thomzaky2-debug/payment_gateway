@@ -35,8 +35,10 @@ import {
 import { settingsApi, notificationsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import './SettingsPage.css';
 
-export type SettingsTab = 'general' | 'precision' | 'webhooks' | 'notifications';
+import { settingsSections, parseSettingsSection, type SettingsSection } from '../config/settingsNavigation';
+export type SettingsTab = SettingsSection;
 
 interface SettingsPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
@@ -56,20 +58,11 @@ interface NotificationItem {
   metadata?: any;
 }
 
-function parseTabFromSubPath(sub?: string): SettingsTab {
-  if (!sub) return 'general';
-  const clean = sub.toLowerCase();
-  if (clean.includes('notification')) return 'notifications';
-  if (clean.includes('precision') || clean.includes('tolerance')) return 'precision';
-  if (clean.includes('webhook')) return 'webhooks';
-  return 'general';
-}
-
 export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileImageChange }: SettingsPageProps) {
   const { isRtl } = useLanguage();
   const { isDark } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>(() => parseTabFromSubPath(subPath));
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => parseSettingsSection(subPath));
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -134,18 +127,13 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
 
   // Sync tab when subPath changes
   useEffect(() => {
-    if (subPath !== undefined) {
-      setActiveTab(parseTabFromSubPath(subPath));
-    }
+    setActiveTab(parseSettingsSection(subPath));
   }, [subPath]);
 
   const switchTab = (tab: SettingsTab) => {
     setActiveTab(tab);
-    let target = '';
-    if (tab === 'notifications') target = 'Notifications';
-    else if (tab === 'precision') target = 'Precision';
-    else if (tab === 'webhooks') target = 'Webhooks';
-    onSubPathChange?.(target);
+    setSaved(false);
+    onSubPathChange?.(settingsSections.find(section => section.key === tab)?.path || 'profile');
   };
 
   /* ──────────────── Theme Tokens ──────────────── */
@@ -290,26 +278,18 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await settingsApi.update({
-        businessName,
-        instapayHandle: instapayHandle.trim(),
-        instapayPaymentUrl,
-        webhookUrl,
-        checkoutTtlMin: Number(checkoutTtlMin),
-        autoAcceptOverpaid,
-        overpaidMaxExcessEgp:
-          overpaidMaxExcessEgp !== '' && overpaidMaxExcessEgp != null
-            ? Number(overpaidMaxExcessEgp)
-            : null,
-        underpaidToleranceEnabled,
-        underpaidToleranceEgp: Number(underpaidToleranceEgp) || 0,
-      });
+      if (activeTab === 'notifications') return;
+      const payload = activeTab === 'general' ? { businessName }
+        : activeTab === 'checkout' ? { instapayHandle: instapayHandle.trim(), instapayPaymentUrl, checkoutTtlMin: Number(checkoutTtlMin) }
+        : activeTab === 'webhooks' ? { webhookUrl }
+        : { autoAcceptOverpaid, overpaidMaxExcessEgp: overpaidMaxExcessEgp !== '' && overpaidMaxExcessEgp != null ? Number(overpaidMaxExcessEgp) : null, underpaidToleranceEnabled, underpaidToleranceEgp: Number(underpaidToleranceEgp) || 0 };
+      const res = await settingsApi.update(payload);
 
       if (res.ok) {
         setSaved(true);
         setLastRefreshedAt(new Date());
         if (showToast) {
-          showToast('success', isRtl ? 'تم حفظ الإعدادات وتحديث معرّف IPA بنجاح!' : 'Settings & InstaPay IPA updated successfully!');
+          showToast('success', isRtl ? 'تم حفظ إعدادات هذا القسم بنجاح.' : 'Section settings saved.');
         }
         setTimeout(() => setSaved(false), 2500);
       } else {
@@ -379,18 +359,13 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
     }
   };
 
-  const tabItems: { key: SettingsTab; labelEn: string; labelAr: string; icon: React.ReactNode; count?: number }[] = [
-    { key: 'general', labelEn: 'Store & Credentials', labelAr: 'بيانات المتجر والحساب', icon: <Store size={15} /> },
-    { key: 'precision', labelEn: 'Precision & Review Rules', labelAr: 'قواعد السماحية والمراجعة', icon: <Sliders size={15} /> },
-    { key: 'webhooks', labelEn: 'Webhooks & API', labelAr: 'الويب هوك وبوابة المطور', icon: <Link size={15} /> },
-    {
-      key: 'notifications',
-      labelEn: 'Notifications & Inbox',
-      labelAr: 'التنبيهات وصندوق الوارد',
-      icon: <Bell size={15} />,
-      count: notifications.filter((n) => !n.readAt).length,
-    },
-  ];
+  const activeSection = settingsSections.find(section => section.key === activeTab)!;
+  const ActiveSectionIcon = activeSection.icon;
+  const tabItems = settingsSections.map(section => ({
+    key: section.key, labelEn: section.en, labelAr: section.ar,
+    icon: <section.icon size={15} />,
+    count: section.key === 'notifications' ? notifications.filter(n => !n.readAt).length : undefined,
+  }));
 
   const unreadCount = notifications.filter((n) => !n.readAt).length;
 
@@ -401,7 +376,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
   });
 
   return (
-    <div className="merchant-page-container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
+    <div className="merchant-page-container merchant-settings-page" style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
       {/* ─── Header ─── */}
       <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -411,23 +386,21 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
           }}>
-            <Sliders size={22} color="white" />
+            <ActiveSectionIcon size={22} color="white" />
           </div>
           <div>
             <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
-              {isRtl ? 'إعدادات المتجر وقواعد البوابة' : 'Settings & Precision Controls'}
+              {isRtl ? activeSection.ar : activeSection.en}
             </h2>
             <p style={{ fontSize: '13px', color: textSecondary, margin: '2px 0 0 0' }}>
-              {isRtl
-                ? 'تخصيص بيانات المتجر، وسماحية المبالغ الزائدة والناقصة، وتكامل الويب هوك والتنبيهات'
-                : 'Configure payment links, overpaid & underpaid precision tolerances, webhooks and notifications'}
+              {isRtl ? activeSection.descriptionAr : activeSection.descriptionEn}
             </p>
           </div>
         </div>
 
         {/* Header Actions & Live Last Synced Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{
+          <div className="settings-sync-status" style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
@@ -481,9 +454,10 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
 
           <button
             onClick={handleSave}
-            disabled={saving}
+            hidden={activeTab === 'notifications'}
+            disabled={saving || loading}
             style={{
-              display: 'flex',
+              display: activeTab === 'notifications' ? 'none' : 'flex',
               alignItems: 'center',
               gap: '8px',
               padding: '10px 22px',
@@ -511,117 +485,8 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
         </div>
       </div>
 
-      {/* ─── Hero Overview Banner (Store Status & Health) ─── */}
-      <div style={{
-        ...card(),
-        background: isDark
-          ? 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(16,185,129,0.10))'
-          : 'linear-gradient(135deg, #1e40af, #2563eb)',
-        border: isDark ? '1px solid rgba(59,130,246,0.3)' : 'none',
-        padding: '26px 30px',
-        marginBottom: '24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '20px',
-        position: 'relative',
-        overflow: 'hidden',
-      }}>
-        {/* Subtle background glow bubbles */}
-        <div style={{ position: 'absolute', top: '-25px', right: isRtl ? 'auto' : '-25px', left: isRtl ? '-25px' : 'auto', width: '130px', height: '130px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ position: 'absolute', bottom: '-40px', right: isRtl ? 'auto' : '120px', left: isRtl ? '120px' : 'auto', width: '150px', height: '150px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '18px', position: 'relative', zIndex: 1 }}>
-          <div style={{
-            width: '60px', height: '60px', borderRadius: '16px',
-            background: isDark ? 'rgba(37,99,235,0.25)' : 'rgba(255,255,255,0.2)',
-            backdropFilter: 'blur(10px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: isDark ? '1px solid rgba(96,165,250,0.3)' : '1px solid rgba(255,255,255,0.25)',
-          }}>
-            <Store size={30} color={isDark ? '#60a5fa' : 'white'} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: '19px', fontWeight: 800, margin: 0, color: isDark ? '#dbeafe' : 'white' }}>
-                {businessName || (isRtl ? 'المتجر الإلكتروني' : 'Merchant Gateway')}
-              </h3>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '20px',
-                backgroundColor: 'rgba(16,185,129,0.25)',
-                color: '#34d399',
-                border: '1px solid rgba(16,185,129,0.4)',
-              }}>
-                {instapayHandle ? `@${instapayHandle}` : 'Active Gateway'}
-              </span>
-              {webhookUrl && (
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: '20px',
-                  backgroundColor: 'rgba(56,189,248,0.25)',
-                  color: '#38bdf8',
-                  border: '1px solid rgba(56,189,248,0.4)',
-                }}>
-                  Webhooks Live
-                </span>
-              )}
-            </div>
-            <p style={{ fontSize: '13px', color: isDark ? '#bfdbfe' : 'rgba(255,255,255,0.9)', margin: '5px 0 0 0', lineHeight: 1.5 }}>
-              {isRtl
-                ? 'محرك الدفع الآلي يعمل بكفاءة مع قواعد مطابقة التسامح والدقة وحماية المعاملات الفورية.'
-                : 'Smart InstaPay gateway engine active with automated precision tolerances and instant callbacks.'}
-            </p>
-          </div>
-        </div>
-
-        {/* KPI Mini Stat Cards */}
-        <div style={{ display: 'flex', gap: '12px', position: 'relative', zIndex: 1, flexWrap: 'wrap' }}>
-          {[
-            { label: isRtl ? 'صلاحية الجلسة' : 'Session TTL', value: `${checkoutTtlMin} Mins`, color: '#38bdf8' },
-            {
-              label: isRtl ? 'سماحية الزيادة' : 'Overpaid Rule',
-              value: autoAcceptOverpaid ? `≤ ${overpaidMaxExcessEgp || 0} EGP` : 'Disabled',
-              color: '#34d399',
-            },
-            {
-              label: isRtl ? 'سماحية العجز' : 'Underpaid Rule',
-              value: underpaidToleranceEnabled ? `±${underpaidToleranceEgp || 0} EGP` : 'Strict 0',
-              color: underpaidToleranceEnabled ? '#fbbf24' : '#94a3b8',
-            },
-            {
-              label: isRtl ? 'تنبيهات غير مقروءة' : 'Unread Alerts',
-              value: `${unreadCount} Alerts`,
-              color: unreadCount > 0 ? '#f87171' : '#34d399',
-            },
-          ].map((stat, i) => (
-            <div key={i} style={{
-              padding: '10px 16px',
-              backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.15)',
-              borderRadius: '12px',
-              backdropFilter: 'blur(10px)',
-              border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.2)',
-              textAlign: 'center',
-              minWidth: '100px',
-            }}>
-              <div style={{ fontSize: '10.5px', fontWeight: 600, color: isDark ? '#94a3b8' : 'rgba(255,255,255,0.7)', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                {stat.label}
-              </div>
-              <div style={{ fontSize: '15px', fontWeight: 800, color: stat.color }}>
-                {stat.value}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* ─── Modern Sub-Navigation Tabs ─── */}
-      <div style={{
+      <div className="merchant-settings-tabs" role="tablist" aria-label={isRtl ? 'أقسام الإعدادات' : 'Settings sections'} style={{
         display: 'flex',
         gap: '8px',
         overflowX: 'auto',
@@ -636,6 +501,8 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
           return (
             <button
               key={tab.key}
+              role="tab"
+              aria-selected={isActive}
               onClick={() => switchTab(tab.key)}
               style={{
                 display: 'inline-flex',
@@ -696,9 +563,10 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
           {/* ══════════════════════════════════════════════════════════════════════
               TAB 1: STORE & CREDENTIALS
              ══════════════════════════════════════════════════════════════════════ */}
-          {activeTab === 'general' && (
+          {(activeTab === 'general' || activeTab === 'checkout') && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
               {/* Card 1: Store Profile & Identity */}
+              {activeTab === 'general' && (
               <div style={{ ...card({ padding: '24px' }) }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
                   <div style={{
@@ -721,7 +589,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px', borderRadius: '12px', background: isDark ? 'rgba(30,41,59,0.6)' : '#f8fafc', border: `1px solid ${borderColor}` }}>
-                    <div style={{ width: '58px', height: '58px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '20px' }}>
+                    <div className="merchant-profile-photo" style={{ width: '58px', height: '58px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'linear-gradient(135deg, #2563eb, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '20px' }}>
                       {profileImageData ? <img src={profileImageData} alt="Merchant profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (businessName?.[0]?.toUpperCase() || <Store size={22} />)}
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
@@ -818,8 +686,8 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '11px', color: textSecondary }}>
                         {isRtl
-                          ? 'عنوان الـ IPA يتم تحديثه ومزامنته تلقائياً عند تعديل رابط المشاركة أدناه لاستلام ومطابقة التحويلات بدقة.'
-                          : 'Your InstaPay Payment Address (IPA) is automatically synced from the Static Payment URL below to receive customer transfers.'}
+                          ? 'يتم تحديث عنوان الاستلام تلقائياً من رابط الدفع في قسم إعدادات الدفع.'
+                          : 'Your receiving address is synced from the Payment Link managed in Checkout settings.'}
                       </span>
                       {instapayHandle && (
                         <span style={{
@@ -837,9 +705,10 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                     </div>
                   </div>
                 </div>
-              </div>
+              </div>)}
 
               {/* Card 2: Checkout Link & Lifetime Configuration */}
+              {activeTab === 'checkout' && (
               <div style={{ ...card({ padding: '24px' }) }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
                   <div style={{
@@ -864,7 +733,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <label style={{ fontSize: '12.5px', fontWeight: 600, color: textPrimary, margin: 0 }}>
-                        {isRtl ? 'رابط المشاركة الثابت لإنستاباي (Static InstaPay URL)' : 'Static InstaPay Payment / Share URL'}
+                        {isRtl ? 'رابط الدفع' : 'Payment Link'}
                       </label>
                       <span style={{
                         fontSize: '10px',
@@ -967,7 +836,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                     </span>
                   </div>
                 </div>
-              </div>
+              </div>)}
             </div>
           )}
 

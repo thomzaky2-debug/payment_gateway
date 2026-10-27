@@ -8,8 +8,38 @@ import {
 import { getRequestIp } from '../middleware/authToken.js'
 import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
 import { sendInternalError } from '../lib/safeError.js'
+import { decodePaymentCursor, listMobilePayments, MOBILE_PAYMENT_STATUSES } from '../services/mobilePaymentService.js'
 
 export const mobileRouter = Router()
+
+mobileRouter.get('/profile', requireMerchant, (req: Request, res: Response) => {
+  const client = (req as any).client
+  res.setHeader('Cache-Control', 'no-store')
+  return res.json({ ok: true, profile: { id: client.id, businessName: client.businessName, email: client.email, profileImageData: client.profileImageData ?? null } })
+})
+
+mobileRouter.get('/payments', requireMerchant, async (req: Request, res: Response) => {
+  const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'ALL'
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : ''
+  const limit = req.query.limit === undefined ? 30 : Number(req.query.limit)
+  let cursor: ReturnType<typeof decodePaymentCursor> | undefined
+  try {
+    if (!Object.hasOwn(MOBILE_PAYMENT_STATUSES, status) || search.length > 200 || !Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error()
+    if (req.query.cursor !== undefined) {
+      if (typeof req.query.cursor !== 'string') throw new Error()
+      cursor = decodePaymentCursor(req.query.cursor)
+    }
+  } catch {
+    return res.status(400).json({ ok: false, error: 'Invalid payment filter, search, limit, or cursor.' })
+  }
+  try {
+    const result = await listMobilePayments((req as any).client.id, status, search, limit, cursor)
+    res.setHeader('Cache-Control', 'no-store')
+    return res.json({ ok: true, ...result })
+  } catch (error) {
+    return sendInternalError(res, error, 'Failed to load merchant payments')
+  }
+})
 
 // Rate limiter for device enrollment: 10 per 15 min per device & IP
 const deviceEnrollLimiter = createRateLimiterWithKey(

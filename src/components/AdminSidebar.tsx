@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  Download,
   ExternalLink,
   Moon,
   Sun,
@@ -10,7 +9,6 @@ import {
 } from 'lucide-react';
 import type { AdminTab } from '../pages/AdminPortalPage';
 import { useTheme } from '../context/ThemeContext';
-import { apiUrl } from '../services/api';
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -134,19 +132,19 @@ export function AdminSidebar({
                     height: '32px',
                     padding: '3px',
                     borderRadius: '8px',
-                    backgroundColor: '#512772',
+                    backgroundColor: '#081426',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
+                    boxShadow: '0 3px 10px rgba(0, 85, 255, 0.2)',
                     flexShrink: 0,
                   }}
                 >
-                  <img src="/Logo.png" alt="InstaPay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
+                  <img src="/brand/nilepay-mark.png" alt="NilePay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <strong style={{ fontSize: '14px', color: text }}>InstaPay</strong>
+                    <strong style={{ fontSize: '14px', color: text }}>NilePay</strong>
                     <span
                       style={{
                         padding: '1px 5px',
@@ -194,19 +192,19 @@ export function AdminSidebar({
                     height: '32px',
                     padding: '3px',
                     borderRadius: '8px',
-                    backgroundColor: '#512772',
+                    backgroundColor: '#081426',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
+                    boxShadow: '0 3px 10px rgba(0, 85, 255, 0.2)',
                     flexShrink: 0,
                   }}
                 >
-                  <img src="/Logo.png" alt="InstaPay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
+                  <img src="/brand/nilepay-mark.png" alt="NilePay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <strong style={{ fontSize: '14px', color: text }}>InstaPay</strong>
+                    <strong style={{ fontSize: '14px', color: text }}>NilePay</strong>
                     <span
                       style={{
                         padding: '1px 5px',
@@ -258,15 +256,15 @@ export function AdminSidebar({
               padding: '3px 4px',
               border: 'none',
               borderRadius: '8px',
-              backgroundColor: '#512772',
+              backgroundColor: '#081426',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 3px 10px rgba(81, 39, 114, 0.4)',
+              boxShadow: '0 3px 10px rgba(0, 85, 255, 0.2)',
               cursor: 'pointer',
             }}
           >
-            <img src="/Logo.png" alt="InstaPay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
+            <img src="/brand/nilepay-mark.png" alt="NilePay" style={{ width: '24px', height: 'auto', objectFit: 'contain' }} />
           </button>
         )}
       </div>
@@ -391,27 +389,6 @@ export function AdminSidebar({
               <p style={{ margin: '1px 0 0 13px', color: muted, fontSize: '9.5px' }}>Admin services operational</p>
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
-              <a
-                href={apiUrl('/api/apks/admin')}
-                download="InstaPay-Admin.apk"
-                style={{
-                  flex: 1,
-                  padding: '5px 6px',
-                  borderRadius: '7px',
-                  border: isDark ? '1px solid rgba(124, 58, 237, 0.4)' : '1px solid #ddd6fe',
-                  backgroundColor: isDark ? 'rgba(124, 58, 237, 0.16)' : '#f5f3ff',
-                  color: isDark ? '#c084fc' : '#6d28d9',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '4px',
-                  fontSize: '10.5px',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                }}
-              >
-                <Download size={11} /> Admin APK
-              </a>
               <a
                 href="/"
                 style={{

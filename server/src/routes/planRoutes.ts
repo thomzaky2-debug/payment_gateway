@@ -3,6 +3,7 @@ import { db } from '../db.js'
 import { toEgpCents } from '../lib/money.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
 import { sendInternalError } from '../lib/safeError.js'
+import { getBillingHistory, hasUsedTrial } from '../services/billingHistoryService.js'
 
 export const planRouter = Router()
 export const planCatalogRouter = Router()
@@ -56,8 +57,8 @@ function safeMerchantClient(client: any) {
   }
 }
 
-async function activateFreeTrial(client: any) {
-  if (client.trialRedeemedAt || client.subscriptionEndsAt) {
+export async function activateFreeTrial(client: any) {
+  if (hasUsedTrial(client)) {
     throw new PlanRequestError('You have already utilized your introductory Free Trial. Please choose a subscription tier.')
   }
 
@@ -96,6 +97,20 @@ async function activateFreeTrial(client: any) {
 }
 
 // ─── List Public Plans ──────────────────────────────────────────────
+
+planRouter.get('/history', requireMerchant, async (req: Request, res: Response) => {
+  try {
+    const page = Number(req.query.page ?? 1)
+    if (!Number.isSafeInteger(page) || page < 1 || page > 100000) {
+      return res.status(400).json({ ok: false, error: 'Invalid history page' })
+    }
+    res.setHeader('Cache-Control', 'no-store')
+    const history = await getBillingHistory((req as any).client, page)
+    return res.json({ ok: true, ...history })
+  } catch (error) {
+    return sendInternalError(res, error, 'Failed to load billing history')
+  }
+})
 
 planCatalogRouter.get('/', async (_req: Request, res: Response) => {
   try {

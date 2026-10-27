@@ -29,6 +29,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   const [testAmount, setTestAmount] = useState('50.00');
   const [testSender, setTestSender] = useState('customer@instapay');
   const [testNote, setTestNote] = useState('Test Order #101');
+  const [testCategory, setTestCategory] = useState('');
   const [simLoading, setSimLoading] = useState(false);
   const [simResult, setSimResult] = useState<any>(null);
 
@@ -166,6 +167,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
           amountEgp: Number(testAmount),
           senderHandle: testSender,
           note: testNote,
+          productCategory: testCategory.trim() || undefined,
         }),
       });
 
@@ -181,7 +183,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         const retry = await fetch(apiUrl('/api/v1/checkout/create'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey}` },
-          body: JSON.stringify({ amountEgp: Number(testAmount), senderHandle: testSender, note: testNote }),
+          body: JSON.stringify({ amountEgp: Number(testAmount), senderHandle: testSender, note: testNote, productCategory: testCategory.trim() || undefined }),
         });
         const retryData = await retry.json();
         if (!retryData?.ok) throw new Error(retryData?.error || 'Simulator checkout failed');
@@ -578,6 +580,16 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
 
               {/* Note */}
               <div>
+                <label htmlFor="simulator-product-category" style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: textSecondary, marginBottom: '6px' }}>
+                  {isRtl ? 'فئة المنتج (اختياري)' : 'Product category (optional)'}
+                </label>
+                <input id="simulator-product-category" type="text" maxLength={100} value={testCategory} onChange={event => setTestCategory(event.target.value)}
+                  placeholder={isRtl ? 'مثال: إلكترونيات، ملابس، خدمات' : 'e.g. Electronics, clothing, services'}
+                  style={{ width: '100%', padding: '10px 14px', fontSize: '13px', borderRadius: '10px', border: isDark ? '1px solid #334155' : '1px solid #cbd5e1', background: isDark ? '#0f172a' : '#ffffff', color: textPrimary }} />
+              </div>
+
+              {/* Note / reference */}
+              <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: textSecondary, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   {isRtl ? 'ملاحظة / مرجع' : 'Note / Reference'}
                 </label>
@@ -683,6 +695,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
               }}>
                 <span style={{ color: '#64748b' }}>session:</span>{' '}
                 <span style={{ color: '#4ade80' }}>{simResult.sessionId}</span>
+                {simResult.productCategory && <><br /><span style={{ color: '#64748b' }}>{isRtl ? 'الفئة:' : 'category:'}</span>{' '}<span style={{ color: '#cbd5e1' }}>{simResult.productCategory}</span></>}
                 <br />
                 <span style={{ color: '#64748b' }}>url:</span>{' '}
                 <span style={{ color: '#38bdf8' }}>{simResult.checkoutUrl}</span>

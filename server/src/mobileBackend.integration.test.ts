@@ -117,6 +117,53 @@ if (isDbOnline) {
     })
   }
 
+  test('real-db: overdue checkout expiry clears stale pending counts without changing reviewed or other-merchant payments', async () => {
+    const { expirePendingTransactions } = await import('./services/transactionExpiryService.js')
+    const { confirmOrdinaryCheckout } = await import('./services/settlementService.js')
+    const merchant = await createTestMerchant('expiry')
+    const other = await createTestMerchant('expiry_other')
+    const now = new Date()
+    const create = (status: string, overdue: boolean, clientId = merchant.id) => db.transaction.create({ data: {
+      clientId, sessionId: `expiry_${crypto.randomBytes(12).toString('hex')}`,
+      senderHandle: 'payer@instapay', recipientHandle: 'expiry@instapay',
+      amountEgp: 25, amountCents: 2500, status, purpose: 'CHECKOUT',
+      deepLinkUrl: 'https://ipn.eg/pay', deepLinkToken: crypto.randomBytes(12).toString('hex'),
+      expiresAt: new Date(now.getTime() + (overdue ? -60_000 : 60_000)),
+    } })
+    const stale = await Promise.all(Array.from({ length: 6 }, () => create('PENDING', true)))
+    const waiting = await create('PENDING', false)
+    const confirmed = await create('CONFIRMED', true)
+    const review = await create('UNDERPAID', true)
+    const foreign = await create('PENDING', true, other.id)
+    assert.equal((await expirePendingTransactions(merchant.id, now)).count, 6)
+    assert.equal(await db.transaction.count({ where: { clientId: merchant.id, status: 'PENDING' } }), 1)
+    assert.equal(await db.transaction.count({ where: { id: { in: stale.map(row => row.id) }, status: 'EXPIRED' } }), 6)
+    for (const [id, expected] of [[waiting.id, 'PENDING'], [confirmed.id, 'CONFIRMED'], [review.id, 'UNDERPAID'], [foreign.id, 'PENDING']]) {
+      assert.equal((await db.transaction.findUniqueOrThrow({ where: { id } })).status, expected)
+    }
+    const settled = await confirmOrdinaryCheckout({ transactionId: review.id, clientId: merchant.id, allowedStatuses: ['UNDERPAID'], detectedAt: now, detectedRef: 'expiry-review-ref', detectedAmountEgp: 25, detectedAmountCents: 2500 })
+    assert.equal(settled?.newlyConfirmed, true)
+    assert.equal((await expirePendingTransactions(merchant.id, now)).count, 0)
+    assert.equal((await db.transaction.findUniqueOrThrow({ where: { id: review.id } })).status, 'CONFIRMED')
+    assert.equal(await db.transaction.count({ where: { clientId: merchant.id, status: 'PENDING' } }), 1)
+  })
+
+  test('real-db: simulator product category persists through checkout and confirmation webhook', async () => {
+    const { createCheckoutSession } = await import('./services/checkoutService.js')
+    const { confirmOrdinaryCheckout } = await import('./services/settlementService.js')
+    const created = await createTestMerchant('product_category')
+    const merchant = await db.client.update({ where: { id: created.id }, data: { subscriptionPlan: 'BASIC', isFreeTrial: false, txLimit: 100, subscriptionEndsAt: new Date(Date.now() + 86_400_000) } })
+    const checkout = await createCheckoutSession({ client: merchant, amountEgp: 25, productCategory: '  Electronics  ' })
+    assert.equal(checkout.productCategory, 'Electronics')
+    const transaction = await db.transaction.findUniqueOrThrow({ where: { sessionId: checkout.sessionId } })
+    assert.equal(transaction.productCategory, 'Electronics')
+    const plain = await createCheckoutSession({ client: merchant, amountEgp: 10 })
+    assert.equal(plain.productCategory, null)
+    await confirmOrdinaryCheckout({ transactionId: transaction.id, clientId: merchant.id, allowedStatuses: ['PENDING'], detectedAt: new Date(), detectedRef: 'category-ref', detectedAmountEgp: 25, detectedAmountCents: 2500 })
+    const log = await db.webhookLog.findFirstOrThrow({ where: { clientId: merchant.id } })
+    assert.equal(JSON.parse(log.payload).transaction.productCategory, 'Electronics')
+  })
+
   // ─── (a) Refresh Rotation Concurrency ──────────────────────────────────────
   test('real-db: (a) 10 concurrent refreshes with one token: exactly one succeeds, family ends up revoked', async () => {
     const merchant = await createTestMerchant('rot')

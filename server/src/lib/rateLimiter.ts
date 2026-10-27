@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import type { Request, Response, NextFunction } from 'express'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
+import { getRequestIp } from '../middleware/authToken.js'
 
 interface RateLimitRecord {
   count: number
@@ -75,11 +76,11 @@ export function createRateLimiterWithKey(
   windowMs: number,
   max: number,
   message = 'Too many requests, please try again later.',
-  keyGenerator: RateLimitKeyGenerator = (req) => req.ip || req.socket.remoteAddress || 'unknown'
+  keyGenerator: RateLimitKeyGenerator = (req) => getRequestIp(req) || 'unknown'
 ) {
   return (req: Request, res: Response, next: NextFunction) => {
     void (async () => {
-      const ip = req.ip || req.socket.remoteAddress || 'unknown'
+      const ip = getRequestIp(req) || 'unknown'
       const key = keyGenerator(req).slice(0, 512)
       const now = Date.now()
       const localBypass = isLocalRuntime() && isLocalhost(ip)

@@ -34,6 +34,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { apiOrigin, apiUrl } from '../services/api';
 
 interface CheckoutData {
+  productCategory?: string | null;
   sessionId: string;
   businessName: string;
   recipientHandle: string;
@@ -314,18 +315,18 @@ export function CheckoutPayPage() {
             width: '64px',
             height: '64px',
             borderRadius: '16px',
-            backgroundColor: '#512772',
+            backgroundColor: '#081426',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(81, 39, 114, 0.45)',
+            boxShadow: '0 8px 24px rgba(0, 85, 255, 0.2)',
             marginBottom: '20px',
             padding: '8px',
           }}
         >
           <img
-            src="/Logo.png"
-            alt="InstaPay"
+            src="/brand/nilepay-mark.png"
+            alt="NilePay"
             style={{
               width: '46px',
               height: 'auto',
@@ -483,18 +484,18 @@ export function CheckoutPayPage() {
               width: '38px',
               height: '38px',
               borderRadius: '10px',
-              backgroundColor: '#512772',
+              backgroundColor: '#081426',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-              boxShadow: '0 4px 12px rgba(81, 39, 114, 0.4)',
+              boxShadow: '0 4px 12px rgba(0, 85, 255, 0.2)',
               padding: '4px',
             }}
           >
             <img
-              src="/Logo.png"
-              alt="InstaPay"
+              src="/brand/nilepay-mark.png"
+              alt="NilePay"
               style={{
                 width: '30px',
                 height: 'auto',
@@ -506,7 +507,7 @@ export function CheckoutPayPage() {
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-              <span style={{ fontSize: '16px', fontWeight: 800, color: textPrimary, whiteSpace: 'nowrap' }}>InstaPay</span>
+              <span style={{ fontSize: '16px', fontWeight: 800, color: textPrimary, whiteSpace: 'nowrap' }}>NilePay</span>
               <span
                 style={{
                   fontSize: '9px',
@@ -1101,6 +1102,7 @@ export function CheckoutPayPage() {
               </div>
 
               {/* Amount & Timer Box */}
+              {checkout.productCategory && <p style={{ color: textSecondary, fontSize: 13, overflowWrap: 'anywhere', margin: 0 }}>{isRtl ? 'فئة المنتج: ' : 'Product category: '}{checkout.productCategory}</p>}
               <div style={{ textAlign: isRtl ? 'left' : 'right', minWidth: '180px' }}>
                 <span
                   style={{

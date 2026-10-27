@@ -289,14 +289,14 @@ async function runPortalsAudit() {
     }
   });
 
-  // 17. Stale APK artifacts must not be downloadable by default.
-  await check('APK Endpoints are fail-closed until publishing', async () => {
+  // 17. Retired application downloads must no longer be served.
+  await check('Retired APK endpoints are removed', async () => {
     for (const app of ['detector', 'admin']) {
       try {
         await axios.get(`${BASE_URL}/apks/${app}`, { responseType: 'arraybuffer' });
         throw new Error(`${app} APK unexpectedly downloadable`);
       } catch (err: any) {
-        if (err.response?.status !== 503) throw err;
+        if (err.response?.status !== 404) throw err;
       }
     }
   });

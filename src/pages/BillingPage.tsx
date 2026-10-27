@@ -66,9 +66,23 @@ export function BillingPage({ showToast }: BillingPageProps) {
   const [showBundleHistory, setShowBundleHistory] = useState(false);
   const [bundleCheckoutModal, setBundleCheckoutModal] = useState<any>(null);
   const [specialOffers, setSpecialOffers] = useState<any[]>([]);
+  const [billingHistory, setBillingHistory] = useState<any>(null);
+  const [historyError, setHistoryError] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const loadHistory = async (page = 1) => {
+    setHistoryLoading(true);
+    setHistoryError(false);
+    try {
+      const result = await subscriptionApi.getHistory(page);
+      if (!result?.ok) throw new Error('History unavailable');
+      setBillingHistory(result);
+    } catch { setHistoryError(true); }
+    finally { setHistoryLoading(false); }
+  };
 
   const loadData = async (isManual = false) => {
     setLoading(true);
+    void loadHistory();
     try {
       const timestamp = Date.now();
       const [sessionRes, plansRes, bundlesRes, historyRes, offersRes] = await Promise.all([
@@ -292,7 +306,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
 
   const trialPlan = plans.find((p: any) => p.name === 'FREE_TRIAL');
   const isMerchantOnTrial = Boolean(client?.isFreeTrial || client?.subscriptionPlan === 'FREE_TRIAL');
-  const isTrialClaimed = Boolean(client && !client.isFreeTrial && client.subscriptionPlan !== 'FREE_TRIAL');
+  const isTrialClaimed = Boolean(billingHistory?.trial.used || client?.subscriptionEndsAt || (client && !client.isFreeTrial && client.subscriptionPlan !== 'FREE_TRIAL'));
 
   const txCount = client?.txCount ?? 0;
   // If merchant is on trial and trialPlan is loaded, dynamically use trialPlan.maxTransactions
@@ -303,9 +317,6 @@ export function BillingPage({ showToast }: BillingPageProps) {
   // Compute trial expiry details: directly bound to active trialPlan periodDays from admin settings
   const endsAt = (() => {
     if (client?.subscriptionEndsAt) return new Date(client.subscriptionEndsAt);
-    if (isMerchantOnTrial && trialPlan?.periodDays) {
-      return new Date(Date.now() + trialPlan.periodDays * 24 * 60 * 60 * 1000);
-    }
     return null;
   })();
   const isExpired = endsAt ? endsAt.getTime() < Date.now() : false;
@@ -339,6 +350,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
   const textPrimary = isDark ? '#f8fafc' : '#1e293b';
   const textSecondary = isDark ? '#94a3b8' : '#64748b';
   const accent = '#38bdf8';
+  const historyButton: React.CSSProperties = { padding: '8px 12px', minHeight: '36px', borderRadius: '9px', border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`, background: isDark ? '#1e293b' : '#f8fafc', color: textPrimary, cursor: 'pointer', font: 'inherit', fontSize: '13px' };
 
   return (
     <div className="merchant-page-container" style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px', direction: isRtl ? 'rtl' : 'ltr' }}>
@@ -365,7 +377,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
                 <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0, letterSpacing: '-0.3px' }}>
                   {isRtl ? 'الاشتراكات وإدارة الباقات' : 'Plans & Subscription Billing'}
                 </h2>
-                {trialPlan && trialPlan.isActive !== false && (
+                {trialPlan && trialPlan.isActive !== false && !isTrialClaimed && (
                   <span
                     style={{
                       display: 'inline-flex',
@@ -680,7 +692,7 @@ export function BillingPage({ showToast }: BillingPageProps) {
             const isEnterprise = plan.name === 'ENTERPRISE';
             const isPlus = plan.name === 'PLUS';
             const isPopular = plan.name === 'PRO';
-            const isCurrent = currentPlan === plan.name && (isTrial ? !isExpired : true);
+            const isCurrent = currentPlan === plan.name && (isTrial ? Boolean(endsAt && !isExpired) : true);
             const hasActiveOffer = Boolean(!isTrial && !isEnterprise && plan.hasActiveOffer && plan.offerEndsAt && new Date(plan.offerEndsAt).getTime() > Date.now());
             const displayedPrice = hasActiveOffer ? plan.effectivePriceEgp : plan.priceEgp;
 
@@ -1524,6 +1536,35 @@ export function BillingPage({ showToast }: BillingPageProps) {
           )}
         </div>
       )}
+
+      <section aria-labelledby="billing-history-title" style={{ ...card(), marginTop: '24px', padding: '20px', color: textPrimary }}>
+        <h2 id="billing-history-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '20px', marginTop: 0 }}>
+          <History size={22} />{isRtl ? 'سجل الخطط والفواتير' : 'Plans & Billing History'}
+        </h2>
+        <p style={{ color: textSecondary, fontSize: '13px' }}>{isRtl ? 'طلبات شراء الخطط والحزم وأسعارها وقت الطلب. الطلب المعلّق لا يُعد دفعة مكتملة.' : 'Plan and bundle orders at their original checkout prices. Pending orders are not completed payments.'}</p>
+        {billingHistory?.trial.activatedAt && <p style={{ ...subcard(), padding: '12px' }}>
+          <Gift size={16} /> {isRtl ? 'تم تفعيل التجربة المجانية مرة واحدة' : 'One-time free trial activated'} · {new Date(billingHistory.trial.activatedAt).toLocaleString(isRtl ? 'ar-EG' : 'en-GB')} · 0 EGP
+        </p>}
+        {historyError ? <div role="alert">{isRtl ? 'تعذر تحميل السجل' : 'Could not load billing history'} <button type="button" onClick={() => void loadHistory(billingHistory?.page || 1)}>{isRtl ? 'إعادة المحاولة' : 'Retry'}</button></div> : historyLoading ? <p role="status">{isRtl ? 'جارٍ تحميل السجل…' : 'Loading history…'}</p> : <>
+          {!billingHistory?.purchases.length && <p>{isRtl ? 'لا توجد طلبات شراء خطط أو حزم بعد.' : 'No plan or bundle purchases yet.'}</p>}
+          {billingHistory?.purchases.map((purchase: any) => <article key={purchase.id} style={{ ...subcard(), padding: '14px', marginTop: '10px', display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+              <strong>{purchase.kind === 'BUNDLE' ? (isRtl ? 'حزمة إضافية' : 'Extra bundle') : (isRtl ? 'خطة' : 'Plan')}: {purchase.subscriptionPlanName?.replace(/^BUNDLE:/, '') || '—'}</strong>
+              <div style={{ color: textSecondary, fontSize: '12px', marginTop: '6px' }}>{new Date(purchase.createdAt).toLocaleString(isRtl ? 'ar-EG' : 'en-GB')}</div>
+              <div style={{ color: textSecondary, fontSize: '12px', marginTop: '6px' }}>{isRtl ? 'رقم الطلب' : 'Order'}: {purchase.sessionId}</div>
+            </div>
+            <div><strong>{Number(purchase.amountEgp).toFixed(2)} {purchase.currency}</strong><div style={{ marginTop: '6px', fontSize: '12px' }}>{({ CONFIRMED: isRtl ? 'مؤكد' : 'Confirmed', PENDING: isRtl ? 'معلق' : 'Pending', EXPIRED: isRtl ? 'منتهي' : 'Expired', FAILED: isRtl ? 'فشل' : 'Failed', REJECTED: isRtl ? 'مرفوض' : 'Rejected' } as Record<string, string>)[purchase.status] || purchase.status}</div></div>
+          </article>)}
+        </>}
+        {billingHistory && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginTop: '16px' }}>
+          <span style={{ color: textSecondary, fontSize: '13px' }}>{isRtl ? 'إجمالي الطلبات' : 'Total orders'}: {billingHistory.total}</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button type="button" style={{ ...historyButton, opacity: billingHistory.page <= 1 || historyLoading ? 0.5 : 1 }} disabled={historyLoading || billingHistory.page <= 1} onClick={() => void loadHistory(billingHistory.page - 1)}>{isRtl ? 'السابق' : 'Previous'}</button>
+            <span>{billingHistory.page}</span>
+            <button type="button" style={{ ...historyButton, opacity: !billingHistory.hasMore || historyLoading ? 0.5 : 1 }} disabled={historyLoading || !billingHistory.hasMore} onClick={() => void loadHistory(billingHistory.page + 1)}>{isRtl ? 'التالي' : 'Next'}</button>
+          </div>
+        </div>}
+      </section>
 
       {/* Subscription Payment Modal */}
       {checkoutModal && (

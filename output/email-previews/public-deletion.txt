@@ -1,0 +1,14 @@
+NilePay — Merchant Gateway
+
+Confirm account deletion
+
+You requested to delete your NilePay account. Enter this code on the account deletion page to confirm your request.
+
+Your verification code: 482915
+Expires in 30 minutes. This code can only be used once.
+
+Never share this code. NilePay support will never ask for your verification code or password.
+If you did not request account deletion, do not enter or share this code. This email alone does not confirm deletion.
+
+Need help? nilepay.customers@gmail.com
+Support: https://nilepay.runasp.net/#support/

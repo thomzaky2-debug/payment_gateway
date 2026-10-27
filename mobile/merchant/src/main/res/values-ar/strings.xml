@@ -100,8 +100,8 @@
     <string name="payment_id">رقم العملية</string>
     <string name="payment_note">ملاحظة</string>
     <string name="not_available">غير متاح</string>
-    <string name="share_receipt">مشاركة الإيصال</string>
-    <string name="receipt_share_template">إيصال دفع نايل باي\nالمبلغ: %1$.2f جنيه\nالمرسل: %2$s\nالحالة: %3$s\nالمرجع: %4$s\nرقم العملية: %5$s\nالتاريخ: %6$s</string>
+    <string name="share_receipt">مشاركة سجل الدفع</string>
+    <string name="receipt_share_template">سجل دفع نايل باي\nالمبلغ: %1$.2f جنيه\nالمرسل: %2$s\nالحالة: %3$s\nالمرجع: %4$s\nرقم العملية: %5$s\nالتاريخ: %6$s\nالمطلوب: %7$s\nالمستلم: %8$s</string>
     <string name="last_heartbeat">آخر اتصال بالخادم</string>
     <string name="last_detected_payment">آخر دفعة مكتشفة</string>
     <string name="retry_queued_uploads">إعادة محاولة الرفع</string>
@@ -117,4 +117,15 @@
     <string name="delete_account_title">حذف الحساب</string>
     <string name="delete_account_detail">طلب الحذف والتحقق من بريدك الإلكتروني</string>
     <string name="full_privacy_policy">سياسة الخصوصية الكاملة</string>
+    <string name="filter_late_expired">متأخر / منتهي</string>
+    <string name="payment_expected">المبلغ المطلوب</string>
+    <string name="payment_received">المبلغ المستلم</string>
+    <string name="payment_difference">الفرق</string>
+    <string name="payment_expiry">انتهاء جلسة الدفع</string>
+    <string name="payment_review_hint">هذه الدفعة تحتاج إلى مراجعة ولم يتم تأكيدها. راجع السجل على موقع التاجر قبل تنفيذ الطلب.</string>
+    <string name="payment_unmatched_hint">دفعة مستلمة بدون جلسة دفع مطابقة. المبلغ المستلم ليس طلبًا مؤكدًا.</string>
+    <string name="review_on_website">مراجعة على الموقع</string>
+    <string name="load_more_payments">تحميل المزيد</string>
+    <string name="search_payments_hint">ابحث بالمرسل أو معرّف الدفع أو مرجع البنك</string>
+    <string name="product_category">فئة المنتج</string>
 </resources>

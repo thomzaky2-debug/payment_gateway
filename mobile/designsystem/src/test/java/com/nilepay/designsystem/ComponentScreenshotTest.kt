@@ -1,6 +1,10 @@
 package com.nilepay.designsystem
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -91,6 +95,25 @@ class ComponentScreenshotTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage("build/outputs/roborazzi/status_chip_pending_dark.png")
+    }
+
+    @Test fun testPaymentReviewStates_light() = capturePaymentReviewStates(false)
+    @Test fun testPaymentReviewStates_dark() = capturePaymentReviewStates(true)
+
+    private fun capturePaymentReviewStates(dark: Boolean) {
+        composeTestRule.setContent {
+            NilePayTheme(darkTheme = dark) {
+                Column(
+                    modifier = Modifier.width(320.dp).background(NilePayTheme.colors.background).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    listOf(NilePayStatus.Pending, NilePayStatus.Confirmed, NilePayStatus.Overpaid, NilePayStatus.Underpaid, NilePayStatus.Expired, NilePayStatus.LatePayment, NilePayStatus.Unmatched, NilePayStatus.RiskReview, NilePayStatus.DuplicateSuspect, NilePayStatus.SenderMismatch).forEach {
+                        NilePayStatusChip(it)
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("build/outputs/roborazzi/payment_review_states_${if (dark) "dark" else "light"}.png")
     }
 
     @Test

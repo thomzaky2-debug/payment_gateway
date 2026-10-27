@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Clock, Globe, LogOut, RefreshCw, Shield, ShieldCheck, Smartphone, X } from 'lucide-react';
+import { Clock, Globe, LogOut, Monitor, RefreshCw, Shield, ShieldCheck, Smartphone, X } from 'lucide-react';
 import { settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -10,7 +10,7 @@ interface SecurityPageProps {
   showConfirm: (action: Omit<ConfirmAction, 'id'>) => void;
 }
 
-interface ActiveSession { id: string; device: string; browser: string; location: string; ipAddress: string; lastSeenAt: string; current: boolean; }
+interface ActiveSession { id: string; device: string; browser: string; location: string | null; ipAddress: string | null; isMobile?: boolean; lastSeenAt: string; current: boolean; }
 
 export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
   const { isDark } = useTheme();
@@ -37,8 +37,15 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
 
   useEffect(() => { void loadSessions(); }, [loadSessions]);
 
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const relativeTime = (value: string) => {
-    const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
+    const seconds = Math.max(0, Math.floor((now - new Date(value).getTime()) / 1000));
+    if (!Number.isFinite(seconds)) return isRtl ? 'غير معروف' : 'Unknown';
     if (seconds < 60) return isRtl ? 'الآن' : 'Active now';
     if (seconds < 3600) return isRtl ? `منذ ${Math.floor(seconds / 60)} دقيقة` : `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return isRtl ? `منذ ${Math.floor(seconds / 3600)} ساعة` : `${Math.floor(seconds / 3600)}h ago`;
@@ -62,7 +69,7 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
 
   const controls = [
     { icon: <Smartphone size={19} />, title: isRtl ? 'التحقق عند تسجيل الدخول' : 'Sign-in verification', value: isRtl ? 'رمز البريد الإلكتروني مطلوب' : 'Email OTP required', detail: isRtl ? 'تتحقق الخدمة من جلسة التاجر.' : 'The server verifies merchant sessions.' },
-    { icon: <Clock size={19} />, title: isRtl ? 'مدة الجلسة' : 'Session lifetime', value: isRtl ? '7 أيام' : '7 days', detail: isRtl ? 'تنتهي الجلسات تلقائياً ويمكن إلغاؤها.' : 'Sessions expire automatically and can be revoked.' },
+    { icon: <Clock size={19} />, title: isRtl ? 'مدة الجلسة' : 'Session lifetime', value: isRtl ? 'انتهاء تلقائي' : 'Automatic expiry', detail: isRtl ? 'للمتصفح والتطبيق مدد صلاحية مختلفة، ويمكن إنهاء جلساتهما.' : 'Browser and app sessions have separate lifetimes and can be revoked.' },
     { icon: <Shield size={19} />, title: isRtl ? 'حماية الطلبات' : 'Request protection', value: isRtl ? 'مُدارة من المنصة' : 'Platform managed', detail: isRtl ? 'الحدود والتحقق من المصدر مفروضان على API.' : 'Rate limits and origin checks are enforced at the API.' },
   ];
 
@@ -73,8 +80,27 @@ export function SecurityPage({ showToast, showConfirm }: SecurityPageProps) {
     </div>
     <div style={{ ...card({ padding: 20, marginBottom: 20 }), display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>{controls.map((control) => <div key={control.title} style={{ padding: 14, background: isDark ? '#162033' : '#f8fafc', border: `1px solid ${borderColor}`, borderRadius: 12 }}><div style={{ display: 'flex', gap: 9, alignItems: 'center', color: '#38bdf8' }}>{control.icon}<strong style={{ color: textPrimary, fontSize: 14 }}>{control.title}</strong></div><p style={{ color: '#10b981', fontWeight: 700, margin: '12px 0 4px', fontSize: 13 }}>{control.value}</p><p style={{ color: textSecondary, margin: 0, fontSize: 12, lineHeight: 1.45 }}>{control.detail}</p></div>)}</div>
     <div style={card({ padding: 22 })}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}><div style={{ display: 'flex', gap: 11, alignItems: 'center' }}><div style={{ width: 40, height: 40, borderRadius: 11, background: 'linear-gradient(135deg,#dc2626,#ef4444)', display: 'grid', placeItems: 'center' }}><Globe size={19} color="white" /></div><div><h3 style={{ color: textPrimary, margin: 0, fontSize: 16 }}>{isRtl ? 'جلسات المتصفح النشطة' : 'Active Browser Sessions'}</h3><p style={{ color: textSecondary, margin: '2px 0 0', fontSize: 12 }}>{isRtl ? `${sessions.length} جلسة مسجلة` : `${sessions.length} active session${sessions.length === 1 ? '' : 's'}`}</p></div></div></div>
-      {loading ? <p style={{ color: textSecondary, margin: 0 }}>{isRtl ? 'جارٍ تحميل الجلسات...' : 'Loading sessions...'}</p> : sessions.length === 0 ? <p style={{ color: textSecondary, margin: 0 }}>{isRtl ? 'لا توجد جلسات متاحة.' : 'No active browser sessions found.'}</p> : <div style={{ display: 'grid', gap: 10 }}>{sessions.map((session) => <div key={session.id} style={{ padding: '13px 14px', background: isDark ? '#162033' : '#f8fafc', border: `1px solid ${borderColor}`, borderRadius: 12, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><div><div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}><strong style={{ color: textPrimary, fontSize: 14 }}>{session.device}</strong><span style={{ color: textSecondary, fontSize: 12 }}>({session.browser})</span>{session.current && <span style={{ color: '#059669', fontSize: 11, fontWeight: 700 }}>{isRtl ? 'الجلسة الحالية' : 'Current'}</span>}</div><p style={{ color: textSecondary, fontSize: 12, margin: '4px 0 0' }}>{session.ipAddress} · {session.location} · {relativeTime(session.lastSeenAt)}</p></div>{!session.current && <button type="button" onClick={() => revokeOne(session.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#dc2626', background: isDark ? 'rgba(220,38,38,.12)' : '#fef2f2', border: isDark ? '1px solid rgba(220,38,38,.3)' : '1px solid #fecaca', padding: '7px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}><X size={13} />{isRtl ? 'إنهاء' : 'Revoke'}</button>}</div>)}</div>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}><div style={{ display: 'flex', gap: 11, alignItems: 'center' }}><div style={{ width: 40, height: 40, borderRadius: 11, background: 'linear-gradient(135deg,#dc2626,#ef4444)', display: 'grid', placeItems: 'center' }}><Globe size={19} color="white" /></div><div><h3 style={{ color: textPrimary, margin: 0, fontSize: 16 }}>{isRtl ? 'الأجهزة والمتصفحات المسجّلة' : 'Signed-in devices & browsers'}</h3><p style={{ color: textSecondary, margin: '2px 0 0', fontSize: 12 }}>{isRtl ? `${sessions.length} جلسة مسجلة` : `${sessions.length} signed-in session${sessions.length === 1 ? '' : 's'}`}</p></div></div></div>
+      {loading ? <p style={{ color: textSecondary, margin: 0 }}>{isRtl ? 'جارٍ تحميل الجلسات...' : 'Loading sessions...'}</p> : sessions.length === 0 ? <p style={{ color: textSecondary, margin: 0 }}>{isRtl ? 'لا توجد جلسات متاحة.' : 'No signed-in sessions found.'}</p> : <div style={{ display: 'grid', gap: 10 }}>{sessions.map((session) => <div key={session.id} style={{ padding: '14px', background: isDark ? '#162033' : '#f8fafc', border: `1px solid ${borderColor}`, borderRadius: 12, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minWidth: 0, flex: '1 1 240px' }}>
+            <span aria-hidden="true" style={{ color: '#38bdf8', padding: 10, borderRadius: 10, background: isDark ? '#0f172a' : '#e0f2fe', flexShrink: 0 }}>
+              {session.isMobile || /Android|iPhone|iPad/i.test(session.device) ? <Smartphone size={20} /> : <Monitor size={20} />}
+            </span>
+            <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <strong style={{ color: textPrimary, fontSize: 14 }}>{session.device}</strong>
+                {session.current && <span style={{ color: isDark ? '#6ee7b7' : '#047857', fontSize: 11, fontWeight: 700 }}>{isRtl ? 'الجلسة الحالية' : 'Current'}</span>}
+              </div>
+              <p style={{ color: textSecondary, fontSize: 12, margin: '4px 0' }}>{session.browser}</p>
+              <p style={{ color: textSecondary, fontSize: 12, margin: 0, lineHeight: 1.7 }}>
+                <span dir="ltr">{session.ipAddress || (isRtl ? 'عنوان IP غير متاح' : 'IP unavailable')}</span>
+                {session.location && session.location !== 'Location unavailable' && <> · {session.location}</>}
+                {' · '}<span title={new Date(session.lastSeenAt).toLocaleString()}>{session.current ? (isRtl ? 'نشط الآن' : 'Active now') : relativeTime(session.lastSeenAt)}</span>
+              </p>
+            </div>
+          </div>
+          {!session.current && <button type="button" onClick={() => revokeOne(session.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#dc2626', background: isDark ? 'rgba(220,38,38,.12)' : '#fef2f2', border: isDark ? '1px solid rgba(220,38,38,.3)' : '1px solid #fecaca', padding: '7px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}><X size={13} />{isRtl ? 'إنهاء' : 'Revoke'}</button>}
+        </div>)}</div>}
       {sessions.some((session) => !session.current) && <button type="button" onClick={revokeOthers} style={{ width: '100%', marginTop: 16, height: 42, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: '#dc2626', background: isDark ? 'rgba(220,38,38,.12)' : '#fef2f2', border: isDark ? '1px solid rgba(220,38,38,.3)' : '1px solid #fecaca', borderRadius: 10, cursor: 'pointer', fontWeight: 700 }}><LogOut size={15} />{isRtl ? 'إنهاء كل الجلسات الأخرى' : 'Revoke All Other Sessions'}</button>}
     </div>
   </div>;

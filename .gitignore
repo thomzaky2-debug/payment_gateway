@@ -16,8 +16,6 @@ server/dist/
 
 # Android build outputs
 .gradle/
-android/**/build/
-android/.gradle/
 mobile/**/build/
 mobile/.gradle/
 local.properties

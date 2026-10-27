@@ -5,7 +5,7 @@ import {
   Signal, Cpu, Server, Zap, ArrowRight, ExternalLink,
   Copy, Check
 } from 'lucide-react';
-import { apiUrl, settingsApi } from '../services/api';
+import { settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -105,13 +105,13 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
 
   /* ──────────────── Setup steps ──────────────── */
   const setupSteps = isRtl ? [
-    { num: '1', title: 'تحميل التطبيق', desc: 'قم بتنزيل ملف APK على جهاز الأندرويد الخاص بك وثبّته.', icon: <Download size={20} /> },
-    { num: '2', title: 'تسجيل الدخول', desc: 'استخدم بيانات اعتماد التاجر لربط الجهاز بحسابك.', icon: <Shield size={20} /> },
-    { num: '3', title: 'تفعيل الإشعارات', desc: 'امنح إذن "الوصول إلى الإشعارات" لرصد إيصالات إنستاباي.', icon: <Zap size={20} /> },
+    { num: '1', title: 'تحميل التطبيق', desc: 'ثبّت تطبيق NilePay Merchant الحالي على هاتف أندرويد الخاص بك.', icon: <Download size={20} /> },
+    { num: '2', title: 'تسجيل الدخول', desc: 'سجّل الدخول ببريد التاجر وكلمة المرور ورمز البريد، ثم اربط هذا الهاتف.', icon: <Shield size={20} /> },
+    { num: '3', title: 'تفعيل الإشعارات', desc: 'راجع الإفصاح ووافق على الوصول إلى الإشعارات لرصد مدفوعات إنستاباي المدعومة.', icon: <Zap size={20} /> },
   ] : [
-    { num: '1', title: 'Download APK', desc: 'Download & install the companion APK on your Android receiving phone.', icon: <Download size={20} /> },
-    { num: '2', title: 'Login with Credentials', desc: 'Sign in with your merchant email & password to securely link the device.', icon: <Shield size={20} /> },
-    { num: '3', title: 'Enable Notification Access', desc: 'Grant "Notification Listener Permission" to capture InstaPay receipts.', icon: <Zap size={20} /> },
+    { num: '1', title: 'Install NilePay Merchant', desc: 'Install the current NilePay Merchant app on your Android receiving phone.', icon: <Download size={20} /> },
+    { num: '2', title: 'Login with Credentials', desc: 'Sign in with your merchant email, password, and email code, then enroll this phone.', icon: <Shield size={20} /> },
+    { num: '3', title: 'Enable Notification Access', desc: 'Review the notification disclosure and grant notification access to detect supported InstaPay payments.', icon: <Zap size={20} /> },
   ];
 
   /* ──────────────── Device info rows ──────────────── */
@@ -275,8 +275,8 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
                 </>
               ) : (
                 isRtl
-                  ? 'قم بتثبيت تطبيق الكاشف على هاتف الاستقبال لبدء كشف المدفوعات تلقائياً.'
-                  : 'Install the companion APK on your receiving phone to start automatic payment detection.'
+                  ? 'قم بتثبيت NilePay Merchant على هاتف الاستقبال لبدء كشف المدفوعات تلقائياً.'
+                  : 'Install NilePay Merchant on your receiving phone to start automatic payment detection.'
               )}
             </p>
           </div>
@@ -325,13 +325,13 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
                   <Smartphone size={16} color="white" />
                 </div>
                 <h3 style={{ fontSize: '17px', fontWeight: 700, color: textPrimary, margin: 0 }}>
-                  {isRtl ? 'إعداد تطبيق الكاشف' : 'Detector Companion Setup'}
+                  {isRtl ? 'إعداد تطبيق NilePay Merchant' : 'NilePay Merchant Setup'}
                 </h3>
               </div>
               <p style={{ fontSize: '12.5px', color: textSecondary, margin: 0, lineHeight: 1.6 }}>
                 {isRtl
-                  ? 'يعمل تطبيق الكاشف في الخلفية على هاتف أندرويد لرصد إيصالات إنستاباي تلقائياً وإرسالها إلى البوابة.'
-                  : 'The native Android Detector APK runs in the background, captures InstaPay push receipts, and reports them to your gateway.'}
+                  ? 'يرصد تطبيق NilePay Merchant إشعارات مدفوعات إنستاباي في الخلفية بعد تسجيل الدخول وربط الجهاز والموافقة على الوصول إلى الإشعارات.'
+                  : 'NilePay Merchant detects supported InstaPay payment notifications in the background after you sign in, enroll your device, and grant notification access.'}
               </p>
             </div>
           </div>
@@ -372,31 +372,13 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
             ))}
           </div>
 
-          {/* Download Button */}
-          <a
-            href={apiUrl('/api/apks/detector')}
-            download="InstaPay-Detector.apk"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              padding: '14px 24px',
-              background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-              color: '#ffffff',
-              borderRadius: '14px',
-              fontWeight: 700,
-              fontSize: '14px',
-              textDecoration: 'none',
-              boxShadow: '0 6px 20px rgba(79, 70, 229, 0.35)',
-              transition: 'all 0.25s ease',
-              width: '100%',
-              textAlign: 'center',
-            }}
-          >
-            <Download size={18} />
-            {isRtl ? 'تحميل تطبيق الكاشف (v2.0)' : 'Download Detector APK (v2.0)'}
-          </a>
+          {/* Current app distribution */}
+          <p style={{ color: textSecondary, fontSize: '13px', lineHeight: 1.6 }}>
+            {isRtl ? 'للحصول على تطبيق NilePay Merchant الحالي، ' : 'For the current NilePay Merchant app, '}
+            <a href="#support/" style={{ color: accent }}>
+              {isRtl ? 'تواصل مع الدعم' : 'contact support'}
+            </a>.
+          </p>
         </div>
 
         {/* Device & Integration Info Card */}

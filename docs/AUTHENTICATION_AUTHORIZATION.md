@@ -85,9 +85,9 @@ Configure the following for every non-local environment:
 - an email provider for OTP delivery;
 - HTTPS webhook policy appropriate for production.
 
-Android release builds require external signing properties (`RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD`) and a production `GATEWAY_BASE_URL`. Release network policy rejects cleartext traffic and user-installed certificate authorities; debug builds retain local emulator access.
+NilePay Android apps are maintained under `mobile/`. Release builds require external signing properties (`NILEPAY_RELEASE_KEYSTORE_FILE`, `NILEPAY_RELEASE_KEYSTORE_PASSWORD`, `NILEPAY_RELEASE_KEY_ALIAS`, and `NILEPAY_RELEASE_KEY_PASSWORD`). The configured API base URL is HTTPS. See `mobile/PLAY_RELEASE_READINESS.md` for production distribution requirements.
 
-The checked-in APK files predate these controls, so `/api/apks/*` is fail-closed by default. Replace both files with current release-signed builds, verify their signing certificate and configuration, and only then set `ENABLE_APK_DOWNLOADS=true`.
+The retired detector/admin applications and their download endpoints have been removed. The API no longer distributes those APKs; deploy verified, signed NilePay builds through the intended distribution channel.
 
 ## MonsterASP deployment
 

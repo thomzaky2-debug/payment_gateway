@@ -94,7 +94,7 @@ function parseCaseTypeFromSubPath(sub?: string): CaseType {
   const clean = sub.toLowerCase().replace(/[-_]/g, '');
   if (clean.includes('underpaid')) return 'UNDERPAID';
   if (clean.includes('overpaid')) return 'OVERPAID';
-  if (clean.includes('late')) return 'LATE_PAYMENT';
+  if (clean.includes('late') || clean.includes('expired')) return 'LATE_PAYMENT';
   if (clean.includes('handle') || clean.includes('sender')) return 'HANDLE_MISMATCH';
   if (clean.includes('dup')) return 'DUPLICATE_SUSPECT';
   if (clean.includes('risk') || clean.includes('high')) return 'HIGH_VALUE_REVIEW';
@@ -131,6 +131,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
   const [underpaid, setUnderpaid] = useState<any[]>([]);
   const [overpaid, setOverpaid] = useState<any[]>([]);
   const [latePayments, setLatePayments] = useState<any[]>([]);
+  const [expiredCheckouts, setExpiredCheckouts] = useState<any[]>([]);
   const [handleMismatch, setHandleMismatch] = useState<any[]>([]);
   const [duplicateSuspect, setDuplicateSuspect] = useState<any[]>([]);
   const [highValueRisk, setHighValueRisk] = useState<any[]>([]);
@@ -171,6 +172,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
         setUnderpaid(data.reviewQueue.underpaid || []);
         setOverpaid(data.reviewQueue.overpaid || []);
         setLatePayments(data.reviewQueue.latePayments || []);
+        setExpiredCheckouts(data.reviewQueue.expiredCheckouts || []);
         setHandleMismatch(data.reviewQueue.handleMismatch || []);
         setDuplicateSuspect(data.reviewQueue.duplicateSuspect || []);
         setHighValueRisk(data.reviewQueue.highValueRisk || []);
@@ -214,7 +216,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
   // Filtered lists
   const filteredUnderpaid = useMemo(() => underpaid.filter(matchesSearch), [underpaid, searchQuery]);
   const filteredOverpaid = useMemo(() => overpaid.filter(matchesSearch), [overpaid, searchQuery]);
-  const filteredLate = useMemo(() => latePayments.filter(matchesSearch), [latePayments, searchQuery]);
+  const filteredLate = useMemo(() => [...latePayments, ...expiredCheckouts].filter(matchesSearch), [latePayments, expiredCheckouts, searchQuery]);
   const filteredHandle = useMemo(() => handleMismatch.filter(matchesSearch), [handleMismatch, searchQuery]);
   const filteredDuplicate = useMemo(() => duplicateSuspect.filter(matchesSearch), [duplicateSuspect, searchQuery]);
   const filteredRisk = useMemo(() => highValueRisk.filter(matchesSearch), [highValueRisk, searchQuery]);
@@ -342,8 +344,8 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
     {
       type: 'LATE_PAYMENT' as CaseType,
       labelEn: 'Late / Expired',
-      labelAr: 'دفع متأخر',
-      count: latePayments.length,
+      labelAr: 'متأخر / منتهي',
+      count: latePayments.length + expiredCheckouts.length,
       icon: Clock,
       color: '#a855f7',
     },
@@ -414,6 +416,17 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
       explanationAr: string;
     }
   ) => {
+    if (item.status === 'EXPIRED' && item.detectedAmountEgp == null) {
+      return <article key={item.id} style={{ padding: '18px', borderRadius: '14px', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+          <strong style={{ overflowWrap: 'anywhere' }}>{item.sessionId}</strong>
+          <span>{isRtl ? 'منتهية — لم يُرصد دفع' : 'Expired — no payment detected'}</span>
+        </div>
+        <p>{Number(item.amountEgp).toFixed(2)} EGP · {item.senderHandle}</p>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{isRtl ? 'انتهت في' : 'Expired at'} {formatReviewDate(item.expiresAt, isRtl)}</p>
+        <p style={{ marginBottom: 0, fontSize: '13px' }}>{isRtl ? 'سجل للعرض فقط. لا يمكن تأكيده بدون دفع مرصود.' : 'Read-only checkout record. Confirmation requires a detected payment.'}</p>
+      </article>;
+    }
     const expected = Number(item.amountEgp || 0);
     const detected = Number(item.detectedAmountEgp || item.amountEgp || 0);
     const diff = detected - expected;
@@ -977,7 +990,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                 ) : (
                   <>
                     <CheckCircle2 size={12} />
-                    <span>{isRtl ? 'كل المعاملات معتمدة' : 'All Clear • In Sync'}</span>
+                    <span>{isRtl ? 'قائمة المراجعة فارغة' : 'Review queue clear'}</span>
                   </>
                 )}
               </span>
@@ -1075,7 +1088,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
         >
           <div>
             <div style={{ fontSize: '11px', fontWeight: 600, color: textSecondary }}>
-              {isRtl ? 'إجمالي الحالات المعلقة' : 'Total Pending'}
+              {isRtl ? 'بانتظار المراجعة' : 'Awaiting Review'}
             </div>
             <div style={{ fontSize: '20px', fontWeight: 800, color: textPrimary, marginTop: '2px', fontFamily: 'monospace' }}>
               {totalPending}
@@ -1119,10 +1132,10 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
         >
           <div>
             <div style={{ fontSize: '11px', fontWeight: 600, color: textSecondary }}>
-              {isRtl ? 'دفع متأخر بعد الانتهاء' : 'Late Payments'}
+              {isRtl ? 'متأخر / منتهي' : 'Late / Expired'}
             </div>
             <div style={{ fontSize: '20px', fontWeight: 800, color: '#a855f7', marginTop: '2px', fontFamily: 'monospace' }}>
-              {latePayments.length}
+              {latePayments.length + expiredCheckouts.length}
             </div>
           </div>
           <div
@@ -1391,7 +1404,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
           <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 12px auto', color: '#10b981' }} />
           <div style={{ fontWeight: 600 }}>{isRtl ? 'جاري تحميل قائمة المراجعة...' : 'Loading review queue...'}</div>
         </div>
-      ) : totalPending === 0 ? (
+      ) : totalPending === 0 && !((activeTab === 'ALL' || activeTab === 'LATE_PAYMENT') && expiredCheckouts.length > 0) ? (
         <div
           style={{
             backgroundColor: isDark ? '#111827' : 'white',
@@ -1418,12 +1431,12 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
             <CheckCircle2 size={36} />
           </div>
           <h3 style={{ fontSize: '20px', fontWeight: 800, color: textPrimary, margin: '0 0 6px 0' }}>
-            {isRtl ? 'رائع! لا توجد معاملات معلقة للمراجعة' : 'All Clear! Review Queue is Empty'}
+            {isRtl ? 'لا توجد حالات تحتاج إلى مراجعة' : 'No payments need manual review'}
           </h3>
           <p style={{ fontSize: '13.5px', color: textSecondary, margin: '0 0 20px 0', maxWidth: '460px', marginLeft: 'auto', marginRight: 'auto' }}>
             {isRtl
-              ? 'يقوم الكاشف الآلي برصد ومطابقة التحويلات البنكية الصادرة والواردة لحظياً بدقة 100%.'
-              : 'The automated detector companion is actively monitoring and matching incoming transfers in real-time.'}
+              ? 'جلسات الدفع غير المدفوعة تظهر بشكل منفصل في المعاملات. خلو قائمة المراجعة لا يعني سداد جميع الجلسات.'
+              : 'Unpaid checkout sessions are tracked separately in Transactions. An empty review queue does not mean every checkout has been paid.'}
           </p>
           {onNavigate && (
             <button
@@ -1493,7 +1506,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <Clock size={16} color="#a855f7" />
                 <h3 style={{ fontSize: '15px', fontWeight: 800, color: textPrimary, margin: 0 }}>
-                  {isRtl ? 'مدفوعات متأخرة بعد انتهاء الجلسة' : 'Late / Expired Session Checkouts'}
+                  {isRtl ? 'جلسات متأخرة أو منتهية' : 'Late / Expired Session Checkouts'}
                 </h3>
                 <span
                   style={{
@@ -1510,6 +1523,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                 </span>
               </div>
 
+              <p style={{ color: textSecondary, fontSize: '13px' }}>{isRtl ? 'تُعرض أحدث ١٠٠ جلسة منتهية بدون دفع. السجلات بدون دفع للعرض فقط ولا تحتاج إجراءً.' : 'Includes the latest 100 unpaid expired checkouts. Unpaid records are read-only and need no action.'}</p>
               <div className="review-cards-grid">
                 {filteredLate.map((item, index) =>
                   renderTransactionCard(item, index, {

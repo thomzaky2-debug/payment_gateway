@@ -28,13 +28,14 @@ async function requireApiKey(req: Request, res: Response, next: () => void) {
 v1CheckoutRouter.post('/create', requireApiKey, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
-    const { amountEgp, senderHandle, note } = req.body
+    const { amountEgp, senderHandle, note, productCategory } = req.body
 
     const checkout = await createCheckoutSession({
       client,
       amountEgp: Number(amountEgp),
       senderHandle,
       note,
+      productCategory,
     })
 
     return res.status(201).json({
@@ -71,6 +72,7 @@ v1CheckoutRouter.get('/status', requireApiKey, async (req: Request, res: Respons
         sessionId: tx.sessionId,
         status: tx.status,
         amountEgp: tx.amountEgp,
+        productCategory: tx.productCategory,
         currency: tx.currency,
         senderHandle: tx.senderHandle,
         recipientHandle: tx.recipientHandle,

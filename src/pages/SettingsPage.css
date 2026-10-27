@@ -1,0 +1,23 @@
+/* Desktop sections are accessible directly from the merchant sidebar. */
+@media (min-width: 769px) {
+  .merchant-settings-page .merchant-settings-tabs { display: none !important; }
+}
+
+.merchant-settings-page button:focus-visible,
+.merchant-settings-page input:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 3px;
+}
+
+.merchant-settings-page .merchant-profile-photo { border-radius: 50% !important; }
+
+@media (max-width: 768px) {
+  .merchant-settings-page .settings-sync-status { display: none !important; }
+  .merchant-settings-page input:not([type="file"]) {
+    min-height: 44px;
+    font-size: 16px !important;
+    padding: 10px 12px !important;
+    border-radius: 10px !important;
+  }
+  .merchant-settings-page button { min-height: 36px; }
+}

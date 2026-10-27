@@ -1,7 +1,6 @@
-import { Download, ExternalLink, LogOut, Menu, Moon, RefreshCw, Shield, Sun } from 'lucide-react';
+import { ExternalLink, LogOut, Menu, Moon, RefreshCw, Shield, Sun } from 'lucide-react';
 import type { AdminTab } from '../pages/AdminPortalPage';
 import { useTheme } from '../context/ThemeContext';
-import { apiUrl } from '../services/api';
 
 interface AdminTopbarProps {
   activeTab: AdminTab;
@@ -154,26 +153,6 @@ export function AdminTopbar({ activeTab, loading, onRefresh, onLogout, onOpenMob
           <span className="admin-btn-label">Refresh</span>
         </button>
 
-        <a
-          className="admin-topbar-secondary-link topbar-desktop-only"
-          href={apiUrl('/api/apks/admin')}
-          download="InstaPay-Admin.apk"
-          style={{
-            padding: '5px 8px',
-            borderRadius: '7px',
-            border: isDark ? '1px solid rgba(124, 58, 237, 0.4)' : '1px solid #ddd6fe',
-            backgroundColor: isDark ? 'rgba(124, 58, 237, 0.16)' : '#f5f3ff',
-            color: isDark ? '#c084fc' : '#6d28d9',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px',
-            fontSize: '11px',
-            fontWeight: 700,
-            textDecoration: 'none',
-          }}
-        >
-          <Download size={13} /> Admin APK
-        </a>
 
         <a
           className="admin-topbar-secondary-link topbar-desktop-only"

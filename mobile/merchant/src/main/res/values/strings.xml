@@ -100,8 +100,8 @@
     <string name="payment_id">Payment ID</string>
     <string name="payment_note">Note</string>
     <string name="not_available">Not available</string>
-    <string name="share_receipt">Share receipt</string>
-    <string name="receipt_share_template">NilePay payment receipt\nAmount: %1$.2f EGP\nSender: %2$s\nStatus: %3$s\nReference: %4$s\nPayment ID: %5$s\nDate: %6$s</string>
+    <string name="share_receipt">Share payment record</string>
+    <string name="receipt_share_template">NilePay payment record\nAmount: %1$.2f EGP\nSender: %2$s\nStatus: %3$s\nReference: %4$s\nPayment ID: %5$s\nDate: %6$s\nExpected: %7$s\nReceived: %8$s</string>
     <string name="last_heartbeat">Last server heartbeat</string>
     <string name="last_detected_payment">Last detected payment</string>
     <string name="retry_queued_uploads">Retry queued uploads</string>
@@ -117,4 +117,15 @@
     <string name="delete_account_title">Delete account</string>
     <string name="delete_account_detail">Request deletion and verify your email</string>
     <string name="full_privacy_policy">Full privacy policy</string>
+    <string name="filter_late_expired">Late / expired</string>
+    <string name="payment_expected">Expected amount</string>
+    <string name="payment_received">Received amount</string>
+    <string name="payment_difference">Difference</string>
+    <string name="payment_expiry">Checkout expires</string>
+    <string name="payment_review_hint">This payment needs review. It is not confirmed. Review the record on the merchant website before fulfilling the order.</string>
+    <string name="payment_unmatched_hint">A received payment without a matching checkout. The received amount is not a confirmed order.</string>
+    <string name="review_on_website">Review on website</string>
+    <string name="load_more_payments">Load more payments</string>
+    <string name="search_payments_hint">Search sender, payment ID or bank reference</string>
+    <string name="product_category">Product category</string>
 </resources>

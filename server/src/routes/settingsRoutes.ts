@@ -8,30 +8,9 @@ import { sendInternalError } from '../lib/safeError.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
 import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
 import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
+import { presentSession } from '../lib/sessionPresentation.js'
 
 export const settingsRouter = Router()
-
-function describeSessionUserAgent(userAgent: string | null): { device: string; browser: string } {
-  const ua = userAgent || ''
-  const version = (name: string, expression: RegExp) => {
-    const match = ua.match(expression)
-    return match?.[1] ? `${name} ${match[1]}` : name
-  }
-  const browser = /edg\//i.test(ua) ? version('Microsoft Edge', /edg\/([\d.]+)/i)
-    : /opr\//i.test(ua) ? version('Opera', /opr\/([\d.]+)/i)
-      : /firefox\//i.test(ua) ? version('Firefox', /firefox\/([\d.]+)/i)
-        : /chrome\//i.test(ua) && !/edg\//i.test(ua) ? version('Chrome', /chrome\/([\d.]+)/i)
-          : /safari\//i.test(ua) ? 'Safari'
-            : ua ? 'Unknown browser' : 'Browser unknown'
-  const device = /iphone/i.test(ua) ? 'iPhone'
-    : /ipad/i.test(ua) ? 'iPad'
-      : /android/i.test(ua) ? 'Android device'
-        : /windows/i.test(ua) ? 'Windows device'
-          : /macintosh|mac os/i.test(ua) ? 'Mac'
-            : /linux/i.test(ua) ? 'Linux device'
-              : 'Unknown device'
-  return { device, browser }
-}
 
 const merchantWebhookResendLimiter = createRateLimiterWithKey(
   15 * 60 * 1000,
@@ -104,7 +83,7 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
   }
 })
 
-// ─── Active Browser Sessions ───────────────────────────────────────
+// ─── Signed-in Browser & Mobile Sessions ────────────────────────────
 // Session metadata is recorded at sign-in. Never infer a city from an IP
 // without a vetted geolocation provider; an unavailable location is safer
 // and more honest than a guessed one.
@@ -114,11 +93,18 @@ settingsRouter.get('/sessions', requireMerchant, async (req: Request, res: Respo
     const credential = getRequestAuthToken(req, MERCHANT_SESSION_COOKIE_NAME)
     const currentTokenHash = credential ? hashToken(credential.token) : null
     const now = new Date()
+    if (currentTokenHash) {
+      await db.authSession.updateMany({
+        where: { tokenHash: currentTokenHash, clientId: client.id, kind: 'MERCHANT', revokedAt: null },
+        data: { lastSeenAt: now, ...(getRequestIp(req) ? { ipAddress: getRequestIp(req) } : {}) },
+      })
+    }
     const sessions = await db.authSession.findMany({
       where: {
         clientId: client.id,
         kind: 'MERCHANT',
         revokedAt: null,
+        rotatedAt: null,
         OR: [
           { expiresAt: { gt: now } },
           { refreshExpiresAt: { gt: now } },
@@ -138,22 +124,16 @@ settingsRouter.get('/sessions', requireMerchant, async (req: Request, res: Respo
       },
     })
 
+    const deviceIds = sessions.flatMap(session => session.deviceId ? [session.deviceId] : [])
+    const devices = deviceIds.length ? await db.detectorDevice.findMany({
+      where: { clientId: client.id, deviceId: { in: deviceIds }, revokedAt: null },
+      select: { deviceId: true, name: true, appVersion: true },
+    }) : []
+    const devicesById = new Map(devices.map(device => [device.deviceId, device]))
+    res.setHeader('Cache-Control', 'no-store')
     return res.json({
       ok: true,
-      sessions: sessions.map(({ tokenHash, userAgent, ipAddress, deviceId, familyId, refreshTokenHash, ...session }) => {
-        const uaDesc = describeSessionUserAgent(userAgent)
-        const isMobile = Boolean(deviceId || refreshTokenHash)
-        return {
-          ...session,
-          device: deviceId ? `Mobile (${deviceId})` : (isMobile ? 'Android / Mobile device' : uaDesc.device),
-          browser: isMobile ? 'NilePay Mobile App' : uaDesc.browser,
-          deviceId: deviceId || null,
-          isMobile,
-          ipAddress: ipAddress || 'IP unavailable',
-          location: 'Location unavailable',
-          current: Boolean(currentTokenHash && tokenHash === currentTokenHash),
-        }
-      }),
+      sessions: sessions.map(session => presentSession(session, currentTokenHash, session.deviceId ? devicesById.get(session.deviceId) : undefined)),
     })
   } catch (err: unknown) {
     return sendInternalError(res, err, 'Failed to retrieve active sessions')

@@ -1,0 +1,105 @@
+.merchant-login-container {
+  --auth-text: #f8fafc;
+  --auth-muted: #94a3b8;
+  --auth-label: #cbd5e1;
+  --auth-border: #334155;
+  --auth-surface: #111827;
+  --auth-raised: #1e293b;
+  --auth-input: #0b1220;
+  --auth-accent: #60a5fa;
+  --auth-warning: #fbbf24;
+  --auth-success: #34d399;
+  --auth-error: #f87171;
+  color: var(--auth-text);
+  background: radial-gradient(ellipse at 0 0, #2563eb16, transparent 55%), #090d16;
+  padding: clamp(24px, 5vw, 64px);
+  align-items: flex-start;
+}
+
+.merchant-login-container[data-theme="light"] {
+  --auth-text: #0f172a;
+  --auth-muted: #526176;
+  --auth-label: #334155;
+  --auth-border: #cbd5e1;
+  --auth-surface: #ffffff;
+  --auth-raised: #f1f5f9;
+  --auth-input: #f8fafc;
+  --auth-accent: #2563eb;
+  --auth-warning: #92400e;
+  --auth-success: #047857;
+  --auth-error: #b91c1c;
+  background: radial-gradient(ellipse at 0 0, #dbeafe, transparent 60%), #f1f5f9;
+}
+
+.merchant-login-container .merchant-login-shell {
+  width: min(1100px, 100%);
+  gap: clamp(40px, 6vw, 88px);
+  margin-block: auto;
+  padding-block: 20px;
+}
+
+.merchant-login-container .merchant-login-orb { display: none; }
+.merchant-login-container .merchant-login-showcase { color: var(--auth-text); }
+.merchant-login-container .merchant-login-showcase-copy { margin-top: 48px; }
+.merchant-login-container .merchant-login-showcase-copy h1 {
+  color: var(--auth-text);
+  font-size: clamp(36px, 4vw, 52px);
+  line-height: 1.12;
+  letter-spacing: -0.045em;
+}
+.merchant-login-container[dir="rtl"] .merchant-login-showcase-copy h1 { letter-spacing: 0; line-height: 1.4; }
+.merchant-login-container .merchant-login-showcase-copy p,
+.merchant-login-container .merchant-login-showcase-subtitle,
+.merchant-login-container .merchant-login-showcase-footer { color: var(--auth-muted); }
+.merchant-login-container .merchant-login-eyebrow,
+.merchant-login-container .merchant-login-showcase-badge { color: var(--auth-accent); border-color: var(--auth-border); }
+.merchant-login-container .merchant-login-live-dot { background: var(--auth-accent); box-shadow: none; }
+
+.merchant-login-container .merchant-login-card {
+  background: var(--auth-surface) !important;
+  border: 1px solid var(--auth-border) !important;
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 16px 48px -24px #0008 !important;
+}
+.merchant-login-container[data-theme="light"] .merchant-login-card { box-shadow: 0 16px 48px -24px #0f172a38 !important; }
+.merchant-login-container .merchant-login-card::before { display: none; }
+.merchant-login-container .merchant-auth-input,
+.merchant-login-container .merchant-otp-input {
+  background: var(--auth-input) !important;
+  color: var(--auth-text) !important;
+  border-color: var(--auth-border);
+  font-family: inherit;
+}
+.merchant-login-container .merchant-auth-input::placeholder { color: var(--auth-muted); opacity: 0.85; }
+.merchant-login-container .merchant-auth-input:focus,
+.merchant-login-container .merchant-otp-input:focus {
+  border-color: var(--auth-accent) !important;
+  box-shadow: 0 0 0 3px #2563eb26 !important;
+}
+.merchant-login-container .merchant-otp-input { direction: ltr; }
+.merchant-login-container .merchant-auth-btn { box-shadow: none !important; }
+.merchant-auth-utilities { display: flex; align-items: center; gap: 6px; }
+.merchant-auth-utilities > button {
+  background: var(--auth-raised) !important;
+  border: 1px solid var(--auth-border) !important;
+  color: var(--auth-label) !important;
+}
+.merchant-auth-theme-toggle { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; cursor: pointer; }
+.merchant-auth-features { display: grid; gap: 20px; margin-top: 32px; }
+.merchant-auth-feature { display: flex; align-items: flex-start; gap: 14px; }
+.merchant-auth-feature > span { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; background: #2563eb14; color: var(--auth-accent); border: 1px solid var(--auth-border); }
+.merchant-auth-feature strong { font-size: 14px; font-weight: 650; color: var(--auth-text); }
+.merchant-auth-feature p { margin-top: 5px; color: var(--auth-muted); font-size: 13px; line-height: 1.6; max-width: 360px; }
+.merchant-login-container .merchant-login-card button:focus-visible,
+.merchant-login-container .merchant-login-card a:focus-visible { outline: 2px solid var(--auth-accent); outline-offset: 3px; }
+
+@media (max-width: 900px) {
+  .merchant-login-container .merchant-login-shell { max-width: 460px; padding-block: 0; }
+  .merchant-login-container .merchant-login-card { padding: 24px 20px !important; }
+}
+
+@media (max-width: 480px) {
+  .merchant-login-container .merchant-auth-input { font-size: 16px !important; }
+  .merchant-login-container .merchant-login-card { padding: 22px 18px !important; }
+}

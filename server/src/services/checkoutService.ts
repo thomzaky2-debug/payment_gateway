@@ -3,17 +3,20 @@ import { db } from '../db.js'
 import { toEgpCents } from '../lib/money.js'
 import { normalizeHandle } from './matcherService.js'
 import { Prisma, type Client } from '@prisma/client'
+import { expirePendingTransactions } from './transactionExpiryService.js'
 
 export interface CreateCheckoutInput {
   client: Client
   amountEgp: number
   senderHandle?: string | null
   note?: string | null
+  productCategory?: string | null
   purpose?: 'CHECKOUT' | 'SUBSCRIPTION'
   subscriptionPlanName?: string | null
 }
 
 export interface CheckoutResult {
+  productCategory: string | null
   sessionId: string
   status: string
   amountEgp: number
@@ -73,6 +76,10 @@ export class CheckoutCapacityBusyError extends CheckoutValidationError {
 export async function createCheckoutSession(
   input: CreateCheckoutInput
 ): Promise<CheckoutResult> {
+  if (input.productCategory != null && (typeof input.productCategory !== 'string' || input.productCategory.trim().length > 100)) {
+    throw new CheckoutValidationError('Product category must be text with at most 100 characters')
+  }
+  const productCategory = input.productCategory?.trim() || null
   const { client, amountEgp, note, purpose = 'CHECKOUT', subscriptionPlanName } = input
 
   if (!amountEgp || !Number.isFinite(amountEgp) || amountEgp <= 0) {
@@ -112,6 +119,7 @@ export async function createCheckoutSession(
         amountEgp: cleanAmountEgp,
         amountCents,
         currency: 'EGP',
+        productCategory,
         status: 'PENDING',
         purpose,
         subscriptionPlanName,
@@ -166,6 +174,7 @@ export async function createCheckoutSession(
   return {
     sessionId: transaction.sessionId,
     status: transaction.status,
+    productCategory: transaction.productCategory,
     amountEgp: transaction.amountEgp,
     currency: transaction.currency,
     deepLinkUrl: transaction.deepLinkUrl,
@@ -196,12 +205,12 @@ export async function getCheckoutSession(sessionId: string) {
 
   if (!tx) return null
 
-  // Auto-expire check
-  if (tx.status === 'PENDING' && new Date() > tx.expiresAt) {
-    return {
-      ...tx,
-      status: 'EXPIRED',
-    }
+  // Persist expiry so dashboard counts and checkout state agree. Reload after
+  // the conditional update because a concurrent confirmation may have won.
+  if (tx.status === 'PENDING' && tx.expiresAt.getTime() <= Date.now()) {
+    await expirePendingTransactions(tx.clientId, new Date(), tx.id)
+    const latest = await db.transaction.findUnique({ where: { sessionId } })
+    return latest ? { ...tx, ...latest } : null
   }
 
   return tx

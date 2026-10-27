@@ -321,6 +321,7 @@ function App() {
     >
       <Sidebar
         currentPage={currentPage}
+        currentSubPath={currentSubPath}
         onNavigate={navigateTo}
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
