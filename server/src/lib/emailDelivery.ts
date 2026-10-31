@@ -117,8 +117,36 @@ export async function verifyOtpCode(
   return { valid: true }
 }
 
-function getFromAddress(): string {
-  return process.env.EMAIL_FROM || process.env.SMTP_USER || 'NilePay <nilepay.customers@gmail.com>'
+function extractEmailAddress(raw: string): string {
+  const match = raw.match(/<([^>]+)>/)
+  return (match ? match[1] : raw).trim()
+}
+
+function extractEmailDomain(raw: string): string {
+  const email = extractEmailAddress(raw)
+  const atIndex = email.lastIndexOf('@')
+  return atIndex !== -1 ? email.slice(atIndex + 1).toLowerCase() : 'gmail.com'
+}
+
+function getFromAddress(smtpUser?: string): string {
+  const raw = (process.env.EMAIL_FROM || smtpUser || process.env.SMTP_USER || 'nilepay.customers@gmail.com').trim()
+  // When authenticating via Gmail SMTP, aligning the From address with SMTP_USER prevents DMARC/SPF misalignment spam flags
+  if (smtpUser && smtpUser.includes('@')) {
+    const rawAddr = extractEmailAddress(raw).toLowerCase()
+    const userAddr = extractEmailAddress(smtpUser).toLowerCase()
+    if (rawAddr !== userAddr && userAddr.endsWith('@gmail.com')) {
+      return `NilePay <${userAddr}>`
+    }
+  }
+  if (raw.includes('<') && raw.includes('>')) {
+    return raw
+  }
+  return `NilePay <${raw}>`
+}
+
+function buildMessageId(fromHeader: string): string {
+  const domain = extractEmailDomain(fromHeader)
+  return `<${crypto.randomUUID()}@${domain}>`
 }
 
 async function sendViaResend(input: SendOtpEmailInput): Promise<boolean> {
@@ -126,6 +154,8 @@ async function sendViaResend(input: SendOtpEmailInput): Promise<boolean> {
   if (!apiKey) return false
 
   try {
+    const from = getFromAddress()
+    const replyTo = extractEmailAddress(from)
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -133,11 +163,16 @@ async function sendViaResend(input: SendOtpEmailInput): Promise<boolean> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: getFromAddress(),
+        from,
         to: input.to,
+        reply_to: replyTo,
         subject: otpEmailSubject(input.purpose),
         html: renderOtpHtml(input.otp, input.purpose),
         text: renderOtpText(input.otp, input.purpose),
+        headers: {
+          'X-Auto-Response-Suppress': 'OOF, AutoReply',
+          'Auto-Submitted': 'auto-generated',
+        },
       }),
     })
 
@@ -162,19 +197,29 @@ async function sendViaSmtp(input: SendOtpEmailInput): Promise<boolean> {
 
   try {
     const port = Number(process.env.SMTP_PORT || 465)
+    const from = getFromAddress(user)
+    const replyTo = extractEmailAddress(from)
+    const domain = extractEmailDomain(from)
     const transporter = nodemailer.createTransport({
       host,
       port,
       secure: port === 465,
+      name: domain,
       auth: { user, pass },
     })
 
     await transporter.sendMail({
-      from: getFromAddress(),
+      from,
       to: input.to,
+      replyTo,
+      messageId: buildMessageId(from),
       subject: otpEmailSubject(input.purpose),
       html: renderOtpHtml(input.otp, input.purpose),
       text: renderOtpText(input.otp, input.purpose),
+      headers: {
+        'X-Auto-Response-Suppress': 'OOF, AutoReply',
+        'Auto-Submitted': 'auto-generated',
+      },
     })
 
     return true
@@ -218,49 +263,49 @@ export interface SendApprovalEmailInput {
 
 export async function sendMerchantApprovalEmail(input: SendApprovalEmailInput): Promise<void> {
   const cleanEmail = normalizeEmail(input.to)
-  const subject = `🎉 Your NilePay Account has been Approved!`
+  const subject = `Your NilePay merchant account is ready - NilePay`
   const text = [
-    `Congratulations! Your merchant account for "${input.businessName}" has been approved.`,
+    `Hello,`,
     ``,
-    `Your live integration tokens (API Key, Webhook Signing Secret, and Companion Detector Token) are active and ready.`,
-    `You can now access your merchant dashboard and Developer Portal to integrate and start accepting payments.`,
+    `Your merchant account for "${input.businessName}" has been approved.`,
     ``,
-    `Login to your dashboard: ${process.env.APP_URL || 'https://gateway.local'}`,
+    `Your live integration credentials (API Key, Webhook Signing Secret, and Companion Detector Token) are active and ready in your merchant dashboard.`,
+    ``,
+    `Best regards,`,
+    `NilePay Support`,
+    `nilepay.customers@gmail.com`,
   ].join('\n')
 
-  const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Account Approved</title></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f19; color: #f1f5f9; padding: 40px 20px; margin: 0;">
-  <div style="max-width: 540px; margin: 0 auto; background-color: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 36px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
-    <div style="text-align: center; margin-bottom: 24px;">
-      <div style="display: inline-block; padding: 10px 18px; background: linear-gradient(135deg, #059669, #10b981); border-radius: 12px; font-weight: 800; font-size: 18px; color: #ffffff;">
-        NilePay
-      </div>
-      <h2 style="font-size: 22px; font-weight: 800; margin: 20px 0 6px; color: #34d399;">🎉 Account Approved!</h2>
-      <p style="font-size: 14px; color: #94a3b8; margin: 0;">Congratulations, <strong>${input.businessName}</strong>!</p>
-    </div>
-
-    <div style="background-color: #162033; border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 14px; padding: 20px; margin-bottom: 24px;">
-      <p style="font-size: 13.5px; color: #e2e8f0; line-height: 1.6; margin: 0 0 12px;">
-        Your merchant gateway application has been reviewed and <strong>approved</strong> by our team. All your integration tokens have been automatically generated:
-      </p>
-      <ul style="font-size: 13px; color: #94a3b8; padding-left: 20px; margin: 0; line-height: 1.8;">
-        <li><strong style="color: #f8fafc;">Live API Key:</strong> Ready for checkout session creation</li>
-        <li><strong style="color: #f8fafc;">Companion Token:</strong> Ready for the Android Detector APK</li>
-        <li><strong style="color: #f8fafc;">Webhook Secret:</strong> Ready for HMAC-SHA256 signature verification</li>
-      </ul>
-      ${input.apiKeyPrefix ? `<div style="margin-top: 12px; font-size: 12px; color: #38bdf8; font-family: monospace;">Key Prefix: ${input.apiKeyPrefix}</div>` : ''}
-    </div>
-
-    <p style="font-size: 13px; color: #94a3b8; line-height: 1.6; margin: 0 0 20px;">
-      Log in to your merchant dashboard to view your complete API credentials in the <strong>Developer Portal</strong>.
-    </p>
-
-    <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 20px; font-size: 12px; color: #64748b; text-align: center;">
-      Thank you for choosing NilePay. If you have any integration questions, check our Developer Documentation.
-    </div>
-  </div>
+  const html = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Account Approved - NilePay</title></head>
+<body style="margin:0;padding:24px 16px;background-color:#ffffff;font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;color:#1e293b;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;">
+    <tr>
+      <td style="padding:28px 28px 24px;">
+        <p style="margin:0 0 18px;font-size:15px;line-height:22px;font-weight:700;color:#0f172a;">NilePay</p>
+        <h1 style="margin:0 0 12px;font-size:20px;line-height:28px;font-weight:700;color:#0f172a;">Your merchant account is ready</h1>
+        <p style="margin:0 0 12px;font-size:16px;line-height:26px;color:#334155;">Hello,</p>
+        <p style="margin:0 0 16px;font-size:16px;line-height:26px;color:#334155;">
+          Your merchant gateway account for <strong>${input.businessName}</strong> has been reviewed and approved. Your integration credentials have been generated:
+        </p>
+        <ul style="font-size:14px;color:#334155;padding-left:20px;margin:0 0 18px;line-height:22px;">
+          <li><strong>Live API Key:</strong> Ready for checkout session creation</li>
+          <li><strong>Companion Token:</strong> Ready for the NilePay Merchant Android app</li>
+          <li><strong>Webhook Secret:</strong> Ready for HMAC-SHA256 signature verification</li>
+        </ul>
+        ${input.apiKeyPrefix ? `<p style="margin:0 0 18px;font-size:13px;color:#475569;font-family:monospace;">Key prefix: ${input.apiKeyPrefix}</p>` : ''}
+        <p style="margin:0 0 20px;font-size:14px;line-height:22px;color:#475569;">
+          Sign in to your merchant dashboard to view your API credentials in the Developer Portal.
+        </p>
+        <p style="margin:0;padding-top:16px;border-top:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#64748b;">
+          Best regards,<br>
+          <strong style="color:#334155;">NilePay Support</strong><br>
+          <a href="mailto:nilepay.customers@gmail.com" style="color:#2563eb;text-decoration:none;">nilepay.customers@gmail.com</a>
+        </p>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`
 
@@ -268,10 +313,23 @@ export async function sendMerchantApprovalEmail(input: SendApprovalEmailInput): 
   const apiKey = process.env.RESEND_API_KEY
   if (apiKey) {
     try {
+      const from = getFromAddress()
+      const replyTo = extractEmailAddress(from)
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: getFromAddress(), to: cleanEmail, subject, html, text }),
+        body: JSON.stringify({
+          from,
+          to: cleanEmail,
+          reply_to: replyTo,
+          subject,
+          html,
+          text,
+          headers: {
+            'X-Auto-Response-Suppress': 'OOF, AutoReply',
+            'Auto-Submitted': 'auto-generated',
+          },
+        }),
       })
       if (response.ok) {
         console.info(`[email] Approval notification sent to ${cleanEmail} via Resend.`)
@@ -287,8 +345,29 @@ export async function sendMerchantApprovalEmail(input: SendApprovalEmailInput): 
   if (host && user && pass) {
     try {
       const port = Number(process.env.SMTP_PORT || 465)
-      const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } })
-      await transporter.sendMail({ from: getFromAddress(), to: cleanEmail, subject, html, text })
+      const from = getFromAddress(user)
+      const replyTo = extractEmailAddress(from)
+      const domain = extractEmailDomain(from)
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        name: domain,
+        auth: { user, pass },
+      })
+      await transporter.sendMail({
+        from,
+        to: cleanEmail,
+        replyTo,
+        messageId: buildMessageId(from),
+        subject,
+        html,
+        text,
+        headers: {
+          'X-Auto-Response-Suppress': 'OOF, AutoReply',
+          'Auto-Submitted': 'auto-generated',
+        },
+      })
       console.info(`[email] Approval notification sent to ${cleanEmail} via SMTP.`)
       return
     } catch {}

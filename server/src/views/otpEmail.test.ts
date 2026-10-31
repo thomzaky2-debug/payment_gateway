@@ -24,6 +24,10 @@ test('OTP HTML and plain text identify each flow and retain the correct validity
     assert.ok(html.includes('role="presentation"'))
     assert.ok(html.includes('font-size:16px;line-height:26px'))
     assert.ok(html.includes('mailto:nilepay.customers@gmail.com'))
+    assert.ok(!html.includes('<img'), 'avoids external image tags that trigger spam filters')
+    assert.ok(!html.includes('runasp.net'), 'avoids shared-hosting links that trigger anti-phishing filters')
+    assert.ok(!text.includes('runasp.net'), 'avoids shared-hosting links in plain text')
+    assert.ok(!html.includes('font-size:1px'), 'avoids hidden tiny text obfuscation flags')
     if (purpose.startsWith('ACCOUNT_DELETION')) assert.ok(text.includes('This email alone does not confirm deletion'))
   }
 })
