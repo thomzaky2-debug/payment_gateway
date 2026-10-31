@@ -3,7 +3,7 @@ import {
   Key, Copy, Eye, EyeOff, CheckCircle2, Play, ExternalLink,
   RefreshCw, Terminal, Code2, Shield, Zap, BookOpen, Hash,
   ArrowRight, Lock, Unlock, RotateCcw, Braces, Check, Clipboard,
-  FileCode2, Globe, ChevronRight
+  FileCode2, Globe, ChevronRight, AlertTriangle
 } from 'lucide-react';
 import { apiUrl, settingsApi, subscriptionApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -107,6 +107,12 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   };
 
   const handleRotateKeys = () => {
+    if (!settings?.apiKey) {
+      if (showToast) {
+        showToast('info', isRtl ? 'مفاتيح الربط ستتوفر فور اعتماد حسابك من قِبل الإدارة.' : 'Integration keys will be available once your account is approved by an admin.');
+      }
+      return;
+    }
     const doRotate = async () => {
       try {
         const res = await settingsApi.rotateKeys();
@@ -381,6 +387,8 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
           </button>
           <button
             onClick={handleRotateKeys}
+            disabled={!settings?.apiKey}
+            title={!settings?.apiKey ? (isRtl ? 'المفاتيح غير مفعّلة حتى موافقة الإدارة' : 'Keys will be generated once approved by admin') : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -391,7 +399,8 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
               borderRadius: '12px',
               fontSize: '13px',
               fontWeight: 700,
-              cursor: 'pointer',
+              cursor: !settings?.apiKey ? 'not-allowed' : 'pointer',
+              opacity: !settings?.apiKey ? 0.5 : 1,
               color: isDark ? '#f87171' : '#dc2626',
               transition: 'all 0.25s ease',
             }}
@@ -401,6 +410,31 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
           </button>
         </div>
       </div>
+
+      {/* ─── Pending Approval Notification Banner ─── */}
+      {!loading && !settings?.apiKey && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '14px 18px',
+          borderRadius: '12px',
+          backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#fef3c7',
+          border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
+          marginBottom: '20px',
+          color: isDark ? '#fbbf24' : '#b45309',
+          fontSize: '13px',
+          fontWeight: 600,
+          boxShadow: isDark ? 'none' : '0 2px 8px rgba(245, 158, 11, 0.08)',
+        }}>
+          <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+          <span>
+            {isRtl
+              ? 'حسابك في وضع المعاينة بانتظار اعتماد الإدارة. يمكنك تصفح التوثيق وتهيئة الإعدادات، وسيتم تفعيل وتوليد مفاتيح الربط الحية (API Key و Webhook Secret) تلقائياً فور اعتماد الحساب.'
+              : 'Your merchant account is in preview mode pending admin approval. You can browse the portal and explore documentation; your live API Key and Webhook Signing Secret will be generated upon approval.'}
+          </span>
+        </div>
+      )}
 
       {/* ─── Hero Banner ─── */}
       <div style={{

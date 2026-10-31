@@ -8,6 +8,7 @@ import {
   verifySessionToken,
   ensureMerchantIntegrationTokens,
   isApprovedActiveMerchant,
+  canMerchantAccessPortal,
   MERCHANT_SESSION_COOKIE_NAME,
   revokeAllMerchantSessions,
   revokeSessionToken,
@@ -248,7 +249,7 @@ authRouter.post('/register', async (req: Request, res: Response) => {
 
     return res.status(201).json({
       ok: true,
-      message: 'Registration submitted successfully. Account is pending approval by admin.',
+      message: 'Registration submitted successfully. You can now log in to explore your merchant dashboard while awaiting admin activation of your live integration keys.',
       client: {
         id: client.id,
         businessName: client.businessName,
@@ -285,16 +286,16 @@ authRouter.post('/login', credentialAttemptLimiter, async (req: Request, res: Re
 
     const isPendingDeletion = isWithinDeletionGracePeriod(client)
 
-    if (!isApprovedActiveMerchant(client) && !isPendingDeletion) {
-      if (client.approvalStatus === 'PENDING') {
+    if (!canMerchantAccessPortal(client) && !isPendingDeletion) {
+      if (client.approvalStatus === 'REJECTED') {
         return res.status(403).json({
           ok: false,
-          error: 'Your merchant account is pending admin approval. You will receive access once approved.',
+          error: 'Your merchant account was rejected. Contact admin for assistance.',
         })
       }
       return res.status(403).json({
         ok: false,
-        error: 'Your merchant account is inactive or rejected. Contact admin for assistance.',
+        error: 'Your merchant account is inactive or suspended. Contact admin for assistance.',
       })
     }
 
@@ -402,7 +403,7 @@ authRouter.get('/session', async (req: Request, res: Response) => {
       },
     })
 
-    if (!client || !isApprovedActiveMerchant(client)) {
+    if (!client || !canMerchantAccessPortal(client)) {
       clearMerchantSessionCookie(res)
       return res.status(401).json({ ok: false, authenticated: false })
     }

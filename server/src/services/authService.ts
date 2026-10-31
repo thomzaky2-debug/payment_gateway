@@ -99,6 +99,12 @@ export function isApprovedActiveMerchant(client: Pick<Client, 'approvalStatus' |
   return client.approvalStatus === 'APPROVED' && client.isActive === true
 }
 
+export function canMerchantAccessPortal(client: Pick<Client, 'approvalStatus' | 'isActive'>): boolean {
+  if (client.approvalStatus === 'PENDING') return true
+  if (client.approvalStatus === 'APPROVED' && client.isActive === true) return true
+  return false
+}
+
 // ─── Session Management ─────────────────────────────────────────────
 
 interface LegacyClientSessionPayload {

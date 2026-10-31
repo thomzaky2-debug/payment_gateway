@@ -241,7 +241,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
         });
 
         if (res.ok) {
-          showToast('success', res.message || 'Registration submitted! Please login once approved.');
+          showToast('success', res.message || 'Registration submitted! You can now log in to explore your dashboard.');
           setIsRegister(false);
           setRegisterOtpSent(false);
           setRegisterOtp('');
