@@ -119,6 +119,12 @@ function compareSemanticVersions(v1: string, v2: string): number {
 mobileRouter.post('/devices/enroll', requireMerchant, deviceEnrollLimiter, async (req: Request, res: Response) => {
   try {
     const client = (req as any).client
+    if (client.approvalStatus !== 'APPROVED') {
+      return res.status(403).json({
+        ok: false,
+        error: 'Device enrollment requires an approved merchant account.',
+      })
+    }
     const { deviceId, name, appVersion, androidVersion } = req.body
 
     if (!deviceId || typeof deviceId !== 'string' || deviceId.trim().length < 3) {

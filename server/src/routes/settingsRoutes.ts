@@ -21,6 +21,7 @@ const merchantWebhookResendLimiter = createRateLimiterWithKey(
 
 export function safeMerchantSettings(client: any) {
   if (!client) return null
+  const isApproved = client.approvalStatus === 'APPROVED'
   return {
     id: client.id,
     businessName: client.businessName,
@@ -29,18 +30,19 @@ export function safeMerchantSettings(client: any) {
     instapayHandle: client.instapayHandle,
     instapayPaymentUrl: client.instapayPaymentUrl,
     webhookUrl: client.webhookUrl,
-    webhookSecret: decryptCredential(client.webhookSecret),
+    webhookSecret: isApproved ? decryptCredential(client.webhookSecret) : null,
     checkoutTtlMin: client.checkoutTtlMin,
     autoAcceptOverpaid: client.autoAcceptOverpaid ?? true,
     overpaidMaxExcessEgp: client.overpaidMaxExcessEgp ?? 100.0,
     underpaidToleranceEnabled: client.underpaidToleranceEnabled ?? false,
     underpaidToleranceEgp: client.underpaidToleranceEgp ?? 5.0,
-    apiKey: decryptCredential(client.apiKey),
-    detectToken: decryptCredential(client.detectToken),
+    apiKey: isApproved ? decryptCredential(client.apiKey) : null,
+    detectToken: isApproved ? decryptCredential(client.detectToken) : null,
     subscriptionPlan: client.subscriptionPlan,
     isFreeTrial: client.isFreeTrial,
     txLimit: client.txLimit,
     txCount: client.txCount,
+    approvalStatus: client.approvalStatus,
   }
 }
 
@@ -356,6 +358,12 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
 settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
+    if (client.approvalStatus !== 'APPROVED') {
+      return res.status(403).json({
+        ok: false,
+        error: 'Integration keys can only be generated or rotated once your merchant account is approved by an admin.',
+      })
+    }
     const keys = generateMerchantKeys()
 
     const updated = await db.client.update({

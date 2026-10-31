@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express'
 import { db } from '../db.js'
 import {
   MERCHANT_SESSION_COOKIE_NAME,
+  canMerchantAccessPortal,
   verifySessionToken,
 } from '../services/authService.js'
 import { getRequestAuthToken } from './authToken.js'
@@ -29,11 +30,11 @@ export async function requireMerchant(req: Request, res: Response, next: NextFun
       return res.status(401).json({ ok: false, error: 'Merchant not found' })
     }
 
-    if (client.approvalStatus === 'PENDING') {
-      return res.status(403).json({ ok: false, error: 'Your merchant account is pending admin approval.' })
-    }
-    if (client.approvalStatus !== 'APPROVED' || !client.isActive) {
-      return res.status(403).json({ ok: false, error: 'Your merchant account is inactive or rejected.' })
+    if (!canMerchantAccessPortal(client)) {
+      if (client.approvalStatus === 'REJECTED') {
+        return res.status(403).json({ ok: false, error: 'Your merchant account was rejected.' })
+      }
+      return res.status(403).json({ ok: false, error: 'Your merchant account is inactive or suspended.' })
     }
 
     if (client.subscriptionPlan === 'FREE_TRIAL' || client.isFreeTrial) {
