@@ -308,6 +308,24 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
       cleanHandle = derivedHandle
     }
 
+    if (cleanHandle || cleanPaymentUrl) {
+      const conflict = await db.client.findFirst({
+        where: {
+          id: { not: client.id },
+          OR: [
+            ...(cleanHandle ? [{ instapayHandle: { equals: cleanHandle, mode: 'insensitive' as const } }] : []),
+            ...(cleanPaymentUrl ? [{ instapayPaymentUrl: { equals: cleanPaymentUrl, mode: 'insensitive' as const } }] : []),
+          ],
+        },
+      })
+      if (conflict) {
+        return res.status(409).json({
+          ok: false,
+          error: 'This InstaPay handle or payment link is already in use by another merchant.',
+        })
+      }
+    }
+
     const updated = await db.client.update({
       where: { id: client.id },
       data: {

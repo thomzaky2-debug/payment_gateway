@@ -111,9 +111,46 @@ authRouter.post('/email-otp', otpDispatchLimiter, async (req: Request, res: Resp
       if (emailError) {
         return res.status(400).json({ ok: false, error: emailError })
       }
-      const existing = await db.client.findUnique({ where: { email: cleanEmail } })
+      const existing = await db.client.findFirst({
+        where: { email: { equals: cleanEmail, mode: 'insensitive' } },
+      })
       if (existing) {
         return res.status(400).json({ ok: false, error: 'This email is already registered.' })
+      }
+
+      if (req.body.whatsappNumber) {
+        const normalizedPhoneNumber = normalizeEgyptianMobileNumber(req.body.whatsappNumber)
+        if (normalizedPhoneNumber) {
+          const phoneVariants = [
+            normalizedPhoneNumber,
+            normalizedPhoneNumber.startsWith('+20') ? '0' + normalizedPhoneNumber.slice(3) : normalizedPhoneNumber,
+            normalizedPhoneNumber.startsWith('0') ? '+20' + normalizedPhoneNumber.slice(1) : normalizedPhoneNumber,
+          ]
+          const existingPhone = await db.client.findFirst({
+            where: { whatsappNumber: { in: phoneVariants } },
+          })
+          if (existingPhone) {
+            return res.status(400).json({ ok: false, error: 'This phone number is already registered with another account.' })
+          }
+        }
+      }
+
+      const rawLink = req.body.instapayPaymentUrl || req.body.instapayHandle
+      if (rawLink) {
+        const paymentLink = parseInstaPayPaymentLink(rawLink)
+        if (paymentLink) {
+          const existingHandle = await db.client.findFirst({
+            where: {
+              OR: [
+                { instapayHandle: { equals: paymentLink.handle, mode: 'insensitive' } },
+                { instapayPaymentUrl: { equals: paymentLink.paymentUrl, mode: 'insensitive' } },
+              ],
+            },
+          })
+          if (existingHandle) {
+            return res.status(400).json({ ok: false, error: 'This InstaPay handle or payment link is already registered with another account.' })
+          }
+        }
       }
     } else if (purpose === 'MERCHANT_LOGIN' || purpose === 'PASSWORD_RESET') {
       const existing = await db.client.findUnique({ where: { email: cleanEmail } })
@@ -193,10 +230,51 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       return res.status(400).json({ ok: false, error: emailError })
     }
 
-    // Check existing email
-    const existing = await db.client.findUnique({ where: { email: cleanEmail } })
-    if (existing) {
+    const paymentLink = parseInstaPayPaymentLink(instapayPaymentUrl)
+    if (!paymentLink) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN',
+      })
+    }
+
+    const phoneVariants = [
+      normalizedPhoneNumber,
+      normalizedPhoneNumber.startsWith('+20') ? '0' + normalizedPhoneNumber.slice(3) : normalizedPhoneNumber,
+      normalizedPhoneNumber.startsWith('0') ? '+20' + normalizedPhoneNumber.slice(1) : normalizedPhoneNumber,
+    ]
+
+    // Verify that NONE of the submitted credentials were entered before by an existing merchant
+    const existingByEmail = await db.client.findFirst({
+      where: { email: { equals: cleanEmail, mode: 'insensitive' } },
+    })
+    if (existingByEmail) {
       return res.status(409).json({ ok: false, error: 'An account with this email already exists' })
+    }
+
+    const existingByPhone = await db.client.findFirst({
+      where: { whatsappNumber: { in: phoneVariants } },
+    })
+    if (existingByPhone) {
+      return res.status(409).json({
+        ok: false,
+        error: 'This mobile number has already been registered with another merchant account.',
+      })
+    }
+
+    const existingByHandle = await db.client.findFirst({
+      where: {
+        OR: [
+          { instapayHandle: { equals: paymentLink.handle, mode: 'insensitive' } },
+          { instapayPaymentUrl: { equals: paymentLink.paymentUrl, mode: 'insensitive' } },
+        ],
+      },
+    })
+    if (existingByHandle) {
+      return res.status(409).json({
+        ok: false,
+        error: 'This InstaPay handle or payment link has already been registered with another merchant account.',
+      })
     }
 
     // A signup code is mandatory and consumed exactly once.
@@ -212,14 +290,6 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       .slice(0, 32)}-${crypto.randomBytes(3).toString('hex')}`
 
     const passwordHash = hashPassword(password)
-
-    const paymentLink = parseInstaPayPaymentLink(instapayPaymentUrl)
-    if (!paymentLink) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN',
-      })
-    }
 
     // Account starts as PENDING until approved by admin
     const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })

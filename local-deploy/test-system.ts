@@ -77,12 +77,14 @@ async function runSystemVerification() {
       businessName: `Store ${regTestId}`,
       email: testSignupEmail,
       password: 'Password123!',
-      instapayHandle: 'https://ipn.eg/S/platform/instapay/TOKEN',
+      whatsappNumber: `010${Math.floor(10000000 + Math.random() * 90000000)}`,
+      instapayPaymentUrl: `https://ipn.eg/S/store${regTestId}/instapay/TOKEN_${regTestId}`,
+      instapayHandle: `https://ipn.eg/S/store${regTestId}/instapay/TOKEN_${regTestId}`,
       verificationId: otpRes.data.verificationId,
       otp: otpRes.data.devOtp,
     });
     if (res.data.ok && res.data.client) {
-      console.log(`✅ [4/11] Signup with Email OTP Verification & Link: Passed (URL parsed into platform@instapay)`);
+      console.log(`✅ [4/11] Signup with Email OTP Verification & Link: Passed (URL parsed into store${regTestId}@instapay)`);
       passed++;
     } else {
       throw new Error('Registration failed with payment link');

@@ -242,7 +242,10 @@ export async function sendOtpEmail(input: SendOtpEmailInput): Promise<void> {
     return
   }
 
-  if (process.env.NODE_ENV !== 'development' || process.env.AUTH_EXPOSE_DEV_OTP !== 'true') {
+  if (
+    (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') ||
+    process.env.AUTH_EXPOSE_DEV_OTP !== 'true'
+  ) {
     throw new Error('No OTP email delivery provider is configured')
   }
 

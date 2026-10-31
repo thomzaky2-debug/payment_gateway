@@ -140,7 +140,10 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     });
 
     try {
-      const res = await authApi.sendOtp(email.trim(), 'MERCHANT_SIGNUP');
+      const res = await authApi.sendOtp(email.trim(), 'MERCHANT_SIGNUP', {
+        whatsappNumber: phoneNumber.trim() || undefined,
+        instapayPaymentUrl: instapayHandle.trim() || undefined,
+      });
       if (res.ok) {
         setRegisterVerificationId(res.verificationId || '');
         setRegisterOtpSent(true);
@@ -148,10 +151,25 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
         setCooldown(60);
         showToast('success', res.message || 'Verification code sent to your email');
       } else {
-        showToast('error', res.error || 'Failed to send verification code');
+        const errorMsg = res.error || 'Failed to send verification code';
+        if (/email/i.test(errorMsg)) {
+          setErrors((prev) => ({ ...prev, email: errorMsg }));
+        } else if (/phone|mobile/i.test(errorMsg)) {
+          setErrors((prev) => ({ ...prev, phoneNumber: errorMsg }));
+        } else if (/instapay|handle|payment link/i.test(errorMsg)) {
+          setErrors((prev) => ({ ...prev, instapayHandle: errorMsg }));
+        }
+        showToast('error', errorMsg);
       }
     } catch (err: any) {
       const msg = err.response?.data?.error || err.message || 'Failed to send OTP';
+      if (/email/i.test(msg)) {
+        setErrors((prev) => ({ ...prev, email: msg }));
+      } else if (/phone|mobile/i.test(msg)) {
+        setErrors((prev) => ({ ...prev, phoneNumber: msg }));
+      } else if (/instapay|handle|payment link/i.test(msg)) {
+        setErrors((prev) => ({ ...prev, instapayHandle: msg }));
+      }
       showToast('error', msg);
     } finally {
       setSendingRegisterOtp(false);
@@ -246,8 +264,17 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
           setIsRegister(false);
           setRegisterOtpSent(false);
           setRegisterOtp('');
+          setPassword('');
         } else {
-          showToast('error', res.error || 'Registration failed');
+          const errorMsg = res.error || 'Registration failed';
+          if (/email/i.test(errorMsg)) {
+            setErrors((prev) => ({ ...prev, email: errorMsg }));
+          } else if (/phone|mobile/i.test(errorMsg)) {
+            setErrors((prev) => ({ ...prev, phoneNumber: errorMsg }));
+          } else if (/instapay|handle|payment link/i.test(errorMsg)) {
+            setErrors((prev) => ({ ...prev, instapayHandle: errorMsg }));
+          }
+          showToast('error', errorMsg);
         }
       } else {
         // Sign In Request
@@ -267,7 +294,16 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
         }
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Authentication failed';
+      const msg = err.response?.data?.error || err.message || (isRegister ? 'Registration failed' : 'Authentication failed');
+      if (isRegister) {
+        if (/email/i.test(msg)) {
+          setErrors((prev) => ({ ...prev, email: msg }));
+        } else if (/phone|mobile/i.test(msg)) {
+          setErrors((prev) => ({ ...prev, phoneNumber: msg }));
+        } else if (/instapay|handle|payment link/i.test(msg)) {
+          setErrors((prev) => ({ ...prev, instapayHandle: msg }));
+        }
+      }
       showToast('error', msg);
     } finally {
       setLoading(false);
@@ -657,6 +693,8 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 onClick={() => {
                   setIsRegister(false);
                   setErrors({});
+                  setPassword('');
+                  setLoginOtpStep(false);
                 }}
                 style={{
                   flex: 1,
@@ -686,6 +724,13 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                 onClick={() => {
                   setIsRegister(true);
                   setErrors({});
+                  setEmail('');
+                  setPassword('');
+                  setBusinessName('');
+                  setInstapayHandle('');
+                  setPhoneNumber('');
+                  setRegisterOtp('');
+                  setRegisterOtpSent(false);
                 }}
                 style={{
                   flex: 1,

@@ -140,6 +140,34 @@ button, a, input, select, textarea {
   to { transform: rotate(360deg); }
 }
 
+@keyframes bellRing {
+  0%, 100% { transform: rotate(0); }
+  10%, 30% { transform: rotate(14deg); }
+  20%, 40% { transform: rotate(-14deg); }
+  50% { transform: rotate(8deg); }
+  60% { transform: rotate(-8deg); }
+  70% { transform: rotate(0); }
+}
+
+.animate-bell-ring {
+  animation: bellRing 3s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.notif-items-list::-webkit-scrollbar {
+  width: 5px;
+}
+.notif-items-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.notif-items-list::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 4px;
+}
+.notif-items-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6);
+}
+
 .settings-layout > div:first-child {
   width: 100%;
 }

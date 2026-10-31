@@ -10,13 +10,18 @@ export const notificationRouter = Router()
 notificationRouter.get('/', requireMerchant, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
+    const { status = 'all', limit = '50' } = req.query
+    const take = Math.min(100, Math.max(1, Number(limit) || 50))
+
+    const where: any = { clientId: client.id }
+    if (status === 'unread') {
+      where.readAt = null
+    }
+
     const notifications = await db.merchantNotification.findMany({
-      // The Detector polls this route in the background. Returning already
-      // read messages makes every successfully delivered notification appear
-      // again on the next poll.
-      where: { clientId: client.id, readAt: null },
+      where,
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      take,
     })
 
     const unreadCount = await db.merchantNotification.count({

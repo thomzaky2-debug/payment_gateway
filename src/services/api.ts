@@ -64,8 +64,12 @@ try {
 // ─── Auth API ───────────────────────────────────────────────────────
 
 export const authApi = {
-  async sendOtp(email: string, purpose: 'MERCHANT_SIGNUP' | 'MERCHANT_LOGIN' | 'PASSWORD_RESET' = 'MERCHANT_SIGNUP') {
-    const res = await api.post('/auth/email-otp', { email, purpose })
+  async sendOtp(
+    email: string,
+    purpose: 'MERCHANT_SIGNUP' | 'MERCHANT_LOGIN' | 'PASSWORD_RESET' = 'MERCHANT_SIGNUP',
+    extra?: { whatsappNumber?: string; instapayPaymentUrl?: string }
+  ) {
+    const res = await api.post('/auth/email-otp', { email, purpose, ...extra })
     return res.data
   },
   async register(data: {
@@ -357,8 +361,8 @@ export const subscriptionApi = {
 // ─── Merchant Notifications API ─────────────────────────────────────
 
 export const notificationsApi = {
-  async list() {
-    const res = await api.get('/notifications')
+  async list(params?: { status?: 'all' | 'unread'; limit?: number }) {
+    const res = await api.get('/notifications', { params })
     return res.data
   },
   async markRead(id: string) {
