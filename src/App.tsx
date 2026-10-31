@@ -17,9 +17,11 @@ import { SecurityPage } from './pages/SecurityPage';
 import { BillingPage } from './pages/BillingPage';
 import { ApiDocsPage } from './pages/ApiDocsPage';
 import { SupportPage } from './pages/SupportPage';
+import { AboutPage } from './pages/AboutPage';
+import { PrivacyPage } from './pages/PrivacyPage';
 import { PublicLinks } from './components/PublicLinks';
 
-export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'detector' | 'developers' | 'settings' | 'audit' | 'security' | 'docs' | 'support';
+export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'detector' | 'developers' | 'settings' | 'audit' | 'security' | 'docs' | 'support' | 'about' | 'privacy';
 
 export interface ToastMessage {
   id: string;
@@ -49,6 +51,7 @@ export function parseRouteFromHash(hashString?: string): { page: Page; subPath?:
   const subPath = parts.slice(1).join('/');
 
   const validPages: Record<string, Page> = {
+    about: 'about',
     support: 'support',
     overview: 'overview',
     transactions: 'transactions',
@@ -68,6 +71,8 @@ export function parseRouteFromHash(hashString?: string): { page: Page; subPath?:
     'api-docs': 'docs',
     sdk: 'docs',
     api: 'docs',
+    privacy: 'privacy',
+    'privacy-policy': 'privacy',
   };
 
   const page = validPages[rawPage] || 'overview';
@@ -238,6 +243,8 @@ function App() {
 
   if (!isAuthenticated) {
     if (currentPage === 'support') return <SupportPage inApp={false} />;
+    if (currentPage === 'about') return <AboutPage inApp={false} />;
+    if (currentPage === 'privacy') return <PrivacyPage inApp={false} />;
     return (
       <>
         <LoginPage onLogin={handleLogin} showToast={showToast} />
@@ -249,6 +256,10 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
+      case 'about':
+        return <AboutPage inApp={true} onNavigate={navigateTo} />;
+      case 'privacy':
+        return <PrivacyPage inApp={true} />;
       case 'support':
         return <SupportPage inApp={true} />;
       case 'overview':

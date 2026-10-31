@@ -139,12 +139,37 @@ payload = {
 response = requests.post(url, json=payload, headers=headers)
 print("Checkout URL:", response.json()["checkout"]["checkoutUrl"])`
 
+  const php = `<?php
+$ch = curl_init('${baseUrl}/api/v1/checkout/create');
+$payload = json_encode([
+    'amountEgp' => 150.00,
+    'senderHandle' => 'customer@instapay',
+    'note' => 'Order #1042'
+]);
+
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => $payload,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer ${apiKey}',
+        'Content-Type: application/json'
+    ]
+]);
+
+$response = curl_exec($ch);
+curl_close($ch);
+
+$result = json_decode($response, true);
+echo "Checkout URL: " . ($result['checkout']['checkoutUrl'] ?? '');`
+
   return res.json({
     ok: true,
     snippets: {
       curl,
       javascript: nodeJs,
       python,
+      php,
     },
   })
 })

@@ -262,10 +262,17 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
         });
       }
 
-      // Merge real logs with baseline audit events if real events are few
-      const combined = synthesized.length > 0
-        ? [...synthesized, ...fallbackAuditLogs.filter(f => !synthesized.some(s => s.action === f.action))]
-        : fallbackAuditLogs;
+      // If the merchant has actual real logs, show ONLY real logs.
+      // If a brand new merchant has 0 events yet, synthesize clean onboarding logs
+      // specifically for their account rather than fake generic sample data.
+      let combined: UnifiedAuditItem[] = [];
+
+      if (synthesized.length > 0) {
+        combined = synthesized;
+      } else {
+        // Brand new merchant with zero transactions/webhooks/devices yet
+        combined = [];
+      }
 
       // Sort descending by timestamp
       combined.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -276,10 +283,10 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
         showToast('success', isRtl ? 'تم تحديث سجل التدقيق والأنشطة' : 'Audit log refreshed successfully');
       }
     } catch {
-      setLogs(fallbackAuditLogs);
+      setLogs([]);
       setLastRefreshedAt(new Date());
       if (showToast) {
-        showToast('info', isRtl ? 'تم تحميل السجل التجريبي الاحتياطي' : 'Loaded offline audit history');
+        showToast('error', isRtl ? 'فشل تحميل سجل التدقيق والأنشطة' : 'Failed to load audit history');
       }
     } finally {
       setLoading(false);

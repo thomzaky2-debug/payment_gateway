@@ -72,6 +72,7 @@ class HeartbeatWorker(context: Context, params: WorkerParameters) : CoroutineWor
     override suspend fun doWork(): Result {
         val session = MerchantSession(applicationContext)
         if (!session.isSignedIn || !session.hasDisclosureConsent) return Result.success()
+        DetectorKeepAliveService.ensureRunning(applicationContext)
         return if (DetectorWork.sendHeartbeatSync(applicationContext)) Result.success() else Result.retry()
     }
 }

@@ -43,6 +43,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showIpnGuide, setShowIpnGuide] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -737,10 +738,33 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '8px', flexWrap: 'wrap' }}>
                       <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--auth-label)' }}>
                         {lang === 'ar' ? 'رابط الدفع' : 'Payment Link'}
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowIpnGuide((prev) => !prev)}
+                        style={{
+                          background: 'rgba(16, 185, 129, 0.12)',
+                          border: '1px solid rgba(16, 185, 129, 0.35)',
+                          color: '#10b981',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 9px',
+                          borderRadius: '999px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>
+                          {showIpnGuide
+                            ? (lang === 'ar' ? 'إخفاء الشرح المصور' : 'Hide IPN Link Guide')
+                            : (lang === 'ar' ? 'كيف تحصل على الرابط؟ (اختر "رابط")' : 'How to find IPN link? (Select "رابط")')}
+                        </span>
+                      </button>
                     </div>
                     <div style={{ position: 'relative' }}>
                       <AtSign size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: 'var(--auth-muted)', pointerEvents: 'none' }} />
@@ -768,6 +792,69 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                           ? 'استخدم رابط الدفع المباشر بالتنسيق: https://ipn.eg/S/platform/instapay/TOKEN'
                           : 'Use your direct payment link: https://ipn.eg/S/platform/instapay/TOKEN'}
                       </p>
+                    )}
+
+                    {showIpnGuide && (
+                      <div
+                        style={{
+                          marginTop: '10px',
+                          padding: '12px',
+                          borderRadius: '12px',
+                          backgroundColor: 'var(--auth-raised)',
+                          border: '1px solid rgba(16, 185, 129, 0.35)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                        }}
+                      >
+                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#10b981' }}>
+                          {lang === 'ar'
+                            ? 'خطوات استخراج رابط الدفع (IPN Link) من تطبيق إنستاباي:'
+                            : 'How to get your IPN Payment Link from the InstaPay App:'}
+                        </div>
+                        <div
+                          style={{
+                            borderRadius: '10px',
+                            overflow: 'hidden',
+                            border: '1px solid rgba(255, 255, 255, 0.12)',
+                            backgroundColor: '#0b101e',
+                          }}
+                        >
+                          <img
+                            src="/guides/instapay-ipn-link-guide.jpg"
+                            alt={lang === 'ar' ? 'اضغط على زر رابط في تطبيق إنستاباي' : 'Tap رابط in the InstaPay app'}
+                            style={{ width: '100%', height: 'auto', display: 'block' }}
+                          />
+                        </div>
+                        <ol
+                          style={{
+                            margin: 0,
+                            paddingInlineStart: '18px',
+                            fontSize: '11px',
+                            color: 'var(--auth-label)',
+                            lineHeight: 1.6,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                          }}
+                        >
+                          <li>
+                            {lang === 'ar'
+                              ? 'افتح تطبيق إنستاباي ومن قسم "الحسابات" حدد بطاقة حسابك البنكي.'
+                              : 'Open the InstaPay app and locate your bank account card under "الحسابات" (Accounts).'}
+                          </li>
+                          <li>
+                            {lang === 'ar'
+                              ? 'اضغط على خيار "رابط" (المحدد بالأخضر في الصورة) لنسخ رابط الدفع الخاص بك.'
+                              : 'Tap "رابط" (Link) — highlighted in green on the screenshot — to copy your official share link.'}
+                          </li>
+                          <li>
+                            {lang === 'ar'
+                              ? 'الصق الرابط المنسوخ في خانة "رابط الدفع" أعلاه.'
+                              : 'Paste the copied link into the Payment Link field above.'}
+                          </li>
+                        </ol>
+                      </div>
                     )}
                   </div>
 

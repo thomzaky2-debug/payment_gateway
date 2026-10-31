@@ -4,6 +4,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,7 +61,7 @@ fun NilePayOtpField(
         decorationBox = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(NilePayTheme.spacing.sm, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 for (i in 0 until length) {
@@ -77,7 +78,8 @@ fun NilePayOtpField(
 
                     Box(
                         modifier = Modifier
-                            .size(width = 48.dp, height = 56.dp)
+                            .weight(1f)
+                            .aspectRatio(0.85f)
                             .clip(RoundedCornerShape(8.dp))
                             .border(
                                 width = if (isFocused) 2.dp else 1.dp,

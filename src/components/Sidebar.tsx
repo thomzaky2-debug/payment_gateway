@@ -25,12 +25,12 @@ export interface SidebarProps {
 
 const navItems: { page: Page; key: string; label: string; emoji: string }[] = [
   { page: 'overview', key: 'overview', label: 'Overview', emoji: '📊' },
-  { page: 'transactions', key: 'transactions', label: 'Transactions', emoji: '💳' },
-  { page: 'review', key: 'review', label: 'Manual Review', emoji: '🛡️' },
+  { page: 'transactions', key: 'transactions', label: 'Transactions', emoji: '🧾' },
+  { page: 'review', key: 'review', label: 'Manual Review', emoji: '⚖️' },
   { page: 'billing', key: 'billing', label: 'Plans & Billing', emoji: '💎' },
   { page: 'detector', key: 'detector', label: 'Detector', emoji: '📱' },
   { page: 'developers', key: 'developers', label: 'Developers', emoji: '💻' },
-  { page: 'audit', key: 'audit', label: 'Audit Log', emoji: '📋' },
+  { page: 'audit', key: 'audit', label: 'Audit Log', emoji: '📜' },
   { page: 'security', key: 'security', label: 'Security', emoji: '🔒' },
 ];
 
@@ -568,7 +568,8 @@ export function Sidebar({
           })}
           <div style={{ borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0', marginBlock: 6 }} />
           {[
-            { label: isRtl ? 'سياسة الخصوصية' : 'Privacy Policy', href: apiUrl('/privacy'), emoji: '📄', external: true, isActive: false },
+            { label: isRtl ? 'عن نايل باي' : 'About', href: '#about/', emoji: 'ℹ️', external: false, isActive: currentPage === 'about' },
+            { label: isRtl ? 'سياسة الخصوصية' : 'Privacy Policy', href: '#privacy/', emoji: '📑', external: false, isActive: currentPage === 'privacy' },
             { label: isRtl ? 'الدعم' : 'Support', href: '#support/', emoji: '🛟', external: false, isActive: currentPage === 'support' },
           ].map(({ label, href, emoji, external, isActive }) => (
             <a

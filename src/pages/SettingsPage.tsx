@@ -1082,7 +1082,8 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
               TAB 1B: CHECKOUT CONFIGURATION
              ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'checkout' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px', alignItems: 'start' }}>
               {/* Card 1: Checkout Link & Lifetime Configuration */}
               <div style={{ ...card({ padding: '24px' }) }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '18px' }}>
@@ -1303,6 +1304,143 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                         ? 'عند فتح العميل لصفحة الدفع، يتم توجيهه مباشرة إلى رابط إنستاباي الخاص بك مع مراقبة التحويلات الواردة خلال نافذة الجلسة المحددة.'
                         : 'Buyers are directed to your verified InstaPay share link while the detector matches incoming transfers within the active TTL window.'}
                     </span>
+                  </div>
+                </div>
+              </div>
+              </div>
+
+              {/* Card 3: Visual Guide — How to Find Your InstaPay IPN Link ("رابط") */}
+              <div style={{ ...card({ padding: '24px' }) }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '18px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '40px', height: '40px', borderRadius: '11px',
+                      background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                    }}>
+                      <Sparkles size={20} color="white" />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                        {isRtl
+                          ? 'دليل مصور: كيف تحصل على رابط الدفع (IPN Link) من تطبيق إنستاباي؟'
+                          : 'Visual Guide: How to Find Your InstaPay IPN Link ("رابط")'}
+                      </h3>
+                      <p style={{ fontSize: '12px', color: textSecondary, margin: '2px 0 0 0' }}>
+                        {isRtl
+                          ? 'اتبع الخطوات الموضحة في الصورة لاستخراج رابط الدفع المباشر بالضغط على خيار "رابط"'
+                          : 'Follow the highlighted screenshot below and tap "رابط" (Link) inside the InstaPay app'}
+                      </p>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '4px 10px',
+                    borderRadius: '999px',
+                    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5',
+                    color: '#10b981',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                  }}>
+                    {isRtl ? 'اختر "رابط" من بطاقة الحساب' : 'Select "رابط" on Account Card'}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+                  gap: '22px',
+                  alignItems: 'center',
+                }}>
+                  {/* Annotated Guide Screenshot */}
+                  <div style={{
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #e2e8f0',
+                    backgroundColor: '#0b101e',
+                    boxShadow: '0 14px 32px rgba(0, 0, 0, 0.22)',
+                    maxWidth: '420px',
+                    width: '100%',
+                    margin: '0 auto',
+                  }}>
+                    <img
+                      src="/guides/instapay-ipn-link-guide.jpg"
+                      alt={isRtl ? 'شرح استخراج رابط إنستاباي عبر الضغط على زر رابط' : 'How to find your InstaPay IPN link by tapping رابط'}
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        display: 'block',
+                      }}
+                    />
+                  </div>
+
+                  {/* Step-by-Step Instructions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {[
+                      {
+                        step: '01',
+                        titleEn: 'Open InstaPay & Locate Your Account Card',
+                        titleAr: 'افتح تطبيق إنستاباي وانتقل لقسم "الحسابات"',
+                        descEn: 'On the InstaPay home screen under "الحسابات" (Accounts), find the bank account card where you want to receive customer payments (e.g. username@instapay).',
+                        descAr: 'في الشاشة الرئيسية لتطبيق إنستاباي أسفل قسم "الحسابات"، حدد بطاقة الحساب البنكي الذي ترغب في استقبال مدفوعات العملاء عليه.',
+                        color: '#8b5cf6',
+                      },
+                      {
+                        step: '02',
+                        titleEn: 'Tap "رابط" (Share Link) — Highlighted in Green',
+                        titleAr: 'اضغط على أيقونة "رابط" (المحددة بالأخضر في الصورة)',
+                        descEn: 'Directly below your account name, you will see three buttons: "مشاركة QR", "رابط", and "الرصيد". Tap the middle button "رابط" (Link) to copy or share your official IPN payment link.',
+                        descAr: 'أسفل اسم حسابك مباشرة ستجد 3 خيارات: (مشاركة QR - رابط - الرصيد). اضغط على الخيار الأوسط "رابط" لنسخ رابط الدفع الرسمي الخاص بحسابك.',
+                        color: '#10b981',
+                      },
+                      {
+                        step: '03',
+                        titleEn: 'Paste into NilePay Payment Link Field',
+                        titleAr: 'الصق الرابط في خانة "رابط الدفع" أعلاه',
+                        descEn: 'Paste the copied text or URL (formatted like https://ipn.eg/S/username/instapay/TOKEN) into the Payment Link box above. NilePay automatically extracts the clean URL and derives your IPA handle!',
+                        descAr: 'الصق الرسالة أو الرابط المنسوخ (بصيغة https://ipn.eg/S/username/instapay/TOKEN) في حقل "رابط الدفع" بالأعلى، وسيقوم النظام تلقائياً باستخراج الرابط النظيف وعنوان الـ IPA الخاص بك!',
+                        color: '#3b82f6',
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.step}
+                        style={{
+                          ...subcard({ padding: '16px' }),
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '14px',
+                          borderLeft: isRtl ? undefined : `3px solid ${item.color}`,
+                          borderRight: isRtl ? `3px solid ${item.color}` : undefined,
+                        }}
+                      >
+                        <div style={{
+                          minWidth: '34px',
+                          height: '34px',
+                          borderRadius: '10px',
+                          backgroundColor: `${item.color}18`,
+                          border: `1px solid ${item.color}40`,
+                          color: item.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '12.5px',
+                          fontFamily: "'JetBrains Mono', monospace",
+                          flexShrink: 0,
+                        }}>
+                          {item.step}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: 700, color: textPrimary, marginBottom: '4px' }}>
+                            {isRtl ? item.titleAr : item.titleEn}
+                          </div>
+                          <div style={{ fontSize: '12px', color: textSecondary, lineHeight: 1.6 }}>
+                            {isRtl ? item.descAr : item.descEn}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

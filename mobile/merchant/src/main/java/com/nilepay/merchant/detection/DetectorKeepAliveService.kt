@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 class DetectorKeepAliveService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var loopJob: Job? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -76,11 +77,27 @@ class DetectorKeepAliveService : Service() {
         running = false
         loopJob?.cancel()
         serviceScope.cancel()
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+        } catch (_: Exception) {
+        }
+        wakeLock = null
         val session = MerchantSession(applicationContext)
         if (session.isSignedIn && session.hasDisclosureConsent) {
             scheduleSelfRestart(applicationContext)
         }
         super.onDestroy()
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        val session = MerchantSession(applicationContext)
+        if (session.isSignedIn && session.hasDisclosureConsent) {
+            scheduleSelfRestart(applicationContext)
+            DetectorWork.heartbeatNow(applicationContext)
+        }
+        stopSelf()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -142,7 +159,21 @@ class DetectorKeepAliveService : Service() {
             .build()
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (wakeLock == null) {
+                val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NilePay:DetectorKeepAliveWakeLock")?.apply {
+                    setReferenceCounted(false)
+                    try { acquire() } catch (_: Exception) {}
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     NOTIFICATION_ID,
                     notification,
@@ -236,6 +267,15 @@ class DetectorKeepAliveService : Service() {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(fallback)
+                return
+            } catch (_: Exception) {
+            }
+            try {
+                val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(appDetails)
             } catch (_: Exception) {
             }
         }

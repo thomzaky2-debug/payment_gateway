@@ -8,8 +8,8 @@ class MerchantPreferences(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("nilepay_merchant_preferences", Context.MODE_PRIVATE)
 
     var theme: MerchantTheme
-        get() = runCatching { MerchantTheme.valueOf(prefs.getString("theme", MerchantTheme.System.name)!!) }
-            .getOrDefault(MerchantTheme.System)
+        get() = runCatching { MerchantTheme.valueOf(prefs.getString("theme", MerchantTheme.Dark.name)!!) }
+            .getOrDefault(MerchantTheme.Dark)
         set(value) { prefs.edit().putString("theme", value.name).apply() }
 
     var language: String

@@ -14,6 +14,7 @@ interface TopbarProps {
 }
 
 const pageTitles: Record<Page, { en: string; ar: string }> = {
+  about: { en: 'About NilePay', ar: 'عن نايل باي' },
   support: { en: 'Support', ar: 'الدعم' },
   overview: { en: 'Dashboard Overview', ar: 'لوحة التحكم الرئيسية' },
   transactions: { en: 'Transactions', ar: 'سجل المعاملات' },
@@ -24,6 +25,7 @@ const pageTitles: Record<Page, { en: string; ar: string }> = {
   settings: { en: 'Settings', ar: 'إعدادات المتجر' },
   audit: { en: 'Audit Log', ar: 'سجل العمليات' },
   security: { en: 'Security', ar: 'إعدادات الأمان' },
+  privacy: { en: 'Privacy Policy', ar: 'سياسة الخصوصية' },
   docs: { en: 'API Documentation', ar: 'دليل التكامل البرمجي' },
 };
 

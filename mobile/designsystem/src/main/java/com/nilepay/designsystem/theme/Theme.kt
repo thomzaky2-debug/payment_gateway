@@ -53,7 +53,7 @@ private val MaterialDarkColors = darkColorScheme(
 
 @Composable
 fun NilePayTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,
     compact: Boolean = false,
     content: @Composable () -> Unit
 ) {

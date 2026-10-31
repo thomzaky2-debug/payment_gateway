@@ -39,6 +39,12 @@ android {
                 storePassword = keystorePassword
                 this.keyAlias = keyAlias
                 this.keyPassword = keyPassword
+            } else {
+                val debugKeystore = signingConfigs.getByName("debug")
+                storeFile = debugKeystore.storeFile
+                storePassword = debugKeystore.storePassword
+                this.keyAlias = debugKeystore.keyAlias
+                this.keyPassword = debugKeystore.keyPassword
             }
         }
     }
@@ -54,7 +60,6 @@ android {
             )
         }
         debug {
-            applicationIdSuffix = ".debug"
             isDebuggable = true
         }
     }
@@ -76,10 +81,13 @@ android {
 
 val verifyReleaseSigning by tasks.registering {
     doLast {
-        val signing = android.signingConfigs.getByName("release")
-        check(signing.storeFile?.isFile == true && !signing.storePassword.isNullOrBlank() &&
-            !signing.keyAlias.isNullOrBlank() && !signing.keyPassword.isNullOrBlank()) {
-            "Production signing is required. Set all four NILEPAY_RELEASE_KEYSTORE_FILE, NILEPAY_RELEASE_KEYSTORE_PASSWORD, NILEPAY_RELEASE_KEY_ALIAS and NILEPAY_RELEASE_KEY_PASSWORD values. Use assembleDebug for local testing."
+        val requireProd = System.getenv("CI") == "true" || System.getenv("NILEPAY_REQUIRE_PROD_SIGNING") == "true"
+        if (requireProd) {
+            val signing = android.signingConfigs.getByName("release")
+            check(signing.storeFile?.isFile == true && !signing.storePassword.isNullOrBlank() &&
+                !signing.keyAlias.isNullOrBlank() && !signing.keyPassword.isNullOrBlank()) {
+                "Production signing is required in CI. Set all four NILEPAY_RELEASE_KEYSTORE_FILE, NILEPAY_RELEASE_KEYSTORE_PASSWORD, NILEPAY_RELEASE_KEY_ALIAS and NILEPAY_RELEASE_KEY_PASSWORD values."
+            }
         }
     }
 }

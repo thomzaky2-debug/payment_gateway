@@ -213,10 +213,23 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
     );
   };
 
+  // Deduplicated Late / Expired combined list
+  const lateAndExpiredList = useMemo(() => {
+    const seen = new Set<string>();
+    const combined: any[] = [];
+    for (const item of [...latePayments, ...expiredCheckouts]) {
+      const key = String(item?.sessionId || item?.id || '');
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      combined.push(item);
+    }
+    return combined;
+  }, [latePayments, expiredCheckouts]);
+
   // Filtered lists
   const filteredUnderpaid = useMemo(() => underpaid.filter(matchesSearch), [underpaid, searchQuery]);
   const filteredOverpaid = useMemo(() => overpaid.filter(matchesSearch), [overpaid, searchQuery]);
-  const filteredLate = useMemo(() => [...latePayments, ...expiredCheckouts].filter(matchesSearch), [latePayments, expiredCheckouts, searchQuery]);
+  const filteredLate = useMemo(() => lateAndExpiredList.filter(matchesSearch), [lateAndExpiredList, searchQuery]);
   const filteredHandle = useMemo(() => handleMismatch.filter(matchesSearch), [handleMismatch, searchQuery]);
   const filteredDuplicate = useMemo(() => duplicateSuspect.filter(matchesSearch), [duplicateSuspect, searchQuery]);
   const filteredRisk = useMemo(() => highValueRisk.filter(matchesSearch), [highValueRisk, searchQuery]);
@@ -337,65 +350,97 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
       type: 'ALL' as CaseType,
       labelEn: 'All Cases',
       labelAr: 'جميع الحالات',
+      cardTitleEn: 'Awaiting Review (All)',
+      cardTitleAr: 'بانتظار المراجعة (الكل)',
       count: totalPending,
       icon: SlidersHorizontal,
       color: '#3b82f6',
+      lightBg: '#eff6ff',
+      darkBg: 'rgba(59, 130, 246, 0.15)',
     },
     {
       type: 'LATE_PAYMENT' as CaseType,
       labelEn: 'Late / Expired',
       labelAr: 'متأخر / منتهي',
-      count: latePayments.length + expiredCheckouts.length,
+      cardTitleEn: 'Late / Expired',
+      cardTitleAr: 'متأخر / منتهي',
+      count: lateAndExpiredList.length,
       icon: Clock,
       color: '#a855f7',
+      lightBg: '#faf5ff',
+      darkBg: 'rgba(168, 85, 247, 0.15)',
     },
     {
       type: 'HANDLE_MISMATCH' as CaseType,
       labelEn: 'Sender Mismatch',
       labelAr: 'اختلاف المرسل',
+      cardTitleEn: 'Sender Mismatch',
+      cardTitleAr: 'اختلاف المرسل',
       count: handleMismatch.length,
       icon: User,
       color: '#0ea5e9',
+      lightBg: '#f0f9ff',
+      darkBg: 'rgba(14, 165, 233, 0.15)',
     },
     {
       type: 'DUPLICATE_SUSPECT' as CaseType,
       labelEn: 'Duplicate Suspect',
       labelAr: 'اشتباه تكرار',
+      cardTitleEn: 'Duplicate Suspect',
+      cardTitleAr: 'اشتباه تكرار',
       count: duplicateSuspect.length,
       icon: Repeat,
       color: '#f59e0b',
+      lightBg: '#fffbeb',
+      darkBg: 'rgba(245, 158, 11, 0.15)',
     },
     {
       type: 'HIGH_VALUE_REVIEW' as CaseType,
       labelEn: 'Risk Review',
       labelAr: 'مراجعة أمنية',
+      cardTitleEn: 'Risk Review',
+      cardTitleAr: 'مراجعة أمنية',
       count: highValueRisk.length,
       icon: ShieldAlert,
       color: '#ec4899',
+      lightBg: '#fdf2f8',
+      darkBg: 'rgba(236, 72, 153, 0.15)',
     },
     {
       type: 'UNMATCHED' as CaseType,
       labelEn: 'Direct Unmatched',
       labelAr: 'تحويلات يتيمة',
+      cardTitleEn: 'Direct Unmatched',
+      cardTitleAr: 'تحويلات يتيمة',
       count: mismatched.length,
       icon: HelpCircle,
       color: '#ef4444',
+      lightBg: '#fef2f2',
+      darkBg: 'rgba(239, 68, 68, 0.15)',
     },
     {
       type: 'UNDERPAID' as CaseType,
       labelEn: 'Underpaid',
       labelAr: 'مبالغ ناقصة',
+      cardTitleEn: 'Underpaid',
+      cardTitleAr: 'مبالغ ناقصة',
       count: underpaid.length,
       icon: AlertCircle,
       color: '#f97316',
+      lightBg: '#fff7ed',
+      darkBg: 'rgba(249, 115, 22, 0.15)',
     },
     {
       type: 'OVERPAID' as CaseType,
       labelEn: 'Overpaid',
       labelAr: 'مبالغ زائدة',
+      cardTitleEn: 'Overpaid',
+      cardTitleAr: 'مبالغ زائدة',
       count: overpaid.length,
       icon: TrendingUp,
       color: '#10b981',
+      lightBg: '#ecfdf5',
+      darkBg: 'rgba(16, 185, 129, 0.15)',
     },
   ];
 
@@ -1056,194 +1101,78 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
         </div>
       </div>
 
-      {/* ─── Compact KPI Stat Strip ─── */}
+      {/* ─── Compact KPI Stat Strip (All 8 Review Cases) ─── */}
       <div
         className="review-stats-strip"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: '12px',
           marginBottom: '20px',
         }}
       >
-        {/* Card 1: Total Queue */}
-        <div
-          onClick={() => handleTabClick('ALL')}
-          style={{
-            padding: '14px 16px',
-            borderRadius: '14px',
-            backgroundColor: isDark ? '#111827' : '#ffffff',
-            border: activeTab === 'ALL'
-              ? '1px solid #3b82f6'
-              : (isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0'),
-            boxShadow: activeTab === 'ALL'
-              ? '0 0 0 1px #3b82f6, 0 4px 14px rgba(59, 130, 246, 0.15)'
-              : '0 2px 8px rgba(0,0,0,0.04)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: textSecondary }}>
-              {isRtl ? 'بانتظار المراجعة' : 'Awaiting Review'}
+        {categories.map((cat) => {
+          const isActive = activeTab === cat.type;
+          const Icon = cat.icon;
+          return (
+            <div
+              key={cat.type}
+              onClick={() => handleTabClick(cat.type)}
+              style={{
+                padding: '14px 16px',
+                borderRadius: '14px',
+                backgroundColor: isDark ? '#111827' : '#ffffff',
+                border: isActive
+                  ? `1px solid ${cat.color}`
+                  : (isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0'),
+                boxShadow: isActive
+                  ? `0 0 0 1px ${cat.color}, 0 4px 14px ${cat.color}26`
+                  : '0 2px 8px rgba(0,0,0,0.04)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: textSecondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {isRtl ? cat.cardTitleAr : cat.cardTitleEn}
+                </div>
+                <div
+                  style={{
+                    fontSize: '20px',
+                    fontWeight: 800,
+                    color: cat.type === 'ALL' ? textPrimary : cat.color,
+                    marginTop: '2px',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  {cat.count}
+                </div>
+              </div>
+              <div
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  backgroundColor: isDark ? cat.darkBg : cat.lightBg,
+                  color: cat.color,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Icon size={18} />
+              </div>
             </div>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: textPrimary, marginTop: '2px', fontFamily: 'monospace' }}>
-              {totalPending}
-            </div>
-          </div>
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff',
-              color: '#3b82f6',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <SlidersHorizontal size={18} />
-          </div>
-        </div>
-
-        {/* Card 2: Late / Expired Payments */}
-        <div
-          onClick={() => handleTabClick('LATE_PAYMENT')}
-          style={{
-            padding: '14px 16px',
-            borderRadius: '14px',
-            backgroundColor: isDark ? '#111827' : '#ffffff',
-            border: activeTab === 'LATE_PAYMENT'
-              ? '1px solid #a855f7'
-              : (isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0'),
-            boxShadow: activeTab === 'LATE_PAYMENT'
-              ? '0 0 0 1px #a855f7, 0 4px 14px rgba(168, 85, 247, 0.15)'
-              : '0 2px 8px rgba(0,0,0,0.04)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: textSecondary }}>
-              {isRtl ? 'متأخر / منتهي' : 'Late / Expired'}
-            </div>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#a855f7', marginTop: '2px', fontFamily: 'monospace' }}>
-              {latePayments.length + expiredCheckouts.length}
-            </div>
-          </div>
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              backgroundColor: isDark ? 'rgba(168, 85, 247, 0.15)' : '#faf5ff',
-              color: '#a855f7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Clock size={18} />
-          </div>
-        </div>
-
-        {/* Card 3: Sender Mismatch & Duplicates */}
-        <div
-          onClick={() => handleTabClick('HANDLE_MISMATCH')}
-          style={{
-            padding: '14px 16px',
-            borderRadius: '14px',
-            backgroundColor: isDark ? '#111827' : '#ffffff',
-            border: activeTab === 'HANDLE_MISMATCH' || activeTab === 'DUPLICATE_SUSPECT'
-              ? '1px solid #0ea5e9'
-              : (isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0'),
-            boxShadow: activeTab === 'HANDLE_MISMATCH' || activeTab === 'DUPLICATE_SUSPECT'
-              ? '0 0 0 1px #0ea5e9, 0 4px 14px rgba(14, 165, 233, 0.15)'
-              : '0 2px 8px rgba(0,0,0,0.04)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: textSecondary }}>
-              {isRtl ? 'اختلاف المرسل والتكرار' : 'Sender Discrepancy'}
-            </div>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#0ea5e9', marginTop: '2px', fontFamily: 'monospace' }}>
-              {handleMismatch.length + duplicateSuspect.length}
-            </div>
-          </div>
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              backgroundColor: isDark ? 'rgba(14, 165, 233, 0.15)' : '#f0f9ff',
-              color: '#0ea5e9',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <User size={18} />
-          </div>
-        </div>
-
-        {/* Card 4: Unmatched Direct Transfers */}
-        <div
-          onClick={() => handleTabClick('UNMATCHED')}
-          style={{
-            padding: '14px 16px',
-            borderRadius: '14px',
-            backgroundColor: isDark ? '#111827' : '#ffffff',
-            border: activeTab === 'UNMATCHED'
-              ? '1px solid #ef4444'
-              : (isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0'),
-            boxShadow: activeTab === 'UNMATCHED'
-              ? '0 0 0 1px #ef4444, 0 4px 14px rgba(239, 68, 68, 0.15)'
-              : '0 2px 8px rgba(0,0,0,0.04)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 600, color: textSecondary }}>
-              {isRtl ? 'تحويلات بدون جلسة دفع' : 'Direct Orphan Transfers'}
-            </div>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#ef4444', marginTop: '2px', fontFamily: 'monospace' }}>
-              {mismatched.length}
-            </div>
-          </div>
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2',
-              color: '#ef4444',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <HelpCircle size={18} />
-          </div>
-        </div>
+          );
+        })}
       </div>
 
-      {/* ─── Filter Tabs & Search Controls Row ─── */}
+      {/* ─── Active Filter Summary & Search Controls Row ─── */}
       <div
         className="review-controls-row"
         style={{
@@ -1255,73 +1184,78 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
           flexWrap: 'wrap',
         }}
       >
-        {/* Category Pills */}
+        {/* Active Category Indicator (No Duplicate Pills) */}
         <div
-          className="review-categories-scroll"
           style={{
             display: 'flex',
+            alignItems: 'center',
             gap: '8px',
-            overflowX: 'auto',
-            paddingBottom: '4px',
-            flex: 1,
-            minWidth: '280px',
+            flexWrap: 'wrap',
           }}
         >
-          {categories.map((cat) => {
-            const isActive = activeTab === cat.type;
-            const Icon = cat.icon;
+          {(() => {
+            const activeCat = categories.find((c) => c.type === activeTab) || categories[0];
+            const ActiveIcon = activeCat.icon;
             return (
-              <button
-                key={cat.type}
-                type="button"
-                className="review-category-btn"
-                onClick={() => handleTabClick(cat.type)}
+              <div
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
+                  gap: '7px',
                   padding: '7px 12px',
                   borderRadius: '10px',
                   fontSize: '12px',
-                  fontWeight: isActive ? 700 : 500,
-                  cursor: 'pointer',
-                  backgroundColor: isActive
-                    ? cat.color
-                    : isDark
-                    ? '#1e293b'
-                    : '#ffffff',
-                  color: isActive ? 'white' : textSecondary,
-                  border: isActive
-                    ? `1px solid ${cat.color}`
-                    : isDark
-                    ? '1px solid #334155'
-                    : '1px solid #e2e8f0',
-                  transition: 'all 0.15s ease',
-                  flexShrink: 0,
-                  boxShadow: isActive ? `0 4px 12px ${cat.color}35` : 'none',
+                  fontWeight: 700,
+                  backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                  color: textPrimary,
+                  border: `1px solid ${activeCat.color}66`,
                 }}
               >
-                <Icon size={13} />
-                <span>{isRtl ? cat.labelAr : cat.labelEn}</span>
+                <ActiveIcon size={13} color={activeCat.color} />
+                <span style={{ color: textSecondary, fontWeight: 500 }}>
+                  {isRtl ? 'عرض:' : 'Showing:'}
+                </span>
+                <span style={{ color: activeCat.color }}>
+                  {isRtl ? activeCat.labelAr : activeCat.labelEn}
+                </span>
                 <span
                   style={{
                     padding: '1px 6px',
                     borderRadius: '6px',
                     fontSize: '10.5px',
                     fontWeight: 800,
-                    backgroundColor: isActive
-                      ? 'rgba(255, 255, 255, 0.25)'
-                      : isDark
-                      ? 'rgba(255, 255, 255, 0.08)'
-                      : '#f1f5f9',
-                    color: isActive ? 'white' : cat.color,
+                    backgroundColor: isDark ? activeCat.darkBg : activeCat.lightBg,
+                    color: activeCat.color,
                   }}
                 >
-                  {cat.count}
+                  {activeCat.count}
                 </span>
-              </button>
+              </div>
             );
-          })}
+          })()}
+
+          {activeTab !== 'ALL' && (
+            <button
+              type="button"
+              onClick={() => handleTabClick('ALL')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '7px 11px',
+                borderRadius: '10px',
+                fontSize: '11.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : '#eff6ff',
+                color: '#3b82f6',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+              }}
+            >
+              <X size={12} />
+              <span>{isRtl ? 'إظهار جميع الحالات' : 'Reset Filter'}</span>
+            </button>
+          )}
         </div>
 
         {/* Quick Search Input */}

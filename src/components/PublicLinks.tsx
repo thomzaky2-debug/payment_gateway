@@ -8,9 +8,14 @@ export function PublicLinks() {
 
   const links = [
     {
+      label: isRtl ? 'عن نايل باي' : 'About',
+      href: '#about/',
+      external: false,
+    },
+    {
       label: isRtl ? 'سياسة الخصوصية' : 'Privacy Policy',
-      href: apiUrl('/privacy'),
-      external: true,
+      href: '#privacy/',
+      external: false,
     },
     {
       label: isRtl ? 'الدعم الفني' : 'Support',
