@@ -35,16 +35,22 @@ class InstaPayNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        if (sbn == null || sbn.packageName != InstaPayParser.INSTAPAY_PACKAGE) return
+        if (sbn == null) return
         val session = com.nilepay.merchant.MerchantSession(this)
         if (!session.hasDisclosureConsent || !session.isSignedIn || session.deviceToken.isNullOrBlank()) return
+        val isSupportedPkg = InstaPayParser.isSupportedPackage(sbn.packageName)
         val extras = sbn.notification?.extras ?: return
         val text = listOfNotNull(
             extras.getCharSequence(Notification.EXTRA_TITLE),
             extras.getCharSequence(Notification.EXTRA_TEXT),
-            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+            extras.getCharSequence(Notification.EXTRA_BIG_TEXT),
+            extras.getCharSequence(Notification.EXTRA_SUB_TEXT),
+            sbn.notification?.tickerText
         ).joinToString(" ")
         val parsed = InstaPayParser.parse(text) ?: return
+        if (!isSupportedPkg && !text.contains("instapay", ignoreCase = true) && !text.contains("إنستاباي") && !text.contains("انستاباي")) {
+            return
+        }
         val eventId = InstaPayParser.eventId(sbn.packageName, sbn.postTime, sbn.key)
         val wakeLock = (getSystemService(Context.POWER_SERVICE) as? PowerManager)
             ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NilePay:PaymentDetectorWakeLock")

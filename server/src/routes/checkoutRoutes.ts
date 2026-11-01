@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { getCheckoutSession } from '../services/checkoutService.js'
+import { normalizeHandle } from '../services/matcherService.js'
 import { sendInternalError } from '../lib/safeError.js'
 
 export const checkoutRouter = Router()
@@ -154,13 +155,13 @@ checkoutRouter.patch('/:sessionId/sender', async (req: Request, res: Response) =
 
     const clean = senderHandle.trim().toLowerCase().replace(/^@/, '')
     const local = clean.split('@')[0]
-    if (!local || !/^[a-zA-Z0-9._-]{2,50}$/.test(local)) {
+    if (!local || !/^[a-zA-Z0-9._\-\u0600-\u06FF\s]{2,60}$/.test(local)) {
       return res.status(400).json({
         ok: false,
-        error: 'InstaPay handle must be 2-50 characters and contain only letters, numbers, dots, and dashes',
+        error: 'InstaPay handle must be 2-60 characters and contain valid letters, numbers, or symbols',
       })
     }
-    const normalized = `${local}@instapay`
+    const normalized = normalizeHandle(local)
 
     const updated = await db.transaction.update({
       where: { sessionId },

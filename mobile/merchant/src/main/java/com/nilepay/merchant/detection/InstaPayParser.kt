@@ -21,26 +21,47 @@ object InstaPayParser {
         "com.android.mms"
     )
 
-    fun isSupportedPackage(packageName: String): Boolean =
-        SUPPORTED_PACKAGES.contains(packageName)
+    fun isSupportedPackage(packageName: String?): Boolean {
+        if (packageName.isNullOrBlank()) return false
+        val pkg = packageName.lowercase()
+        return SUPPORTED_PACKAGES.contains(packageName) ||
+            pkg.contains("instapay") ||
+            pkg.contains("messaging") ||
+            pkg.contains("mms") ||
+            pkg.contains("sms")
+    }
 
     private val englishPattern = Pattern.compile(
-        "(?:you\\s+have\\s+received|received|incoming\\s+transfer(?:\\s+of)?|payment\\s+of|payment\\s+received|transfer\\s+of)\\s+" +
+        "(?:you\\s+(?:have\\s+)?received|received|incoming\\s+transfer(?:\\s+of)?|payment\\s+of|payment\\s+received|transfer\\s+of)\\s+" +
         "(?:egp|le|l\\.e\\.)?\\s*" +
         "([0-9]+(?:[\\.,][0-9]+)*)\\s*" +
         "(?:egp|le|l\\.e\\.)?\\s*" +
-        "(?:from)\\s+" +
+        "(?:from|by|via)\\s+" +
         "([^\\n\\r,;]+)",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    private val englishSentPattern = Pattern.compile(
+        "([^\\n\\r,;]+?)\\s+sent\\s+you\\s+(?:egp|le|l\\.e\\.)?\\s*([0-9]+(?:[\\.,][0-9]+)*)(?:\\s*(?:egp|le|l\\.e\\.))?",
         Pattern.CASE_INSENSITIVE
     )
 
     private val arabicPattern = Pattern.compile(
         "(?:تم\\s+استلام|لقد\\s+استلمت|استلمت|تحويل\\s+وارد(?:\\s+بمبلغ)?|تم\\s+تحويل|تم\\s+إيداع|ايداع\\s+بمبلغ|دفعة\\s+واردة(?:\\s+بمبلغ)?)\\s+" +
         "(?:مبلغ|بقيمة)?\\s*" +
+        "(?:جنيه(?:ًا|ا)?|ج\\.م|جم|جنيه\\s+مصري|egp|le)?\\s*" +
         "([0-9]+(?:[\\.,][0-9]+)*)\\s*" +
         "(?:جنيه(?:ًا|ا)?|ج\\.م|جم|جنيه\\s+مصري|egp|le)?\\s*" +
-        "(?:من|بواسطة|لحسابك\\s+من|عبر)\\s+" +
+        "(?:من|بواسطة|لحسابك\\s+من|عبر|إلى\\s+حسابك\\s+من|في\\s+حسابك\\s+من|لحسابك\\s+بواسطة)\\s+" +
         "([^\\n\\r,;]+)",
+        Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
+    )
+
+    private val arabicSentPattern = Pattern.compile(
+        "(?:قام|أرسل\\s+لك)\\s+([^\\n\\r,;]+?)\\s+(?:بتحويل|بإيداع|بإرسال)?\\s*" +
+        "(?:مبلغ|بقيمة)?\\s*" +
+        "(?:جنيه(?:ًا|ا)?|ج\\.م|جم|جنيه\\s+مصري|egp|le)?\\s*" +
+        "([0-9]+(?:[\\.,][0-9]+)*)(?:\\s*(?:جنيه(?:ًا|ا)?|ج\\.م|جم|جنيه\\s+مصري|egp|le))?",
         Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
     )
 
@@ -60,14 +81,36 @@ object InstaPayParser {
 
     fun parse(text: String): ParsedPayment? {
         val normalized = normalizeDigits(text).replace(Regex("\\s+"), " ").trim()
+        
+        var amountStr: String? = null
+        var rawSenderPart: String? = null
+
         val englishMatch = englishPattern.matcher(normalized).takeIf { it.find() }
-        val arabicMatch = if (englishMatch == null) arabicPattern.matcher(normalized).takeIf { it.find() } else null
-        val match = englishMatch ?: arabicMatch ?: return null
+        if (englishMatch != null) {
+            amountStr = englishMatch.group(1)
+            rawSenderPart = englishMatch.group(2)?.trim()
+        } else {
+            val arabicMatch = arabicPattern.matcher(normalized).takeIf { it.find() }
+            if (arabicMatch != null) {
+                amountStr = arabicMatch.group(1)
+                rawSenderPart = arabicMatch.group(2)?.trim()
+            } else {
+                val englishSentMatch = englishSentPattern.matcher(normalized).takeIf { it.find() }
+                if (englishSentMatch != null) {
+                    rawSenderPart = englishSentMatch.group(1)?.trim()
+                    amountStr = englishSentMatch.group(2)
+                } else {
+                    val arabicSentMatch = arabicSentPattern.matcher(normalized).takeIf { it.find() }
+                    if (arabicSentMatch != null) {
+                        rawSenderPart = arabicSentMatch.group(1)?.trim()
+                        amountStr = arabicSentMatch.group(2)
+                    }
+                }
+            }
+        }
 
-        val amountStr = match.group(1) ?: return null
+        if (amountStr == null || rawSenderPart == null) return null
         val amount = cleanNumber(amountStr)?.takeIf { it > 0.0 } ?: return null
-
-        val rawSenderPart = match.group(2)?.trim() ?: return null
 
         // Extract reference
         var extractedRef: String? = null

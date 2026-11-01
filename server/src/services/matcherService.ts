@@ -35,10 +35,15 @@ export interface MatchResult {
 }
 
 export function normalizeHandle(raw: string): string {
-  const h = (raw || '').trim().toLowerCase().replace(/^@/, '')
+  let h = (raw || '').trim().toLowerCase().replace(/^@/, '')
   if (!h) return ''
-  const local = h.split('@')[0]
+  let local = h.split('@')[0]
   if (!local) return ''
+  // Normalize Egyptian phone numbers (e.g. +201..., 201..., 01... -> 01...)
+  const phoneMatch = local.match(/^(?:\+?20|0)?(1[0125]\d{8})$/)
+  if (phoneMatch) {
+    local = `0${phoneMatch[1]}`
+  }
   return `${local}@instapay`
 }
 
@@ -131,10 +136,6 @@ export async function processInstaPayNotification(
 
   if (!senderHandle) {
     throw new Error('senderHandle is required (e.g. "customer@instapay").')
-  }
-
-  if (senderHandle === client.instapayHandle) {
-    throw new Error('Sender equals recipient handle.')
   }
 
   const occurredAt = input.notificationTimestamp ? new Date(input.notificationTimestamp) : null
@@ -241,7 +242,6 @@ export async function processInstaPayNotification(
     where: {
       clientId: client.id,
       purpose: 'CHECKOUT',
-      recipientHandle: client.instapayHandle,
       senderHandle,
       amountCents: receivedAmountCents,
       amountEgp: receivedAmountRounded,
@@ -257,7 +257,6 @@ export async function processInstaPayNotification(
       where: {
         clientId: client.id,
         purpose: 'CHECKOUT',
-        recipientHandle: client.instapayHandle,
         senderHandle,
         amountCents: receivedAmountCents,
         amountEgp: receivedAmountRounded,
@@ -276,7 +275,6 @@ export async function processInstaPayNotification(
       where: {
         clientId: client.id,
         purpose: 'CHECKOUT',
-        recipientHandle: client.instapayHandle,
         senderHandle,
         status: { in: ['PENDING', 'EXPIRED'] },
         expiresAt: { gte: graceCutoff },
@@ -288,25 +286,47 @@ export async function processInstaPayNotification(
     }
   }
 
-  // 6. Matching Step 4: Single checkout amount fallback
+  // 6. Matching Step 4: Checkout amount fallback (handles open checkouts and active sessions)
   if (!match) {
     const potentialMatches = await db.transaction.findMany({
       where: {
         clientId: client.id,
         purpose: 'CHECKOUT',
-        recipientHandle: client.instapayHandle,
         amountCents: receivedAmountCents,
         amountEgp: receivedAmountRounded,
         status: { in: ['PENDING', 'EXPIRED'] },
         expiresAt: { gte: graceCutoff },
       },
+      orderBy: { createdAt: 'desc' },
     })
-    if (potentialMatches.length === 1) {
-      const candidate = potentialMatches[0]
-      // Only match open checkouts where customer handle was not pre-assigned
-      if (candidate.senderHandle === 'pending@instapay') {
+
+    // Priority A: Single active PENDING checkout
+    const activePendingMatches = potentialMatches.filter(
+      (m) => m.status === 'PENDING' && m.expiresAt > now
+    )
+
+    if (activePendingMatches.length === 1) {
+      const candidate = activePendingMatches[0]
+      if (candidate.senderHandle === 'pending@instapay' || normalizeHandle(candidate.senderHandle) === senderHandle) {
         match = candidate
-        console.log(`[matcher] Fallback matched open checkout: ${match.sessionId}`)
+        console.log(`[matcher] Fallback matched single active pending checkout: ${match.sessionId}`)
+      }
+    } else if (activePendingMatches.length > 1) {
+      // If multiple active pending checkouts exist for the same amount, check if one matches the sender
+      const matchedSender = activePendingMatches.find(
+        (m) => normalizeHandle(m.senderHandle) === senderHandle
+      )
+      const openCandidates = activePendingMatches.filter(
+        (m) => m.senderHandle === 'pending@instapay'
+      )
+      // Pick matched sender first, then newest open pending checkout
+      match = matchedSender || (openCandidates.length > 0 ? openCandidates[0] : activePendingMatches[0])
+      console.log(`[matcher] Fallback matched candidate among active pending checkouts: ${match.sessionId}`)
+    } else if (potentialMatches.length === 1) {
+      const candidate = potentialMatches[0]
+      if (candidate.senderHandle === 'pending@instapay' || normalizeHandle(candidate.senderHandle) === senderHandle) {
+        match = candidate
+        console.log(`[matcher] Fallback matched grace-period checkout: ${match.sessionId}`)
       } else {
         // Cross-payer protection: Expected a specific sender but received from someone else
         console.warn(`[matcher] Tier 4 mismatch: ${candidate.sessionId} expected ${candidate.senderHandle} but payment received from ${senderHandle}`)
