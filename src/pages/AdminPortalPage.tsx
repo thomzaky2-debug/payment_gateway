@@ -558,13 +558,13 @@ export function AdminPortalPage() {
           return result.status === 'rejected' && [401, 403].includes(result.reason?.response?.status);
         });
         if (hasAuthFailure) {
-          showToast('Your admin session has expired. Sign in again to refresh records.', 'warning');
+          showToast('Your admin session has expired. Sign in again to refresh records.', 'error');
         } else {
           const required = failedSources.filter(source => !source.optional);
           const labels = failedSources.map(source => source.label).join(', ');
           showToast(
             required.length ? `Could not refresh: ${labels}. Available records are up to date.` : `${labels} could not refresh. Core admin records are up to date.`,
-            required.length ? 'error' : 'warning'
+            'error'
           );
         }
       }
