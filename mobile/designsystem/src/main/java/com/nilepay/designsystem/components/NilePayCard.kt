@@ -1,5 +1,6 @@
 package com.nilepay.designsystem.components
 
+import com.nilepay.designsystem.theme.NilePayTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -12,16 +13,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.nilepay.designsystem.theme.NilePayTheme
+import androidx.compose.foundation.layout.PaddingValues
 
 @Composable
 fun NilePayCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    contentPadding: PaddingValues? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val shape = NilePayTheme.shapes.large
     val border = BorderStroke(1.dp, NilePayTheme.colors.border)
+    val padding = contentPadding ?: PaddingValues(NilePayTheme.spacing.base)
 
     Card(
         modifier = modifier
@@ -44,7 +47,7 @@ fun NilePayCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
-            modifier = Modifier.padding(NilePayTheme.spacing.base),
+            modifier = Modifier.padding(padding),
             content = content
         )
     }

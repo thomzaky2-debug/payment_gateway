@@ -63,6 +63,8 @@ class MerchantSession(context: Context) {
     val lastHeartbeatAt: Long get() = statePrefs.getLong("last_heartbeat_at", 0L)
     val lastDetectedAt: Long get() = statePrefs.getLong("last_detected_at", 0L)
 
+    val gatewayClient: MobileGatewayClient by lazy { MobileGatewayClient(this) }
+
     fun saveSignedIn(authTokens: AuthTokens, deviceToken: String, businessName: String, email: String) {
         tokens.saveTokens(authTokens)
         prefs.edit()
@@ -97,6 +99,18 @@ class MobileGatewayClient(
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
+
+    private val authClient: OkHttpClient by lazy {
+        NetworkFactory.createOkHttpClient(
+            tokenStorage = session.tokens,
+            baseUrl = "$baseUrl/",
+            isDebug = BuildConfig.DEBUG
+        )
+    }
+
+    private fun authenticatedClient(): OkHttpClient = authClient
+
+    fun executeAuthenticated(request: Request) = authenticatedClient().newCall(request).execute()
 
     fun login(email: String, password: String, verificationId: String? = null, otp: String? = null): LoginResult {
         val body = JSONObject()
@@ -149,12 +163,7 @@ class MobileGatewayClient(
 
     fun dashboard(): DashboardSnapshot {
         val request = Request.Builder().url("$baseUrl/api/transactions/stats").get().build()
-        val authenticatedClient = NetworkFactory.createOkHttpClient(
-            tokenStorage = session.tokens,
-            baseUrl = "$baseUrl/",
-            isDebug = BuildConfig.DEBUG
-        )
-        authenticatedClient.newCall(request).execute().use { response ->
+        authenticatedClient().newCall(request).execute().use { response ->
             val parsed = runCatching { JSONObject(response.body?.string().orEmpty()) }.getOrElse { JSONObject() }
             if (!response.isSuccessful) error(parsed.optString("error").ifBlank { "Dashboard request failed (${response.code})" })
             val stats = parsed.getJSONObject("stats")
@@ -226,12 +235,6 @@ class MobileGatewayClient(
         runCatching { post("/api/auth/mobile/logout", body, session.tokens.getAccessToken()) }
         session.signOut()
     }
-
-    private fun authenticatedClient() = NetworkFactory.createOkHttpClient(
-        tokenStorage = session.tokens,
-        baseUrl = "$baseUrl/",
-        isDebug = BuildConfig.DEBUG
-    )
 
     private fun enroll(accessToken: String): String {
         val body = JSONObject()

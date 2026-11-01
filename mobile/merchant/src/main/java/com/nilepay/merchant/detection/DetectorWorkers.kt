@@ -91,13 +91,12 @@ object DetectorWork {
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
         return try {
-            NetworkFactory.createOkHttpClient(session.tokens, BuildConfig.API_BASE_URL, BuildConfig.DEBUG)
-                .newCall(request).execute().use {
-                    if (it.isSuccessful) {
-                        session.recordHeartbeat()
-                        true
-                    } else false
-                }
+            session.gatewayClient.executeAuthenticated(request).use {
+                if (it.isSuccessful) {
+                    session.recordHeartbeat()
+                    true
+                } else false
+            }
         } catch (_: Exception) {
             false
         }

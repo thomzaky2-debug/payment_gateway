@@ -292,6 +292,59 @@ class CoreTests {
     }
 
     @Test
+    fun testServerErrorDoesNotDestroySession() {
+        tokenStorage.saveTokens(
+            AuthTokens(
+                accessToken = "expired_token",
+                accessExpiresAt = "2026-10-26T00:00:00.000Z",
+                refreshToken = "valid_refresh_token",
+                refreshExpiresAt = "2026-11-26T00:00:00.000Z"
+            )
+        )
+
+        var signOutCalled = false
+        val serverUrl = mockWebServer.url("/").toString()
+
+        mockWebServer.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                return when (request.path) {
+                    "/api/auth/mobile/refresh" -> {
+                        MockResponse()
+                            .setResponseCode(502)
+                            .setHeader("Content-Type", "text/html")
+                            .setBody("<html><body>Bad Gateway</body></html>")
+                    }
+                    "/api/orders" -> {
+                        MockResponse().setResponseCode(401).setBody("""{"ok":false,"error":"Invalid token"}""")
+                    }
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
+
+        val client = OkHttpClient.Builder()
+            .addInterceptor(AuthInterceptor(tokenStorage))
+            .authenticator(
+                TokenAuthenticator(
+                    tokenStorage = tokenStorage,
+                    getBaseUrl = { serverUrl },
+                    onSignOutRequired = { signOutCalled = true }
+                )
+            )
+            .build()
+
+        val req = Request.Builder().url(mockWebServer.url("/api/orders")).build()
+        val resp = client.newCall(req).execute()
+
+        assertEquals(401, resp.code)
+        resp.close()
+
+        // 5xx bad gateway / server restart must NOT destroy session
+        assertFalse("Sign out must not be triggered on 5xx server error", signOutCalled)
+        assertEquals("valid_refresh_token", tokenStorage.getRefreshToken())
+    }
+
+    @Test
     fun testUrlValidatorHttpsEnforcement() {
         // HTTP allowed in debug
         val debugUrl = UrlValidator.validateBaseUrl("http://10.0.2.2:3000", isDebug = true)

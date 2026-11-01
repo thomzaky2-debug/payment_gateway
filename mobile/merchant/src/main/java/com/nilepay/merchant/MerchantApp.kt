@@ -23,15 +23,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Payments
@@ -44,6 +52,8 @@ import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -129,7 +139,7 @@ fun MerchantApp() {
     var mobileConfig by remember { mutableStateOf<MobileConfig?>(null) }
 
     LaunchedEffect(Unit) {
-        runCatching { withContext(Dispatchers.IO) { MobileGatewayClient(session).mobileConfig() } }
+        runCatching { withContext(Dispatchers.IO) { session.gatewayClient.mobileConfig() } }
             .onSuccess { mobileConfig = it }
     }
 
@@ -222,14 +232,14 @@ private fun MerchantWorkspace(
         loading = true
         DetectorKeepAliveService.ensureRunning(context)
         batteryUnrestricted = DetectorKeepAliveService.isIgnoringBatteryOptimizations(context)
-        runCatching { withContext(Dispatchers.IO) { MobileGatewayClient(session).profile() } }
+        runCatching { withContext(Dispatchers.IO) { session.gatewayClient.profile() } }
             .onSuccess { merchantProfile = it }
             .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
         com.nilepay.merchant.detection.DetectorWork.heartbeatNow(context)
-        runCatching { withContext(Dispatchers.IO) { MobileGatewayClient(session).dashboard() } }
+        runCatching { withContext(Dispatchers.IO) { session.gatewayClient.dashboard() } }
             .onSuccess { dashboard = it; dashboardError = null }
             .onFailure { dashboardError = it.message }
-        runCatching { withContext(Dispatchers.IO) { MobileGatewayClient(session).recentPayments() } }
+        runCatching { withContext(Dispatchers.IO) { session.gatewayClient.recentPayments() } }
             .onSuccess { payments = it; paymentsError = null }
             .onFailure { paymentsError = it.message }
         withContext(Dispatchers.IO) {
@@ -313,14 +323,14 @@ private fun MerchantWorkspace(
                 contentPadding, session, merchantProfile, preferences, selectedTheme, onThemeChanged
             ) {
                 kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                    MobileGatewayClient(session).logout()
+                    session.gatewayClient.logout()
                     withContext(Dispatchers.Main) { onSignOut() }
                 }
             }
         }
     }
     selectedPayment?.let { payment ->
-        PaymentDetailsSheet(payment = payment, onDismiss = { selectedPayment = null })
+        PaymentDetailsDialog(payment = payment, onDismiss = { selectedPayment = null })
     }
 }
 
@@ -371,7 +381,7 @@ private fun LoginScreen(session: MerchantSession, onSignedIn: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val gateway = remember { MobileGatewayClient(session) }
+    val gateway = remember { session.gatewayClient }
     val missingCredentials = stringResource(R.string.login_missing_credentials)
     val invalidOtp = stringResource(R.string.login_invalid_otp)
     val loginFailed = stringResource(R.string.login_failed)
@@ -760,7 +770,7 @@ private fun PaymentsScreen(
         payments = emptyList()
         nextCursor = null
         delay(300)
-        runCatching { withContext(Dispatchers.IO) { MobileGatewayClient(session).paymentPage(filter, query.trim()) } }
+        runCatching { withContext(Dispatchers.IO) { session.gatewayClient.paymentPage(filter, query.trim()) } }
             .onSuccess { payments = it.payments; nextCursor = it.nextCursor }
             .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; error = it.message }
         loading = false
@@ -822,7 +832,7 @@ private fun PaymentsScreen(
                 scope.launch {
                     loading = true
                     error = null
-                    runCatching { withContext(Dispatchers.IO) { MobileGatewayClient(session).paymentPage(filter, query.trim(), cursor) } }
+                    runCatching { withContext(Dispatchers.IO) { session.gatewayClient.paymentPage(filter, query.trim(), cursor) } }
                         .onSuccess { page ->
                             if (generation == requestGeneration) {
                                 payments = (payments + page.payments).distinctBy { it.source + ":" + it.id }
@@ -843,77 +853,112 @@ private fun PaymentsScreen(
 }
 
 @Composable
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun PaymentCard(payment: MerchantPayment, onClick: (MerchantPayment) -> Unit) {
     val paymentStatus = NilePayStatus.fromApiStatus(payment.status)
     val iconBg = when (paymentStatus) {
         NilePayStatus.Confirmed -> NilePayTheme.colors.statusConfirmedContainer
         NilePayStatus.Pending -> NilePayTheme.colors.statusPendingContainer
+        NilePayStatus.Failed, NilePayStatus.Expired -> NilePayTheme.colors.statusFailedContainer
         else -> NilePayTheme.colors.surfaceSubtle
     }
     val iconTint = when (paymentStatus) {
         NilePayStatus.Confirmed -> NilePayTheme.colors.statusConfirmed
         NilePayStatus.Pending -> NilePayTheme.colors.statusPending
+        NilePayStatus.Failed, NilePayStatus.Expired -> NilePayTheme.colors.statusFailed
         else -> NilePayTheme.colors.primary
     }
 
-    NilePayCard(onClick = { onClick(payment) }) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(iconBg),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Payments, null, tint = iconTint, modifier = Modifier.size(20.dp))
-                }
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp)
-                ) {
-                    Text(
-                        payment.sender,
-                        style = NilePayTheme.typography.titleMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        payment.createdAt.replace('T', ' ').take(16),
-                        style = NilePayTheme.typography.bodySmall,
-                        color = NilePayTheme.colors.onSurfaceSecondary
-                    )
-                }
-            }
-            FlowRow(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+    NilePayCard(
+        onClick = { onClick(payment) },
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(iconBg),
+                contentAlignment = Alignment.Center
             ) {
-                NilePayStatusChip(status = paymentStatus)
-                NilePayAmountText(payment.amountEgp, size = NilePayAmountSize.Medium)
+                Icon(Icons.Filled.Payments, null, tint = iconTint, modifier = Modifier.size(17.dp))
             }
-            payment.receivedAmountEgp?.let { received ->
-                if (payment.expectedAmountEgp != null && received != payment.expectedAmountEgp) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 10.dp)
+            ) {
+                Text(
+                    text = payment.sender,
+                    style = NilePayTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    payment.productCategory?.ifBlank { null }?.let { cat ->
+                        Text(
+                            text = cat,
+                            style = NilePayTheme.typography.labelSmall,
+                            color = NilePayTheme.colors.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "·",
+                            style = NilePayTheme.typography.bodySmall,
+                            color = NilePayTheme.colors.onSurfaceSecondary
+                        )
+                    }
                     Text(
-                        stringResource(R.string.payment_received) + ": " + "%.2f EGP".format(received),
+                        text = CairoTime.formatCard(payment.createdAt),
                         style = NilePayTheme.typography.bodySmall,
-                        color = NilePayTheme.colors.onSurfaceSecondary
+                        color = NilePayTheme.colors.onSurfaceSecondary,
+                        maxLines = 1
                     )
                 }
+            }
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                NilePayAmountText(
+                    amount = payment.receivedAmountEgp ?: payment.amountEgp,
+                    size = NilePayAmountSize.Small
+                )
+                NilePayStatusChip(status = paymentStatus)
             }
         }
     }
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
-private fun PaymentDetailsSheet(payment: MerchantPayment, onDismiss: () -> Unit) {
+private fun PaymentDetailsDialog(payment: MerchantPayment, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val paymentStatus = NilePayStatus.fromApiStatus(payment.status)
     val status = stringResource(paymentStatus.labelResource())
+    val unavailable = stringResource(R.string.not_available)
+    fun amount(value: Double?) = value?.let { "%.2f EGP".format(it) } ?: unavailable
+    val paymentId = payment.sessionId.ifBlank { payment.id }
+    val formattedDate = CairoTime.formatDetail(payment.createdAt)
+    val categoryText = payment.productCategory?.ifBlank { null } ?: unavailable
+    val receipt = stringResource(
+        R.string.receipt_share_template,
+        payment.receivedAmountEgp ?: payment.amountEgp,
+        payment.sender,
+        status,
+        categoryText,
+        paymentId,
+        formattedDate,
+        amount(payment.expectedAmountEgp),
+        amount(payment.receivedAmountEgp)
+    )
+
     val needsReview = paymentStatus in setOf(
         NilePayStatus.Overpaid,
         NilePayStatus.Underpaid,
@@ -924,93 +969,146 @@ private fun PaymentDetailsSheet(payment: MerchantPayment, onDismiss: () -> Unit)
         NilePayStatus.SenderMismatch,
         NilePayStatus.Unknown
     )
-    val unavailable = stringResource(R.string.not_available)
-    fun amount(value: Double?) = value?.let { "%.2f EGP".format(it) } ?: unavailable
-    val paymentId = payment.sessionId.ifBlank { payment.id }
-    val receipt = stringResource(
-        R.string.receipt_share_template,
-        payment.receivedAmountEgp ?: payment.amountEgp,
-        payment.sender,
-        status,
-        payment.reference ?: stringResource(R.string.not_available),
-        paymentId,
-        payment.createdAt,
-        amount(payment.expectedAmountEgp),
-        amount(payment.receivedAmountEgp)
-    )
-    NilePayBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.payment_details)) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(NilePayTheme.shapes.medium)
-                    .background(NilePayTheme.colors.surfaceSubtle)
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                NilePayAmountText(payment.receivedAmountEgp ?: payment.amountEgp, size = NilePayAmountSize.Large)
-                NilePayStatusChip(status = paymentStatus)
-            }
 
-            if (needsReview) {
-                Box(
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .wrapContentHeight()
+                    .clickable(enabled = false, onClick = {})
+                    .clip(NilePayTheme.shapes.extraLarge),
+                shape = NilePayTheme.shapes.extraLarge,
+                border = BorderStroke(1.dp, NilePayTheme.colors.border),
+                colors = CardDefaults.cardColors(
+                    containerColor = NilePayTheme.colors.surfaceCard,
+                    contentColor = NilePayTheme.colors.onSurface
+                )
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(NilePayTheme.shapes.medium)
-                        .background(NilePayTheme.colors.statusPendingContainer)
-                        .padding(12.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        stringResource(if (payment.source == "unmatched") R.string.payment_unmatched_hint else R.string.payment_review_hint),
-                        style = NilePayTheme.typography.bodyMedium,
-                        color = NilePayTheme.colors.onSurface
-                    )
-                }
-                NilePayButton(
-                    text = stringResource(R.string.review_on_website),
-                    onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://nilepay.runasp.net/#review/"))) },
-                    modifier = Modifier.fillMaxWidth(),
-                    style = NilePayButtonStyle.Secondary
-                )
-            }
-
-            NilePayCard {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    DetailRow(stringResource(R.string.payment_sender), payment.sender)
-                    DetailRow(stringResource(R.string.payment_status), status)
-                    payment.productCategory?.let { DetailRow(stringResource(R.string.product_category), it) }
-                    DetailRow(stringResource(R.string.payment_expected), amount(payment.expectedAmountEgp))
-                    DetailRow(stringResource(R.string.payment_received), amount(payment.receivedAmountEgp))
-                    if (payment.expectedAmountEgp != null && payment.receivedAmountEgp != null) {
-                        DetailRow(stringResource(R.string.payment_difference), amount(payment.receivedAmountEgp - payment.expectedAmountEgp))
-                    }
-                    payment.expiresAt?.let { DetailRow(stringResource(R.string.payment_expiry), it) }
-                    if (paymentStatus == NilePayStatus.Unknown) DetailRow("API status", payment.status)
-                    DetailRow(stringResource(R.string.payment_date), payment.createdAt)
-                    DetailRow(stringResource(R.string.payment_reference), payment.reference ?: stringResource(R.string.not_available))
-                    DetailRow(stringResource(R.string.payment_id), paymentId)
-                    payment.note?.let { DetailRow(stringResource(R.string.payment_note), it) }
-                }
-            }
-
-            NilePayButton(
-                text = stringResource(R.string.share_receipt),
-                onClick = {
-                    context.startActivity(
-                        Intent.createChooser(
-                            Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, receipt)
-                            },
-                            context.getString(R.string.share_receipt)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.payment_details),
+                            style = NilePayTheme.typography.titleLarge,
+                            color = NilePayTheme.colors.onSurface
                         )
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                style = NilePayButtonStyle.Secondary,
-                leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) }
-            )
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = stringResource(R.string.close_notice),
+                                tint = NilePayTheme.colors.onSurfaceSecondary
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(NilePayTheme.shapes.medium)
+                            .background(NilePayTheme.colors.surfaceSubtle)
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NilePayAmountText(
+                            payment.receivedAmountEgp ?: payment.amountEgp,
+                            size = NilePayAmountSize.Large
+                        )
+                        NilePayStatusChip(status = paymentStatus)
+                    }
+
+                    if (needsReview) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(NilePayTheme.shapes.medium)
+                                .background(NilePayTheme.colors.statusPendingContainer)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                stringResource(if (payment.source == "unmatched") R.string.payment_unmatched_hint else R.string.payment_review_hint),
+                                style = NilePayTheme.typography.bodyMedium,
+                                color = NilePayTheme.colors.onSurface
+                            )
+                        }
+                        NilePayButton(
+                            text = stringResource(R.string.review_on_website),
+                            onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://nilepay.runasp.net/#review/"))) },
+                            modifier = Modifier.fillMaxWidth(),
+                            style = NilePayButtonStyle.Secondary
+                        )
+                    }
+
+                    NilePayCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            DetailRow(stringResource(R.string.payment_sender), payment.sender)
+                            DetailRow(stringResource(R.string.payment_status), status)
+                            DetailRow(stringResource(R.string.product_category), categoryText)
+                            DetailRow(stringResource(R.string.payment_expected), amount(payment.expectedAmountEgp))
+                            DetailRow(stringResource(R.string.payment_received), amount(payment.receivedAmountEgp))
+                            if (payment.expectedAmountEgp != null && payment.receivedAmountEgp != null) {
+                                DetailRow(stringResource(R.string.payment_difference), amount(payment.receivedAmountEgp - payment.expectedAmountEgp))
+                            }
+                            payment.expiresAt?.let { DetailRow(stringResource(R.string.payment_expiry), CairoTime.formatDetail(it)) }
+                            if (paymentStatus == NilePayStatus.Unknown) DetailRow("API status", payment.status)
+                            DetailRow(stringResource(R.string.payment_date), formattedDate)
+                            DetailRow(stringResource(R.string.payment_id), paymentId)
+                            payment.note?.let { DetailRow(stringResource(R.string.payment_note), it) }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        NilePayButton(
+                            text = stringResource(R.string.share_receipt),
+                            onClick = {
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, receipt)
+                                        },
+                                        context.getString(R.string.share_receipt)
+                                    )
+                                )
+                            },
+                            modifier = Modifier.weight(1f),
+                            style = NilePayButtonStyle.Secondary,
+                            leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) }
+                        )
+                        NilePayButton(
+                            text = stringResource(R.string.close_notice),
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f),
+                            style = NilePayButtonStyle.Primary
+                        )
+                    }
+                }
+            }
         }
     }
 }

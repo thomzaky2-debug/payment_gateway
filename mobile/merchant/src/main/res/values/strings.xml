@@ -101,7 +101,7 @@
     <string name="payment_note">Note</string>
     <string name="not_available">Not available</string>
     <string name="share_receipt">Share payment record</string>
-    <string name="receipt_share_template">NilePay payment record\nAmount: %1$.2f EGP\nSender: %2$s\nStatus: %3$s\nReference: %4$s\nPayment ID: %5$s\nDate: %6$s\nExpected: %7$s\nReceived: %8$s</string>
+    <string name="receipt_share_template">NilePay payment record\nAmount: %1$.2f EGP\nSender: %2$s\nStatus: %3$s\nCategory: %4$s\nPayment ID: %5$s\nDate: %6$s\nExpected: %7$s\nReceived: %8$s</string>
     <string name="last_heartbeat">Last server heartbeat</string>
     <string name="last_detected_payment">Last detected payment</string>
     <string name="retry_queued_uploads">Retry queued uploads</string>

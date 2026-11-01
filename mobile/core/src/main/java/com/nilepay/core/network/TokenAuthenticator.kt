@@ -16,11 +16,27 @@ import okhttp3.Route
 class TokenAuthenticator(
     private val tokenStorage: TokenStorage,
     private val getBaseUrl: () -> String,
-    private val refreshClient: OkHttpClient = OkHttpClient.Builder().build(),
+    private val refreshClient: OkHttpClient = getSharedRefreshClient(),
     private val onSignOutRequired: ((String) -> Unit)? = null
 ) : Authenticator {
 
-    private val refreshLock = Any()
+    companion object {
+        private val globalRefreshLock = Any()
+
+        @Volatile
+        private var sharedRefreshClientInstance: OkHttpClient? = null
+
+        fun getSharedRefreshClient(): OkHttpClient {
+            return sharedRefreshClientInstance ?: synchronized(globalRefreshLock) {
+                sharedRefreshClientInstance ?: OkHttpClient.Builder()
+                    .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                    .writeTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+                    .build().also { sharedRefreshClientInstance = it }
+            }
+        }
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -41,7 +57,7 @@ class TokenAuthenticator(
             ?.removePrefix("Bearer ")
             ?.trim()
 
-        synchronized(refreshLock) {
+        synchronized(globalRefreshLock) {
             val currentToken = tokenStorage.getAccessToken()
 
             // Single-flight check: if another concurrent thread already refreshed the token
@@ -72,12 +88,14 @@ class TokenAuthenticator(
                 .url(refreshUrl)
                 .post(requestBodyString.toRequestBody(jsonMediaType))
                 .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
                 .build()
 
             val refreshResponse = try {
                 refreshClient.newCall(refreshRequest).execute()
             } catch (e: Exception) {
-                // Network failure during refresh: do not wipe tokens yet
+                // Network failure or timeout during refresh: DO NOT wipe tokens!
+                // Abort this request attempt; subsequent requests can retry refresh.
                 return null
             }
 
@@ -91,7 +109,7 @@ class TokenAuthenticator(
                     null
                 }
 
-                if (parsed != null && parsed.ok && parsed.accessToken != null && parsed.refreshToken != null) {
+                if (parsed != null && parsed.ok && !parsed.accessToken.isNullOrBlank() && !parsed.refreshToken.isNullOrBlank()) {
                     tokenStorage.saveTokens(
                         AuthTokens(
                             accessToken = parsed.accessToken,
@@ -109,15 +127,15 @@ class TokenAuthenticator(
                 }
             }
 
-            // Handle failure cases
-            if (responseCode == 429) {
-                // Rate limited on refresh: do not invalidate session, return null to stop retries
+            // Only clear tokens if the server explicitly rejected the refresh token as invalid/revoked/expired (401 or 403)
+            if (responseCode == 401 || responseCode == 403) {
+                tokenStorage.clearTokens()
+                onSignOutRequired?.invoke("Token refresh failed with HTTP $responseCode")
                 return null
             }
 
-            // If 401 or reuse detected or invalid token: sign out completely
-            tokenStorage.clearTokens()
-            onSignOutRequired?.invoke("Token refresh failed with HTTP $responseCode")
+            // For transient errors (429, 500, 502, 503, 504, etc.):
+            // DO NOT clear tokens! Return null so this request fails, but session remains intact.
             return null
         }
     }

@@ -101,7 +101,7 @@
     <string name="payment_note">ملاحظة</string>
     <string name="not_available">غير متاح</string>
     <string name="share_receipt">مشاركة سجل الدفع</string>
-    <string name="receipt_share_template">سجل دفع نايل باي\nالمبلغ: %1$.2f جنيه\nالمرسل: %2$s\nالحالة: %3$s\nالمرجع: %4$s\nرقم العملية: %5$s\nالتاريخ: %6$s\nالمطلوب: %7$s\nالمستلم: %8$s</string>
+    <string name="receipt_share_template">سجل دفع نايل باي\nالمبلغ: %1$.2f جنيه\nالمرسل: %2$s\nالحالة: %3$s\nالفئة: %4$s\nرقم العملية: %5$s\nالتاريخ: %6$s\nالمطلوب: %7$s\nالمستلم: %8$s</string>
     <string name="last_heartbeat">آخر اتصال بالخادم</string>
     <string name="last_detected_payment">آخر دفعة مكتشفة</string>
     <string name="retry_queued_uploads">إعادة محاولة الرفع</string>
