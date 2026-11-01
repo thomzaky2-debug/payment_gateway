@@ -116,7 +116,13 @@ object DetectorWork {
     fun heartbeatNow(context: Context) {
         WorkManager.getInstance(context).enqueue(
             OneTimeWorkRequestBuilder<HeartbeatWorker>()
-                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .apply {
+                // Pre-Android 12 expedited work requires foreground information;
+                // these workers use normal scheduling on older devices instead.
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                }
+            }
                 .build()
         )
     }
@@ -128,7 +134,13 @@ object DetectorWork {
             val request = OneTimeWorkRequestBuilder<PaymentUploadWorker>()
                 .setInputData(workDataOf("eventId" to event.eventId))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .apply {
+                    // Pre-Android 12 expedited work requires foreground information;
+                    // these workers use normal scheduling on older devices instead.
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                        setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                    }
+                }
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(

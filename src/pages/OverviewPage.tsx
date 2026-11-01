@@ -11,7 +11,7 @@ import {
   X,
   Copy,
   Check,
-  Printer,
+  FileDown,
   FileText,
   Activity,
   Wifi,
@@ -24,6 +24,7 @@ import {
 import { transactionsApi, settingsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { saveReceiptAsPdf } from '../utils/receiptPdf';
 
 interface OverviewPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
@@ -1184,7 +1185,21 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
-                onClick={() => window.print()}
+                type="button"
+                onClick={() => saveReceiptAsPdf({
+                  sessionId: selectedTx.sessionId,
+                  amountEgp: selectedTx.amountEgp,
+                  status: selectedTx.status,
+                  senderHandle: selectedTx.senderHandle,
+                  recipientHandle: selectedTx.recipientHandle || settings?.instapayHandle,
+                  detectedRef: selectedTx.detectedRef,
+                  detectedAt: selectedTx.detectedAt,
+                  createdAt: selectedTx.createdAt,
+                  note: selectedTx.note,
+                  productCategory: selectedTx.productCategory,
+                  subtitle: getPurchaseTypeInfo(selectedTx, isRtl).label,
+                  items: selectedTx.items,
+                }, isRtl)}
                 style={{
                   flex: 1,
                   display: 'flex',
@@ -1201,8 +1216,8 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                   cursor: 'pointer',
                 }}
               >
-                <Printer size={15} />
-                <span>{isRtl ? 'طباعة الإيصال' : 'Print Receipt'}</span>
+                <FileDown size={15} style={{ color: '#10b981' }} />
+                <span>{isRtl ? 'حفظ كـ PDF' : 'Save as PDF'}</span>
               </button>
 
               <button
