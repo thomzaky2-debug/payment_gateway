@@ -99,6 +99,24 @@ function getPurchaseTypeInfo(tx: any, isRtl: boolean): { label: string; category
   };
 }
 
+function isTransientDashboardError(error: any): boolean {
+  const status = error?.response?.status;
+  // A deployment can briefly restart the API or reconnect its database. Do not
+  // retry authorization failures, but give transient transport/5xx failures a
+  // single short retry before showing the dashboard error state.
+  return !status || status >= 500;
+}
+
+async function requestDashboardData<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request();
+  } catch (error) {
+    if (!isTransientDashboardError(error)) throw error;
+    await new Promise(resolve => window.setTimeout(resolve, 700));
+    return request();
+  }
+}
+
 export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
   const { t, isRtl } = useLanguage();
   const { isDark } = useTheme();
@@ -123,24 +141,37 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [statsData, txData, settingsData] = await Promise.all([
-        transactionsApi.getStats(),
-        transactionsApi.list({ limit: 5 }),
-        settingsApi.get().catch(() => ({ ok: false })),
+      const [statsResult, transactionsResult, settingsResult] = await Promise.allSettled([
+        requestDashboardData(() => transactionsApi.getStats()),
+        requestDashboardData(() => transactionsApi.list({ limit: 5 })),
+        requestDashboardData(() => settingsApi.get()),
       ]);
 
-      if (statsData.ok && statsData.stats) {
+      const statsData = statsResult.status === 'fulfilled' ? statsResult.value : null;
+      const txData = transactionsResult.status === 'fulfilled' ? transactionsResult.value : null;
+      const settingsData = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+
+      if (statsData?.ok && statsData.stats) {
         setStats(statsData.stats);
       }
-      if (txData.ok && txData.transactions) {
+      if (txData?.ok && txData.transactions) {
         setRecentTransactions(txData.transactions);
       }
-      if (settingsData.ok) {
+      if (settingsData?.ok) {
         setSettings(settingsData.settings || null);
         setDevices(settingsData.devices || []);
       }
       setLastRefreshedAt(new Date());
-      if (isManualRefresh && showToast) {
+      const failures = [statsResult, transactionsResult, settingsResult].filter(result => result.status === 'rejected') as PromiseRejectedResult[];
+      if (failures.length && showToast) {
+        const hasAuthFailure = failures.some(result => [401, 403].includes(result.reason?.response?.status));
+        showToast(
+          'warning',
+          hasAuthFailure
+            ? (isRtl ? 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى لتحديث لوحة التحكم.' : 'Your session has expired. Sign in again to refresh the dashboard.')
+            : (isRtl ? 'تم تحميل البيانات المتاحة. أعد المحاولة إذا استمر تعذر تحميل بعض الإحصاءات.' : 'Available dashboard data loaded. Retry if some statistics remain unavailable.')
+        );
+      } else if (isManualRefresh && showToast) {
         showToast('success', isRtl ? 'تم تحديث لوحة التحكم بنجاح' : 'Dashboard refreshed successfully');
       }
     } catch (err: any) {

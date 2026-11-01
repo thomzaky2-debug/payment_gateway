@@ -18,7 +18,7 @@ import {
   FileDown,
   Receipt,
 } from 'lucide-react';
-import { transactionsApi } from '../services/api';
+import { isAuthenticationFailure, retryTransientRead, transactionsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { saveReceiptAsPdf } from '../utils/receiptPdf';
@@ -169,17 +169,22 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const data = await transactionsApi.list({
+      const data = await retryTransientRead(() => transactionsApi.list({
         status: filter === 'ALL' ? undefined : filter,
         search: searchTerm.trim() || undefined,
-      });
+      }));
       if (data.ok && data.transactions) {
         setTransactions(data.transactions);
       }
       setLastRefreshedAt(new Date());
     } catch (err: any) {
       if (showToast) {
-        showToast('error', isRtl ? 'تعذر تحميل المعاملات من الخادم' : 'Failed to fetch transactions from server');
+        showToast(
+          isAuthenticationFailure(err) ? 'warning' : 'error',
+          isAuthenticationFailure(err)
+            ? (isRtl ? 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى لعرض المعاملات.' : 'Your session has expired. Sign in again to view transactions.')
+            : (isRtl ? 'تعذر تحميل المعاملات من الخادم. أعد المحاولة بعد لحظات.' : 'Transactions are temporarily unavailable. Please retry in a moment.')
+        );
       }
     } finally {
       setLoading(false);

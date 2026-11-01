@@ -112,6 +112,23 @@ export interface AdminRoute {
   subPath?: string;
 }
 
+function isTransientAdminRefreshError(error: any): boolean {
+  const status = error?.response?.status;
+  return !status || status >= 500;
+}
+
+async function requestAdminData<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request();
+  } catch (error) {
+    // Give a newly deployed API/database connection one chance to recover.
+    // Authentication and contract failures are intentionally never retried.
+    if (!isTransientAdminRefreshError(error)) throw error;
+    await new Promise(resolve => window.setTimeout(resolve, 700));
+    return request();
+  }
+}
+
 export function parseAdminRouteFromHash(hashString?: string): AdminRoute {
   const raw = (hashString !== undefined ? hashString : (typeof window !== 'undefined' ? window.location.hash : '')) || '';
   const clean = raw.replace(/^#\/?/, '').trim();
@@ -486,16 +503,18 @@ export function AdminPortalPage() {
     if (!isAdminAuthenticated) return;
     setLoading(true);
     try {
-      const [statsRes, clientsRes, txRes, auditRes, webhooksRes, plansRes, bundlesRes, offersRes] = await Promise.allSettled([
-        adminApi.getStats(),
-        adminApi.listClients(),
-        adminApi.getTransactions(),
-        adminApi.getAuditLogs(),
-        adminApi.getWebhooks(),
-        adminApi.getPlans(),
-        adminApi.getBundles(),
-        adminApi.getSpecialOffers(),
-      ]);
+      const sources = [
+        { label: 'Platform statistics', optional: false, request: () => adminApi.getStats() },
+        { label: 'Merchants', optional: false, request: () => adminApi.listClients() },
+        { label: 'Transactions', optional: false, request: () => adminApi.getTransactions() },
+        { label: 'Audit log', optional: false, request: () => adminApi.getAuditLogs() },
+        { label: 'Webhook deliveries', optional: false, request: () => adminApi.getWebhooks() },
+        { label: 'Plans', optional: false, request: () => adminApi.getPlans() },
+        { label: 'Transaction bundles', optional: true, request: () => adminApi.getBundles() },
+        { label: 'Special offers', optional: true, request: () => adminApi.getSpecialOffers() },
+      ];
+      const results = await Promise.allSettled(sources.map(source => requestAdminData(source.request)));
+      const [statsRes, clientsRes, txRes, auditRes, webhooksRes, plansRes, bundlesRes, offersRes] = results;
 
       if (statsRes.status === 'fulfilled' && statsRes.value?.ok) {
         setStats(statsRes.value.stats);
@@ -529,10 +548,26 @@ export function AdminPortalPage() {
       if (offersRes.status === 'fulfilled' && offersRes.value?.ok) {
         setSpecialOffers(offersRes.value.offers || []);
       }
-      const results = [statsRes, clientsRes, txRes, auditRes, webhooksRes, plansRes, bundlesRes, offersRes];
-      const failures = results.filter(result => result.status === 'rejected' || !result.value?.ok).length;
-      if (failures) showToast(`${failures} data source(s) could not refresh. Some records may be stale.`, 'error');
-      else setLastSyncedAt(new Date());
+      const failedSources = sources.filter((source, index) => {
+        const result = results[index];
+        return result.status === 'rejected' || !result.value?.ok;
+      });
+      setLastSyncedAt(new Date());
+      if (failedSources.length) {
+        const hasAuthFailure = results.some((result) => {
+          return result.status === 'rejected' && [401, 403].includes(result.reason?.response?.status);
+        });
+        if (hasAuthFailure) {
+          showToast('Your admin session has expired. Sign in again to refresh records.', 'warning');
+        } else {
+          const required = failedSources.filter(source => !source.optional);
+          const labels = failedSources.map(source => source.label).join(', ');
+          showToast(
+            required.length ? `Could not refresh: ${labels}. Available records are up to date.` : `${labels} could not refresh. Core admin records are up to date.`,
+            required.length ? 'error' : 'warning'
+          );
+        }
+      }
     } catch {
       showToast('Error syncing admin records', 'error');
     } finally {

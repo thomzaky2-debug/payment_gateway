@@ -31,7 +31,7 @@ import {
   Calendar,
   TimerOff,
 } from 'lucide-react';
-import { transactionsApi } from '../services/api';
+import { isAuthenticationFailure, retryTransientRead, transactionsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -168,7 +168,7 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
   const fetchQueue = async () => {
     setLoading(true);
     try {
-      const data = await transactionsApi.getReviewQueue();
+      const data = await retryTransientRead(() => transactionsApi.getReviewQueue());
       if (data.ok && data.reviewQueue) {
         setMismatched(data.reviewQueue.mismatched || []);
         setUnderpaid(data.reviewQueue.underpaid || []);
@@ -179,9 +179,14 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
         setDuplicateSuspect(data.reviewQueue.duplicateSuspect || []);
         setHighValueRisk(data.reviewQueue.highValueRisk || []);
       }
-    } catch {
+    } catch (err: any) {
       if (showToast) {
-        showToast('error', isRtl ? 'فشل تحميل قائمة المراجعة اليدوية' : 'Failed to fetch manual review queue');
+        showToast(
+          isAuthenticationFailure(err) ? 'warning' : 'error',
+          isAuthenticationFailure(err)
+            ? (isRtl ? 'انتهت جلسة الدخول. سجّل الدخول مرة أخرى لعرض قائمة المراجعة.' : 'Your session has expired. Sign in again to view the review queue.')
+            : (isRtl ? 'قائمة المراجعة غير متاحة مؤقتاً. أعد المحاولة بعد لحظات.' : 'The review queue is temporarily unavailable. Please retry in a moment.')
+        );
       }
     } finally {
       setLoading(false);

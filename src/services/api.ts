@@ -38,6 +38,22 @@ export function apiUrl(path: string): string {
   return `${apiOrigin}${path.startsWith('/') ? path : `/${path}`}`
 }
 
+/** Retry an idempotent read once when a deployment briefly restarts the API. */
+export async function retryTransientRead<T>(request: () => Promise<T>): Promise<T> {
+  try {
+    return await request()
+  } catch (error: any) {
+    const status = error?.response?.status
+    if (status && status < 500) throw error
+    await new Promise(resolve => globalThis.setTimeout(resolve, 700))
+    return request()
+  }
+}
+
+export function isAuthenticationFailure(error: any): boolean {
+  return [401, 403].includes(error?.response?.status)
+}
+
 export const api = axios.create({
   baseURL: apiBaseUrl,
   withCredentials: true,
