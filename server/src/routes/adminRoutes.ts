@@ -24,6 +24,8 @@ import { sendInternalError } from '../lib/safeError.js'
 import { kickWebhookWorker } from '../workers/webhookRetryWorker.js'
 import { getWebhookDeliveryHealth } from '../services/webhookHealth.js'
 
+import { sendAdminNotification, emitAdminNotificationBatch, NotificationInputError, presentNotificationAudit } from '../services/adminNotificationService.js'
+
 export const adminRouter = Router()
 import { getPublicSiteSettings, validateSiteSettings } from '../services/publicSiteSettings.js'
 
@@ -620,7 +622,7 @@ adminRouter.get('/audit', requireAdmin, async (_req: Request, res: Response) => 
       orderBy: { createdAt: 'desc' },
       take: 100,
     })
-    return res.json({ ok: true, logs })
+    return res.json({ ok: true, logs: logs.map(presentNotificationAudit) })
   } catch (err: unknown) {
     return sendInternalError(res, err)
   }
@@ -1156,51 +1158,21 @@ adminRouter.patch('/bundles/:id', requireAdmin, async (req: Request, res: Respon
   }
 })
 
-adminRouter.post('/notifications', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.get('/notifications', requireAdmin, async (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store')
   try {
-    const { target = 'ALL', clientId, title, message, severity = 'INFO' } = req.body
+    const logs = await db.auditLog.findMany({where:{action:'BROADCAST_NOTIFICATION'}, orderBy:{createdAt:'desc'}, take:25})
+    return res.json({ok:true, capabilities:{idempotentSending:true, strictAudience:true, maxTitle:150, maxMessage:2000}, broadcasts:logs.map(presentNotificationAudit)})
+  } catch (err) { return sendInternalError(res, err, 'Could not load notification history') }
+})
 
-    if (!title || !message) {
-      return res.status(400).json({ ok: false, error: 'Title and message are required.' })
-    }
-
-    let targetClients: { id: string }[] = []
-    if (clientId) {
-      targetClients = [{ id: clientId }]
-    } else if (target === 'ALL') {
-      targetClients = await db.client.findMany({
-        where: { isActive: true },
-        select: { id: true },
-      })
-    } else {
-      targetClients = await db.client.findMany({
-        where: { approvalStatus: target },
-        select: { id: true },
-      })
-    }
-
-    if (targetClients.length === 0) {
-      return res.status(404).json({ ok: false, error: 'No matching merchants found.' })
-    }
-
-    await db.merchantNotification.createMany({
-      data: targetClients.map((c) => ({
-        clientId: c.id,
-        title: String(title).slice(0, 150),
-        message: String(message).slice(0, 2000),
-        severity: String(severity).toUpperCase(),
-      })),
-    })
-
-    await db.auditLog.create({
-      data: {
-        action: 'BROADCAST_NOTIFICATION',
-        details: `Dispatched "${title}" (${severity}) to ${targetClients.length} merchant(s)`,
-      },
-    })
-
-    return res.json({ ok: true, count: targetClients.length, sentCount: targetClients.length })
-  } catch (err: unknown) {
-    return sendInternalError(res, err)
+adminRouter.post('/notifications', requireAdmin, createRateLimiter(60 * 1000, 10, 'Please wait before sending another notification.'), async (req: Request, res: Response) => {
+  try {
+    const result = await sendAdminNotification(req.body)
+    res.json({ok:true, count:result.sentCount, sentCount:result.sentCount, replayed:result.replayed})
+    setImmediate(() => { void emitAdminNotificationBatch(result).catch(() => console.error('[notifications] Live update failed; notifications remain in merchant inboxes.')) })
+  } catch (err) {
+    if (err instanceof NotificationInputError) return res.status(err.status).json({ok:false, error:err.message, code:err.code})
+    return sendInternalError(res, err, 'Could not send notification')
   }
 })
