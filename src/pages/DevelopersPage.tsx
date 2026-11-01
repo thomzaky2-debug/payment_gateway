@@ -1,3 +1,4 @@
+import { getLiveCheckoutAttempt, clearLiveCheckoutAttempt } from '../utils/liveCheckoutAttempt';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Key, Copy, Eye, EyeOff, CheckCircle2, Play, ExternalLink,
@@ -5,7 +6,7 @@ import {
   ArrowRight, Lock, Unlock, RotateCcw, Braces, Check, Clipboard,
   FileCode2, Globe, ChevronRight, AlertTriangle, ShoppingBag, Plus, Trash2
 } from 'lucide-react';
-import { apiUrl, settingsApi, subscriptionApi } from '../services/api';
+import { apiOrigin, apiUrl, settingsApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { DocumentationSection } from '../components/DocumentationSection';
@@ -35,6 +36,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
     { name: 'Wireless Mechanical Keyboard', quantity: 1, unitPrice: 100 },
     { name: 'Ergonomic Gaming Mousepad', quantity: 1, unitPrice: 50 },
   ]);
+  const [liveAcknowledged, setLiveAcknowledged] = useState(false);
   const [simLoading, setSimLoading] = useState(false);
   const [simResult, setSimResult] = useState<any>(null);
 
@@ -153,6 +155,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
 
   const handleRunSimulator = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (simLoading || !liveAcknowledged) return;
     if (!settings?.apiKey) {
       if (showToast) showToast('error', isRtl ? 'مفتاح API غير متاح. الحساب قد يكون في انتظار الموافقة.' : 'API Key not available. Account may be pending approval.');
       return;
@@ -179,39 +182,29 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
       items: useProductOrder && testItems.length > 0 ? testItems : undefined,
     };
 
+    const requestBody = JSON.stringify(payload);
     try {
+      const attempt = getLiveCheckoutAttempt(localStorage, settings.id, requestBody);
       const res = await fetch(apiUrl('/api/v1/checkout/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${settings.apiKey}`,
+          'Idempotency-Key': attempt.key,
         },
-        body: JSON.stringify(payload),
+        body: requestBody,
       });
 
       const data = await res.json();
       if (data.ok) {
         setSimResult(data.checkout);
+        try { clearLiveCheckoutAttempt(localStorage, settings.id); } catch { /* Keep the successful result visible; an uncleared attempt can only replay this session. */ }
         if (showToast) showToast('success', isRtl ? 'تم إنشاء جلسة الدفع بنجاح مع تفاصيل المنتجات!' : 'Checkout session created successfully with product order details!');
-      } else if (data.error === 'Activate your free trial before creating checkout sessions.') {
-        // A first checkout is an explicit merchant action, so activate an
-        // eligible introductory trial and run the requested test once.
-        const trial = await subscriptionApi.activateTrial();
-        if (!trial?.ok) throw new Error(trial?.error || data.error);
-        const retry = await fetch(apiUrl('/api/v1/checkout/create'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey}` },
-          body: JSON.stringify(payload),
-        });
-        const retryData = await retry.json();
-        if (!retryData?.ok) throw new Error(retryData?.error || 'Simulator checkout failed');
-        setSimResult(retryData.checkout);
-        if (showToast) showToast('success', isRtl ? 'تم تفعيل التجربة وإنشاء جلسة الدفع.' : 'Free trial activated and checkout session created.');
       } else {
-        if (showToast) showToast('error', data.error || (isRtl ? 'فشل إنشاء جلسة المحاكاة' : 'Simulator checkout failed'));
+        if (showToast) showToast('error', data.error || (isRtl ? 'فشل إنشاء جلسة الدفع' : 'Live checkout failed'));
       }
     } catch (error: any) {
-      if (showToast) showToast('error', error.message || (isRtl ? 'فشل تشغيل المحاكي' : 'Failed to run simulator'));
+      if (showToast) showToast('error', error.message || (isRtl ? 'فشل إنشاء جلسة الدفع' : 'Failed to create live checkout'));
     } finally {
       setSimLoading(false);
     }
@@ -220,13 +213,17 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   const apiKey = settings?.apiKey || (isRtl ? 'في انتظار موافقة الحساب...' : 'Waiting for account approval...');
   const webhookSecret = settings?.webhookSecret || (isRtl ? 'في انتظار موافقة الحساب...' : 'Waiting for account approval...');
 
-  const curlSnippet = `curl -X POST http://localhost:3001/api/v1/checkout/create \\
-  -H "Authorization: Bearer ${showApiKey ? apiKey : 'egp_live_***'}" \\
+  const developerApiOrigin = apiOrigin || window.location.origin;
+  const curlSnippet = `# Set NILEPAY_API_KEY on your server. Reuse this key and payload for retries.
+curl -X POST ${developerApiOrigin}/api/v1/checkout/create \\
+  -H "Authorization: Bearer \${NILEPAY_API_KEY}" \\
   -H "Content-Type: application/json" \\
+  -H "Idempotency-Key: order_4092_attempt_1" \\
   -d '{
     "amountEgp": 150.00,
     "senderHandle": "customer@instapay",
     "note": "Order #4092",
+    "returnUrl": "https://your-store.example/payment-return",
     "items": [
       { "name": "Wireless Mechanical Keyboard", "quantity": 1, "unitPrice": 100.00 },
       { "name": "Ergonomic Gaming Mousepad", "quantity": 1, "unitPrice": 50.00 }
@@ -371,7 +368,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
               {isRtl ? 'بوابة المطورين' : 'Developer Portal'}
             </h2>
             <p style={{ fontSize: '13px', color: textSecondary, margin: 0 }}>
-              {isRtl ? 'مفاتيح API، أدوات المحاكاة، ووثائق التكامل' : 'API credentials, simulator tools & integration docs'}
+              {isRtl ? 'مفاتيح API، أداة إنشاء الدفع المباشر، ووثائق التكامل' : 'API credentials, live checkout tool & integration docs'}
             </p>
           </div>
         </div>
@@ -569,15 +566,23 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
             </div>
             <div>
               <h3 style={{ fontSize: '15px', fontWeight: 700, color: textPrimary, margin: 0 }}>
-                {isRtl ? 'محاكي الدفع التفاعلي' : 'Checkout Simulator'}
+                {isRtl ? 'أداة إنشاء جلسة دفع حقيقية' : 'Live checkout tool'}
               </h3>
               <p style={{ fontSize: '11.5px', color: textSecondary, margin: '2px 0 0 0' }}>
-                {isRtl ? 'إنشاء جلسات دفع تجريبية مباشرة' : 'Generate real checkout sessions directly'}
+                {isRtl ? 'تنشئ جلسة حقيقية وتحجز حصة؛ لا تحاكي تحويلاً بنكياً ولا تفعّل التجربة تلقائياً.' : 'Creates real pending sessions and reserves quota. Does not simulate a bank payment or activate your trial.'}
               </p>
             </div>
           </div>
 
+          <div style={{ marginBottom: 14, fontSize: 12, color: textSecondary, lineHeight: 1.6 }}>
+            <p>{isRtl ? 'عند انقطاع الاتصال، تبقى المحاولة محفوظة على هذا الجهاز. أعد نفس البيانات، أو راجع المعاملات قبل بدء محاولة جديدة.' : 'If the connection fails, this device keeps the saved attempt. Retry the same details, or check Transactions before starting another attempt.'}</p>
+            <button type="button" disabled={simLoading} onClick={() => { if (window.confirm(isRtl ? 'هل راجعت المعاملات؟ قد تكون المحاولة السابقة قد نجحت. مسح المحاولة المحفوظة يسمح بإنشاء جلسة جديدة.' : 'Have you checked Transactions? The previous request may have succeeded. Resetting permits a new live session.')) { try { clearLiveCheckoutAttempt(localStorage, settings?.id); } catch { showToast?.('error', 'Could not clear saved attempt.'); } } }} style={{ background: 'transparent', border: '1px solid #64748b', color: textPrimary, borderRadius: 8, padding: '8px 10px' }}>{isRtl ? 'مسح المحاولة بعد المراجعة' : 'Reset saved attempt after review'}</button>
+          </div>
           <form onSubmit={handleRunSimulator}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 18, color: textPrimary, fontSize: 13, lineHeight: 1.6 }}>
+              <input type="checkbox" checked={liveAcknowledged} onChange={e => setLiveAcknowledged(e.target.checked)} style={{ width: 18, minWidth: 18, marginTop: 4 }} />
+              <span>{isRtl ? 'أفهم أن هذه جلسة حقيقية وقد تستهلك حصة خطتي. للتعلم دون دفع، استخدم المثال المحلي في دليل التكامل.' : 'I understand this creates a real session and may consume my plan allowance. For learning without payments, use the local mock in the integration guide.'}</span>
+            </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '18px' }}>
               {/* Amount */}
               <div>
@@ -848,7 +853,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
 
             <button
               type="submit"
-              disabled={simLoading}
+              disabled={simLoading || !liveAcknowledged}
               style={{
                 width: '100%',
                 padding: '12px 20px',
@@ -877,7 +882,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
               ) : (
                 <>
                   <Zap size={15} />
-                  {isRtl ? 'إنشاء جلسة دفع تجريبية' : 'Generate Test Checkout'}
+                  {isRtl ? 'إنشاء جلسة دفع حقيقية' : 'Create live checkout'}
                 </>
               )}
             </button>
@@ -1023,20 +1028,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
             }}>
-              <span style={{ color: '#4ade80' }}>$</span>{' '}
-              <span style={{ color: '#fbbf24' }}>curl</span>{' '}
-              <span style={{ color: '#94a3b8' }}>-X POST</span>{' '}
-              <span style={{ color: '#38bdf8' }}>http://localhost:3001/api/v1/checkout/create</span>{' \\\n'}
-              {'  '}<span style={{ color: '#94a3b8' }}>-H</span>{' '}
-              <span style={{ color: '#fb923c' }}>"Authorization: Bearer {showApiKey ? apiKey : 'egp_live_***'}"</span>{' \\\n'}
-              {'  '}<span style={{ color: '#94a3b8' }}>-H</span>{' '}
-              <span style={{ color: '#fb923c' }}>"Content-Type: application/json"</span>{' \\\n'}
-              {'  '}<span style={{ color: '#94a3b8' }}>-d</span>{' '}
-              <span style={{ color: '#a78bfa' }}>{'\'{\n'}</span>
-              <span style={{ color: '#a78bfa' }}>{'    '}"amountEgp": <span style={{ color: '#4ade80' }}>50.00</span>,{'\n'}</span>
-              <span style={{ color: '#a78bfa' }}>{'    '}"senderHandle": <span style={{ color: '#38bdf8' }}>"customer@instapay"</span>,{'\n'}</span>
-              <span style={{ color: '#a78bfa' }}>{'    '}"note": <span style={{ color: '#38bdf8' }}>"Order #1042"</span>{'\n'}</span>
-              <span style={{ color: '#a78bfa' }}>{'  }\''}</span>
+              {curlSnippet}
             </pre>
           </div>
 

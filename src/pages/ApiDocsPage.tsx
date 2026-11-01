@@ -1,3 +1,4 @@
+import { MerchantIntegrationGuide } from '../components/MerchantIntegrationGuide';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -45,15 +46,14 @@ export function ApiDocsPage({ inApp = false, subPath, onSubPathChange }: ApiDocs
   // Interactive Live Webhook Tester State
   const defaultPayload = JSON.stringify({
     event: "payment.confirmed",
-    event_id: "evt_live_7a8b9c0d1e2f3a4b",
-    timestamp: Math.floor(Date.now() / 1000),
+
     transaction: {
       sessionId: "cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
       amountEgp: 150.00,
       status: "CONFIRMED",
       detectedRef: "REF20261010992",
       senderHandle: "customer@instapay",
-      confirmedAt: new Date().toISOString()
+      detectedAt: new Date().toISOString()
     }
   }, null, 2);
 
@@ -67,14 +67,14 @@ export function ApiDocsPage({ inApp = false, subPath, onSubPathChange }: ApiDocs
 
   // Production Readiness Checklist State
   const [checkedList, setCheckedList] = useState<Record<string, boolean>>({
-    tls: true,
-    secret_storage: true,
-    timing_safe: true,
+    tls: false,
+    secret_storage: false,
+    timing_safe: false,
     drift_tolerance: false,
     raw_body: false,
-    idempotency: true,
+    idempotency: false,
     retry_handling: false,
-    status_polling_fallback: true
+    status_polling_fallback: false
   });
 
   const toggleCheck = (key: string) => {
@@ -102,10 +102,12 @@ export function ApiDocsPage({ inApp = false, subPath, onSubPathChange }: ApiDocs
 
   // Recalculate HMAC on tester changes
   useEffect(() => {
+    let active = true;
     try {
-      const baseString = `${testerTimestamp.trim()}.${testerPayload.trim()}`;
+      const baseString = `${testerTimestamp.trim()}.${testerPayload}`;
       setCalculatedBaseString(baseString);
       calculateHmacSha256(testerSecret.trim(), baseString).then((sig) => {
+        if (!active) return;
         setCalculatedSignature(sig);
         if (verifyInputSig.trim()) {
           const cleanInput = verifyInputSig.trim().replace(/^v1=/, '');
@@ -113,10 +115,11 @@ export function ApiDocsPage({ inApp = false, subPath, onSubPathChange }: ApiDocs
         } else {
           setVerifyResult(null);
         }
-      });
+      }).catch(() => { if (active) { setCalculatedSignature(''); setVerifyResult(null); } });
     } catch {
       setCalculatedSignature('');
     }
+    return () => { active = false; };
   }, [testerSecret, testerTimestamp, testerPayload, verifyInputSig]);
 
   const copyToClipboard = (text: string, id: string) => {
@@ -163,13 +166,14 @@ export function ApiDocsPage({ inApp = false, subPath, onSubPathChange }: ApiDocs
   const accentAmber = '#f59e0b';
 
   const baseUrl = apiOrigin || (typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : 'https://api.yourdomain.com');
+    ? window.location.origin
+    : '');
 
   /* ──────────────── Code Snippets ──────────────── */
   const nodeCreateSnippet = `import axios from 'axios';
 
-const API_KEY = process.env.INSTAPAY_API_KEY || 'egp_live_EXAMPLE_KEY';
+const API_KEY = process.env.INSTAPAY_API_KEY;
+if (!API_KEY) throw new Error('Set INSTAPAY_API_KEY on your server');
 const BASE_URL = '${baseUrl}';
 
 export async function createCheckout(amountEgp: number, orderId: string) {
@@ -185,7 +189,7 @@ export async function createCheckout(amountEgp: number, orderId: string) {
         headers: {
           'Authorization': \`Bearer \${API_KEY}\`,
           'Content-Type': 'application/json',
-          'Idempotency-Key': \`order-\${orderId}-\${Date.now()}\`,
+          'Idempotency-Key': \`order_\${orderId}_attempt_1\`,
         },
         timeout: 10000,
       }
@@ -203,9 +207,9 @@ export async function createCheckout(amountEgp: number, orderId: string) {
 }`;
 
   const pythonCreateSnippet = `import requests
-import uuid
+import os
 
-API_KEY = "egp_live_EXAMPLE_KEY"
+API_KEY = os.environ["INSTAPAY_API_KEY"]
 BASE_URL = "${baseUrl}"
 
 def create_checkout(amount_egp: float, order_id: str) -> dict:
@@ -213,7 +217,7 @@ def create_checkout(amount_egp: float, order_id: str) -> dict:
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json",
-        "Idempotency-Key": f"order_{order_id}_{uuid.uuid4().hex[:8]}"
+        "Idempotency-Key": f"order_{order_id}_attempt_1"
     }
     payload = {
         "amountEgp": amount_egp,
@@ -234,7 +238,8 @@ def create_checkout(amount_egp: float, order_id: str) -> dict:
 declare(strict_types=1);
 
 function createCheckoutSession(float $amountEgp, string $orderId): array {
-    $apiKey  = getenv('INSTAPAY_API_KEY') ?: 'egp_live_EXAMPLE_KEY';
+    $apiKey  = getenv('INSTAPAY_API_KEY');
+    if (!$apiKey) throw new RuntimeException("Set INSTAPAY_API_KEY");
     $baseUrl = '${baseUrl}';
 
     $payload = json_encode([
@@ -251,7 +256,7 @@ function createCheckoutSession(float $amountEgp, string $orderId): array {
         CURLOPT_HTTPHEADER     => [
             "Authorization: Bearer {$apiKey}",
             'Content-Type: application/json',
-            'Idempotency-Key: ' . uniqid("order_{$orderId}_", true)
+            'Idempotency-Key: ' . "order_{$orderId}_attempt_1"
         ],
         CURLOPT_TIMEOUT        => 10,
     ]);
@@ -275,11 +280,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 )
 
-const (
-	apiKey  = "egp_live_EXAMPLE_KEY"
+var (
+	apiKey  = os.Getenv("INSTAPAY_API_KEY")
 	baseURL = "${baseUrl}"
 )
 
@@ -312,7 +318,7 @@ func createCheckout(amount float64, orderID string) (*CheckoutResponse, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Idempotency-Key", fmt.Sprintf("order_%s_%d", orderID, time.Now().Unix()))
+	req.Header.Set("Idempotency-Key", "order_"+orderID+"_attempt_1")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -320,11 +326,15 @@ func createCheckout(amount float64, orderID string) (*CheckoutResponse, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("checkout API returned HTTP %d", resp.StatusCode)
+	}
 
 	var result CheckoutResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
+	if !result.Ok { return nil, fmt.Errorf("checkout API did not confirm creation") }
 	return &result, nil
 }
 
@@ -338,9 +348,9 @@ func main() {
 
   const curlCreateSnippet = `# 1. Create a Checkout Session
 curl -X POST "${baseUrl}/api/v1/checkout/create" \\
-  -H "Authorization: Bearer egp_live_EXAMPLE_KEY" \\
+  -H "Authorization: Bearer \${INSTAPAY_API_KEY}" \\
   -H "Content-Type: application/json" \\
-  -H "Idempotency-Key: test_$(date +%s)" \\
+  -H "Idempotency-Key: order_1042_attempt_1" \\
   -d '{
     "amountEgp": 150.00,
     "senderHandle": "customer@instapay",
@@ -349,17 +359,18 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
 
 # 2. Check Session Status
 curl -X GET "${baseUrl}/api/v1/checkout/status?sessionId=cmt_test_8f1b2c" \\
-  -H "Authorization: Bearer egp_live_EXAMPLE_KEY"`;
+  -H "Authorization: Bearer \${INSTAPAY_API_KEY}"`;
 
   const nodeWebhookSnippet = `import express from 'express';
 import crypto from 'crypto';
 
 const app = express();
-const WEBHOOK_SECRET = process.env.INSTAPAY_WEBHOOK_SECRET || 'whsec_EXAMPLE_SECRET';
+const WEBHOOK_SECRET = process.env.INSTAPAY_WEBHOOK_SECRET;
+if (!WEBHOOK_SECRET) throw new Error('Set INSTAPAY_WEBHOOK_SECRET on your server');
 
 // CRITICAL: Preserve the exact raw body Buffer for HMAC verification
 app.post(
-  '/api/webhook/instapay',
+  '/webhooks/nilepay',
   express.raw({ type: 'application/json' }),
   (req: express.Request, res: express.Response) => {
     const rawBodyBuffer = req.body as Buffer;
@@ -369,7 +380,7 @@ app.post(
     const timestampHeader = req.headers['x-instapay-timestamp'] as string;
     const eventId = req.headers['x-instapay-event-id'] as string;
 
-    if (!signatureHeader || !timestampHeader) {
+    if (!signatureHeader || !timestampHeader || !eventId) {
       return res.status(401).send('Missing webhook signature headers');
     }
 
@@ -402,13 +413,14 @@ app.post(
     }
 
     // 4. Safe to parse and process event
-    const event = JSON.parse(rawBody);
+    let event;
+    try { event = JSON.parse(rawBody); } catch { return res.status(400).send('Invalid JSON'); }
     console.log(\`✓ Processing Verified Event [\${eventId}]: \${event.event}\`);
 
     switch (event.event) {
       case 'payment.confirmed':
         const { sessionId, amountEgp, detectedRef } = event.transaction;
-        // Fulfill order atomically in your database
+        // Protocol illustration only: use the complete project for durable order mapping, amount/currency checks and atomic deduplication + fulfillment.
         console.log(\`✅ Payment \${sessionId} confirmed for \${amountEgp} EGP (Ref: \${detectedRef})\`);
         break;
 
@@ -425,7 +437,7 @@ app.post(
         break;
     }
 
-    // Return 200 OK immediately to acknowledge receipt
+    // This short example only verifies/logs events. Production receivers acknowledge only after their durable database commit.
     return res.status(200).json({ received: true });
   }
 );
@@ -437,18 +449,19 @@ import hmac
 import hashlib
 import time
 import json
+import os
 
 app = FastAPI()
-WEBHOOK_SECRET = "whsec_EXAMPLE_SECRET"
+WEBHOOK_SECRET = os.environ["INSTAPAY_WEBHOOK_SECRET"]
 
-@app.post("/api/webhook/instapay")
+@app.post("/webhooks/nilepay")
 async def handle_instapay_webhook(
     request: Request,
     x_instapay_signature: str = Header(None),
     x_instapay_timestamp: str = Header(None),
     x_instapay_event_id: str = Header(None)
 ):
-    if not x_instapay_signature or not x_instapay_timestamp:
+    if not x_instapay_signature or not x_instapay_timestamp or not x_instapay_event_id:
         raise HTTPException(status_code=401, detail="Missing required headers")
 
     # 1. Anti-Replay Defense: Check timestamp tolerance (300 seconds)
@@ -490,7 +503,8 @@ async def handle_instapay_webhook(
   const phpWebhookSnippet = `<?php
 declare(strict_types=1);
 
-$secret = getenv('INSTAPAY_WEBHOOK_SECRET') ?: 'whsec_EXAMPLE_SECRET';
+$secret = getenv('INSTAPAY_WEBHOOK_SECRET');
+if (!$secret) { http_response_code(503); exit('Set INSTAPAY_WEBHOOK_SECRET'); }
 
 // 1. Read exact RAW payload from standard input
 $rawBody = file_get_contents('php://input');
@@ -522,12 +536,12 @@ if (!hash_equals($expectedSig, $receivedSig)) {
     die('Invalid HMAC signature');
 }
 
-// 5. Parse JSON and fulfill purchase
+// 5. Parse JSON. This protocol-only example does not fulfill orders; use the full project.
 $event = json_decode($rawBody, true, 512, JSON_THROW_ON_ERROR);
 
 if ($event['event'] === 'payment.confirmed') {
     $session = $event['transaction'];
-    // Mark order as paid in DB
+    // Full project: verify the saved order amount/currency and commit deduplication + fulfillment together.
 }
 
 http_response_code(200);
@@ -546,12 +560,13 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
-const webhookSecret = "whsec_EXAMPLE_SECRET"
+var webhookSecret = os.Getenv("INSTAPAY_WEBHOOK_SECRET")
 
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -596,7 +611,10 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 5. Unmarshal and dispatch event
 	var event map[string]interface{}
-	json.Unmarshal(rawBody, &event)
+	if err := json.Unmarshal(rawBody, &event); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
 	fmt.Printf("✓ Validated event: %v\\n", event["event"])
 
 	w.WriteHeader(http.StatusOK)
@@ -604,20 +622,21 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/api/webhook", webhookHandler)
+	if webhookSecret == "" { panic("Set INSTAPAY_WEBHOOK_SECRET") }
+	http.HandleFunc("/webhooks/nilepay", webhookHandler)
 	http.ListenAndServe(":8080", nil)
 }`;
 
   const curlWebhookSnippet = `# Simulate an inbound signed webhook test to your local server:
 TIMESTAMP=$(date +%s)
 SECRET="whsec_EXAMPLE_SECRET"
-PAYLOAD='{"event":"payment.confirmed","transaction":{"sessionId":"cmt_test_8f1b2c","amountEgp":150.00,"status":"CONFIRMED","detectedRef":"REF20261010"}}'
+PAYLOAD='{"event":"payment.confirmed","transaction":{"sessionId":"cmt_test_8f1b2c","amountEgp":150.00,"status":"CONFIRMED","currency":"EGP","detectedRef":"REF20261010"}}'
 
 # Compute HMAC-SHA256 signature over "<timestamp>.<rawJsonBody>"
 SIG=$(echo -n "\${TIMESTAMP}.\${PAYLOAD}" | openssl dgst -sha256 -hmac "\${SECRET}" | sed 's/^.* //')
 
 # Dispatch webhook test request:
-curl -X POST "http://localhost:8080/api/webhook" \\
+curl -X POST "http://localhost:8080/webhooks/nilepay" \\
   -H "Content-Type: application/json" \\
   -H "X-Instapay-Timestamp: \${TIMESTAMP}" \\
   -H "X-Instapay-Signature: v1=\${SIG}" \\
@@ -627,8 +646,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
   const eventPayloads = {
     confirmed: {
       event: "payment.confirmed",
-      event_id: "evt_live_8f1a2b3c4d5e",
-      timestamp: 1760119200,
+
       transaction: {
         sessionId: "cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
         status: "CONFIRMED",
@@ -638,45 +656,43 @@ curl -X POST "http://localhost:8080/api/webhook" \\
         recipientHandle: "merchant@instapay",
         detectedRef: "REF20261010091",
         detectedAmountEgp: 150.00,
-        confirmedAt: "2026-10-10T21:20:00.000Z",
+        detectedAt: "2026-10-10T21:20:00.000Z",
         note: "Order #1042"
       }
     },
     underpaid: {
       event: "payment.underpaid",
-      event_id: "evt_live_8f1a2b3c4d5f",
-      timestamp: 1760119210,
+
       transaction: {
         sessionId: "cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
         status: "UNDERPAID",
         amountEgp: 150.00,
+        currency: "EGP",
         detectedAmountEgp: 100.00,
-        differenceEgp: -50.00,
         senderHandle: "customer@instapay",
         note: "Partial payment received"
       }
     },
     overpaid: {
       event: "payment.overpaid",
-      event_id: "evt_live_8f1a2b3c4d60",
-      timestamp: 1760119220,
+
       transaction: {
         sessionId: "cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
         status: "OVERPAID",
         amountEgp: 150.00,
+        currency: "EGP",
         detectedAmountEgp: 200.00,
-        differenceEgp: 50.00,
         senderHandle: "customer@instapay"
       }
     },
     expired: {
       event: "payment.expired",
-      event_id: "evt_live_8f1a2b3c4d61",
-      timestamp: 1760120100,
+
       transaction: {
         sessionId: "cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
         status: "EXPIRED",
         amountEgp: 150.00,
+        currency: "EGP",
         reason: "TTL expired before transfer detected"
       }
     }
@@ -700,6 +716,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
     {
       group: isRtl ? 'البداية والأساسيات' : 'Getting Started',
       items: [
+        { id: 'integration-guide', label: isRtl ? 'البدء خطوة بخطوة' : 'End-to-end quickstart', icon: BookOpen },
         { id: 'intro', label: isRtl ? 'نظرة عامة والتدفق' : 'Architecture & Flow', icon: Layers },
         { id: 'auth', label: isRtl ? 'المصادقة والبيئات' : 'Auth & Environments', icon: KeyIcon },
       ]
@@ -721,9 +738,9 @@ curl -X POST "http://localhost:8080/api/webhook" \\
       ]
     },
     {
-      group: isRtl ? 'أكواد وحزم SDK كاملة' : 'Full Implementation SDKs',
+      group: isRtl ? 'أمثلة شيفرة التكامل' : 'Integration Examples',
       items: [
-        { id: 'sdk', label: isRtl ? 'كود التكامل الجاهز' : 'Production SDK Examples', icon: Code2 },
+        { id: 'sdk', label: isRtl ? 'كود التكامل الجاهز' : 'Integration Examples', icon: Code2 },
       ]
     },
     {
@@ -1182,7 +1199,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: accentSky, marginBottom: '4px' }}>
               <ShieldCheck size={14} />
-              <span>TLS 1.3 & HMAC Protected</span>
+              <span>HTTPS & HMAC</span>
             </div>
             <div style={{ color: textMuted }}>
               {isRtl ? 'جميع الطلبات مشفرة وموقعة برمجياً عبر مفتاحك السري.' : 'Strict HMAC-SHA256 signatures with 300s replay rejection.'}
@@ -1269,7 +1286,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                 }}
               >
                 <CheckCircle2 size={12} />
-                {isRtl ? 'جاهز للإنتاج التجاري' : 'Production-Ready v2.0'}
+                {isRtl ? 'مرجع التكامل' : 'Integration reference'}
               </span>
             </div>
 
@@ -1361,7 +1378,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                 }}
               >
                 <Code2 size={15} style={{ color: accentSky }} />
-                <span>{isRtl ? 'أكواد 5 لغات برمجية' : '5 Language SDKs'}</span>
+                <span>{isRtl ? 'أمثلة 5 لغات برمجية' : '5 language examples'}</span>
               </button>
 
               <a
@@ -1480,6 +1497,8 @@ curl -X POST "http://localhost:8080/api/webhook" \\
             </div>
           </section>
 
+          <MerchantIntegrationGuide baseUrl={baseUrl} />
+
           {/* ──────────────── SECTION 2: AUTHENTICATION & ENVIRONMENTS ──────────────── */}
           <section id="auth" style={{ marginBottom: '56px', scrollMarginTop: '90px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
@@ -1508,12 +1527,12 @@ curl -X POST "http://localhost:8080/api/webhook" \\
               }}
             >
               <div style={{ fontFamily: 'monospace', fontSize: '13px', color: '#38bdf8' }}>
-                <span style={{ color: '#94a3b8' }}>Authorization:</span> Bearer egp_live_EXAMPLE_KEY<br />
+                <span style={{ color: '#94a3b8' }}>Authorization:</span> {'Bearer ${INSTAPAY_API_KEY}'}<br />
                 <span style={{ color: '#94a3b8' }}>Content-Type:</span> application/json<br />
                 <span style={{ color: '#94a3b8' }}>Idempotency-Key:</span> order_1042_a9b8c7
               </div>
               <button
-                onClick={() => copyToClipboard('Authorization: Bearer egp_live_EXAMPLE_KEY\nContent-Type: application/json', 'auth_header')}
+                onClick={() => copyToClipboard('Authorization: Bearer \${INSTAPAY_API_KEY}\nContent-Type: application/json', 'auth_header')}
                 style={{
                   padding: '6px 10px',
                   borderRadius: '6px',
@@ -1555,21 +1574,21 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                       Production (Live)
                     </td>
                     <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: accentSky }}>
-                      https://api.yourdomain.com
+                      {baseUrl}
                     </td>
                     <td style={{ padding: '12px 16px', color: textSecondary }}>
-                      {isRtl ? 'يتطلب TLS 1.3 / HTTPS. المفاتيح تبدأ بـ egp_live_.' : 'Strict TLS 1.3/HTTPS required. Keys prefix egp_live_.'}
+                      {isRtl ? 'يتطلب HTTPS. المفاتيح تبدأ بـ egp_live_.' : 'HTTPS required. Keys prefix egp_live_.'}
                     </td>
                   </tr>
                   <tr style={{ backgroundColor: bgCard }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, color: accentAmber }}>
-                      Local / Sandbox
+                      Local development
                     </td>
                     <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: accentSky }}>
                       http://localhost:3001
                     </td>
                     <td style={{ padding: '12px 16px', color: textSecondary }}>
-                      {isRtl ? 'للتطوير المحلي واختبارات الـ Simulator.' : 'Local test deployment for pre-flight testing.'}
+                      {isRtl ? 'خادم API محلي خاص بك. للتعلم دون دفع، استخدم المثال الوهمي القابل للتحميل أعلاه.' : 'Your own local API deployment. For an isolated teaching mock, use the downloadable project above.'}
                     </td>
                   </tr>
                 </tbody>
@@ -1676,6 +1695,12 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                       </td>
                     </tr>
                     <tr style={{ backgroundColor: bgCard }}>
+                      <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: accentSky }}>returnUrl</td>
+                      <td style={{ padding: '8px 12px', color: textMuted }}>String</td>
+                      <td style={{ padding: '8px 12px', color: textMuted }}>Optional</td>
+                      <td style={{ padding: '8px 12px', color: textSecondary }}>{isRtl ? 'رابط HTTP(S) أو مسار مطلق للعودة إلى متجرك؛ استخدم HTTPS في الإنتاج. العودة ليست إثبات دفع، فتحقّق من الويب هوك أو status من الخادم.' : 'HTTP(S) URL or local absolute path to return to your store. Use HTTPS in production. Navigation is not payment proof; verify a webhook or query status from your server.'}</td>
+                    </tr>
+                    <tr style={{ backgroundColor: bgCard }}>
                       <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 600, color: accentSky }}>productCategory</td>
                       <td style={{ padding: '8px 12px', color: textMuted }}>String</td>
                       <td style={{ padding: '8px 12px', color: textMuted }}>Optional</td>
@@ -1703,7 +1728,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                     ok: true,
                     checkout: {
                       sessionId: "cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
-                      checkoutUrl: `${baseUrl}/pay/cmt_9e8a7b6c5d4e3f2a1b0c9d8e`,
+                      checkoutUrl: `${window.location.origin}/pay/cmt_9e8a7b6c5d4e3f2a1b0c9d8e`,
                       deepLinkUrl: "https://ipn.eg/S/merchant/instapay/9e8a",
                       amountEgp: 150.00,
                       status: "PENDING",
@@ -1735,7 +1760,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
   "ok": true,
   "checkout": {
     "sessionId": "cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
-    "checkoutUrl": "${baseUrl}/pay/cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
+    "checkoutUrl": "${window.location.origin}/pay/cmt_9e8a7b6c5d4e3f2a1b0c9d8e",
     "deepLinkUrl": "https://ipn.eg/S/merchant/instapay/9e8a",
     "amountEgp": 150.00,
     "status": "PENDING",
@@ -1812,7 +1837,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
     "amountEgp": 150.00,
     "detectedRef": "REF20261010091",
     "detectedAmountEgp": 150.00,
-    "confirmedAt": "2026-10-10T21:20:00.000Z"
+    "detectedAt": "2026-10-10T21:20:00.000Z"
   }
 }`}
                 </pre>
@@ -2254,14 +2279,14 @@ curl -X POST "http://localhost:8080/api/webhook" \\
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
               <div style={{ width: '4px', height: '22px', backgroundColor: accentSky, borderRadius: '2px' }} />
               <h2 style={{ fontSize: '22px', fontWeight: 800, color: textPrimary, margin: 0 }}>
-                {isRtl ? '7. أكواد وحزم التكامل الجاهزة (5 لغات برمجية)' : '7. Production-Ready SDK Implementations'}
+                {isRtl ? '7. أمثلة شيفرة التكامل (5 لغات برمجية)' : '7. Integration Code Examples'}
               </h2>
             </div>
 
             <p style={{ fontSize: '14px', lineHeight: 1.6, color: textSecondary, marginBottom: '20px' }}>
               {isRtl
-                ? 'أكواد برمجية كاملة، قابلة للتشغيل المباشر والنسخ في مشروعك، تشمل إنشاء الجلسات والتحقق الرياضي من الويب هوك:'
-                : 'Drop-in, battle-tested code snippets for session creation and timing-safe webhook verification:'}
+                ? 'أمثلة لإنشاء الجلسات والتحقق من الويب هوك. استخدم المشروع الكامل القابل للتحميل أعلاه لربط الطلبات والتخزين الدائم ومنع التكرار والتنفيذ الذري:'
+                : 'Protocol examples for checkout creation and webhook verification. For durable order mapping, deduplication and fulfillment, use the complete downloadable project above:'}
             </p>
 
             {/* Language and Snippet Switcher Controls */}
@@ -2366,7 +2391,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#eab308' }} />
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
                   <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '6px', fontFamily: 'monospace' }}>
-                    {selectedCodeType === 'create' ? `checkout_client.${selectedLang}` : `webhook_receiver.${selectedLang}`}
+                    {selectedCodeType === 'create' ? `checkout_client.${({node:'ts',python:'py',php:'php',go:'go',curl:'sh'})[selectedLang]}` : `webhook_receiver.${({node:'ts',python:'py',php:'php',go:'go',curl:'sh'})[selectedLang]}`}
                   </span>
                 </div>
                 <button
@@ -2504,7 +2529,7 @@ curl -X POST "http://localhost:8080/api/webhook" \\
               {/* Progress Indicator */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: textPrimary }}>
-                  {isRtl ? 'نسبة الجاهزية للإنتاج:' : 'Readiness Completion Score:'}
+                  {isRtl ? 'قائمة تحقق يدوية (ليست اعتماداً آلياً):' : 'Manual checklist (not automatic certification):'}
                 </span>
                 <span style={{ fontSize: '14px', fontWeight: 800, color: checklistProgress === 100 ? accentEmerald : accentSky }}>
                   {checklistProgress}%
@@ -2526,8 +2551,8 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                 {[
                   {
                     key: 'tls',
-                    title: isRtl ? 'تفعيل شهادة TLS 1.3 / HTTPS' : 'Enforce TLS 1.3 / HTTPS',
-                    desc: isRtl ? 'جميع الاتصالات مشفرة بروتوكولياً برفض أي اتصال HTTP غير آمن.' : 'All inbound webhook URLs and API communications strictly encrypted with valid TLS certificates.',
+                    title: isRtl ? 'تفعيل HTTPS' : 'Enforce HTTPS',
+                    desc: isRtl ? 'جميع الاتصالات مشفرة بروتوكولياً برفض أي اتصال HTTP غير آمن.' : 'Use HTTPS with valid certificates for public webhook URLs and live API connections.',
                   },
                   {
                     key: 'secret_storage',
@@ -2556,13 +2581,13 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                   },
                   {
                     key: 'retry_handling',
-                    title: isRtl ? 'إرجاع HTTP 200 OK فور استلام الويب هوك' : 'Immediate HTTP 200 Acknowledgment',
-                    desc: isRtl ? 'إعادة استجابة سريعة للويب هوك ومعالجة المهام الثقيلة في Background Queue.' : 'Return HTTP 200 swiftly to prevent retry storms; process long jobs asynchronously.',
+                    title: isRtl ? 'إرجاع HTTP 200 بعد الحفظ الدائم' : 'Acknowledge after durable commit',
+                    desc: isRtl ? 'احفظ منع التكرار وتأكيد الطلب والتنفيذ أو مهمة موثوقة أولاً، ثم أعد 200. نفّذ الخدمات الخارجية بمفتاح يمنع التكرار.' : 'Commit event deduplication and order fulfillment (or a durable outbox) before returning 200. Process external work idempotently.',
                   },
                   {
                     key: 'status_polling_fallback',
                     title: isRtl ? 'آلية استعلام بديلة في حال تعطل شبكة الويب هوك' : 'Polling Status Fallback',
-                    desc: isRtl ? 'تطبيق استعلام دوري عبر GET /api/v1/checkout/status كطبقة أمان احتياطية.' : 'Fallback worker periodically queries GET /checkout/status for pending transactions.',
+                    desc: isRtl ? 'تطبيق استعلام دوري عبر GET /api/v1/checkout/status كطبقة أمان احتياطية.' : 'Poll GET /api/v1/checkout/status from your server at a bounded interval while pending; reconcile through the same duplicate-safe fulfillment function.',
                   },
                 ].map((item) => (
                   <div

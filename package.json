@@ -25,7 +25,10 @@
     "local:seed": "tsx local-deploy/seed-local.ts",
     "admin:apk-ui": "node scripts/build-admin-apk-ui.mjs",
     "admin:typecheck": "tsc -p tsconfig.admin.json --noEmit",
-    "admin:test": "tsx --test src/utils/adminControls.test.ts src/utils/adminNotifications.test.ts src/utils/adminPricing.test.ts"
+    "admin:test": "tsx --test src/utils/adminControls.test.ts src/utils/adminNotifications.test.ts src/utils/adminPricing.test.ts",
+    "test:merchant-example": "node scripts/package-merchant-example.mjs --check && node --test public/integration/node-merchant/fulfillment.test.mjs public/integration/node-merchant/http.test.mjs",
+    "merchant:package": "node scripts/package-merchant-example.mjs",
+    "test:merchant-docs": "tsx --test src/utils/liveCheckoutAttempt.test.ts src/utils/integrationExamples.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

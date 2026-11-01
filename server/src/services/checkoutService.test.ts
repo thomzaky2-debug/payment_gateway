@@ -27,6 +27,10 @@ test('checkout product order items reject invalid structures and sanitize valid 
     createCheckoutSession({ client: merchant(), amountEgp: 10, items: [{ name: 'Item', quantity: 1, unitPrice: -5 }] as any }),
     /positive unitPrice/
   )
+  await assert.rejects(
+    createCheckoutSession({ client: merchant(), amountEgp: 10, items: [{ name: 'Item', quantity: 1, unitPrice: 9.99 }] as any }),
+    /must match the total/
+  )
 })
 
 function replaceTransactionMethod(t: test.TestContext, replacement: (...args: any[]) => any) {
@@ -232,3 +236,31 @@ test('createCheckoutSession appends valid returnUrl to checkoutUrl and returns i
   assert.equal(checkout.returnUrl, 'https://store.example.com/checkout/complete')
   assert.match(checkout.checkoutUrl, /returnUrl=https%3A%2F%2Fstore\.example\.com%2Fcheckout%2Fcomplete/)
 })
+
+test('checkout idempotency replays an existing session before reserving more quota', async t => {
+  const freshClient=merchant({txLimit:1});let created:any=null,creates=0,counts=0;
+  replaceTransactionMethod(t,async(operation:any)=>operation({client:{findUnique:async()=>freshClient},transaction:{
+    findUnique:async()=>created,count:async()=>{counts++;return created?1:0;},
+    create:async({data}:any)=>{creates++;created={...data,id:'keyed_transaction',createdAt:new Date()};return created;},
+  }}));
+  const input={client:freshClient,amountEgp:150,senderHandle:'customer@instapay',note:'Order #1042',idempotencyKey:'order_1042_attempt_1',returnUrl:'https://merchant.example/return'};
+  const first=await createCheckoutSession(input);const replay=await createCheckoutSession({...input,note:' Order #1042 '});
+  assert.equal(first.sessionId,replay.sessionId);assert.equal(first.checkoutUrl,replay.checkoutUrl);assert.equal(creates,1);assert.equal(counts,1);
+  for(const change of [{amountEgp:151},{senderHandle:'other@instapay'},{returnUrl:'https://merchant.example/other'},{items:[{name:'Item',quantity:1,unitPrice:150}]}])await assert.rejects(createCheckoutSession({...input,...change}),{status:409});
+  assert.equal(creates,1);
+});
+test('checkout keys and return URLs reject malformed input before database operations',async()=>{
+  for(const idempotencyKey of ['', 'short', 'a'.repeat(129), 'key with spaces', ['header-array']])await assert.rejects(createCheckoutSession({client:merchant(),amountEgp:10,idempotencyKey:idempotencyKey as any}),/Idempotency-Key/);
+  for(const returnUrl of ['javascript:alert(1)','//evil.example','https://user:password@example.com','/\\evil.example',42])await assert.rejects(createCheckoutSession({client:merchant(),amountEgp:10,returnUrl:returnUrl as any}),/returnUrl/);
+});
+test('a unique-key race retries the serializable transaction and returns the committed winner',async t=>{
+  const client=merchant();let attempts=0,existing:any;
+  replaceTransactionMethod(t,async(operation:any)=>{
+    attempts++;
+    return operation({client:{findUnique:async()=>client},transaction:{findUnique:async()=>existing,count:async()=>0,create:async({data}:any)=>{
+      existing={...data,id:'winner',createdAt:new Date()};throw {code:'P2002'};
+    }}});
+  });
+  const result=await createCheckoutSession({client,amountEgp:10,idempotencyKey:'same_order_attempt_1'});
+  assert.equal(result.sessionId,existing.sessionId);assert.equal(attempts,2);
+});

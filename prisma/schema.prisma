@@ -256,6 +256,9 @@ model Transaction {
   productCategory      String?
   items                Json?
 
+  idempotencyKeyHash String?
+  idempotencyRequestHash String?
+
   deepLinkUrl   String
   deepLinkToken String
 
@@ -267,6 +270,7 @@ model Transaction {
   createdAt DateTime @default(now())
   expiresAt DateTime
 
+  @@unique([clientId, idempotencyKeyHash])
   @@index([clientId, status, createdAt])
   @@index([clientId, purpose, status])
   @@index([clientId, senderHandle, amountEgp, status])

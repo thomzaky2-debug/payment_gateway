@@ -1,3 +1,4 @@
+import { MerchantIntegrationGuide } from './MerchantIntegrationGuide';
 import React, { useState, useEffect } from 'react';
 import {
   BookOpen, Shield, Code2, Terminal, Check, Copy, ExternalLink,
@@ -50,7 +51,7 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
 
   const displayApiKey = useRealKeys && isValidApiKey ? apiKey : 'egp_live_EXAMPLE_KEY';
   const displayWebhookSecret = useRealKeys && isValidWebhookSecret ? webhookSecret : 'whsec_EXAMPLE_SECRET';
-  const baseUrl = apiOrigin || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3001` : 'http://localhost:3001');
+  const baseUrl = apiOrigin || (typeof window !== 'undefined' ? window.location.origin : '');
 
   // Update tester secret when real secret is received
   useEffect(() => {
@@ -63,7 +64,7 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
   const calculateTestSignature = async () => {
     try {
       const ts = testTimestamp.trim();
-      const body = testPayload.trim();
+      const body = testPayload;
       const secret = testSecret.trim();
 
       const baseString = `${ts}.${body}`;
@@ -132,7 +133,7 @@ const app = express();
 const WEBHOOK_SECRET = process.env.INSTAPAY_WEBHOOK_SECRET || '${displayWebhookSecret}';
 
 // IMPORTANT: Capture raw unparsed body for HMAC-SHA256 signature verification
-app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+app.post('/webhooks/nilepay', express.raw({ type: 'application/json' }), (req, res) => {
   const signatureHeader = req.headers['x-instapay-signature'] as string;
   const timestamp = req.headers['x-instapay-timestamp'] as string;
   const rawBody = req.body.toString('utf8');
@@ -187,7 +188,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) =
   } else if (event === 'payment.underpaid') {
     // Customer paid less than amountEgp: notify customer of remaining balance
   } else if (event === 'payment.overpaid') {
-    // Customer paid more than amountEgp: confirm order and issue customer credit
+    // Overpayment needs review. Do not fulfill unless the authenticated transaction status becomes CONFIRMED.
   }
 
   // Acknowledge receipt with HTTP 200 within 10 seconds to stop gateway retry attempts
@@ -205,7 +206,7 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 WEBHOOK_SECRET = "${displayWebhookSecret}"
 
-@app.route("/api/webhook", methods=["POST"])
+@app.route("/webhooks/nilepay", methods=["POST"])
 def instapay_webhook():
     signature_header = request.headers.get("X-Instapay-Signature", "")
     timestamp_header = request.headers.get("X-Instapay-Timestamp", "")
@@ -363,7 +364,7 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/api/webhook", webhookHandler)
+	http.HandleFunc("/webhooks/nilepay", webhookHandler)
 	fmt.Println("Listening for InstaPay webhooks on :8080...")
 	http.ListenAndServe(":8080", nil)
 }`;
@@ -371,13 +372,13 @@ func main() {
   const curlVerificationCode = `# Simulate an inbound signed webhook delivery to your local endpoint:
 TIMESTAMP=$(date +%s)
 SECRET="${displayWebhookSecret}"
-PAYLOAD='{"event":"payment.confirmed","transaction":{"sessionId":"cmt_test_8f1b2c","amountEgp":150.00,"status":"CONFIRMED","detectedRef":"REF20261010"}}'
+PAYLOAD='{"event":"payment.confirmed","transaction":{"sessionId":"cmt_test_8f1b2c","amountEgp":150.00,"status":"CONFIRMED","currency":"EGP","detectedRef":"REF20261010"}}'
 
 # Compute HMAC-SHA256 signature over "<timestamp>.<rawJsonBody>"
 SIG=$(echo -n "\${TIMESTAMP}.\${PAYLOAD}" | openssl dgst -sha256 -hmac "\${SECRET}" | sed 's/^.* //')
 
 # Dispatch webhook test request:
-curl -X POST "http://localhost:8080/api/webhook" \\
+curl -X POST "http://localhost:8080/webhooks/nilepay" \\
   -H "Content-Type: application/json" \\
   -H "X-Instapay-Timestamp: \${TIMESTAMP}" \\
   -H "X-Instapay-Signature: v1=\${SIG}" \\
@@ -403,6 +404,7 @@ async function createCheckoutSession(amountEgp, orderId, customerHandle) {
         headers: {
           'Authorization': \`Bearer \${API_KEY}\`,
           'Content-Type': 'application/json',
+          'Idempotency-Key': \`order_\${orderId}_attempt_1\`,
         },
         timeout: 10000,
       }
@@ -430,7 +432,8 @@ def create_checkout_session(amount_egp, order_id, customer_handle="customer@inst
     url = f"{BASE_URL}/api/v1/checkout/create"
     headers = {
         "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Idempotency-Key": f"order_{order_id}_attempt_1"
     }
     payload = {
         "amountEgp": float(amount_egp),
@@ -467,6 +470,7 @@ function createCheckoutSession($amountEgp, $orderId, $customerHandle = 'customer
         CURLOPT_HTTPHEADER     => [
             'Authorization: Bearer ' . $apiKey,
             'Content-Type: application/json',
+            "Idempotency-Key: order_{$orderId}_attempt_1",
         ],
     ]);
 
@@ -524,6 +528,7 @@ func createCheckout(amount float64, orderID string) (*CheckoutResponse, error) {
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", "order_"+orderID+"_attempt_1")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -531,11 +536,15 @@ func createCheckout(amount float64, orderID string) (*CheckoutResponse, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("checkout API returned HTTP %d", resp.StatusCode)
+	}
 
 	var result CheckoutResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
+	if !result.Ok { return nil, fmt.Errorf("checkout API did not confirm creation") }
 	return &result, nil
 }
 
@@ -551,6 +560,7 @@ func main() {
 curl -X POST "${baseUrl}/api/v1/checkout/create" \\
   -H "Authorization: Bearer ${displayApiKey}" \\
   -H "Content-Type: application/json" \\
+  -H "Idempotency-Key: order_1042_attempt_1" \\
   -d '{
     "amountEgp": 150.00,
     "senderHandle": "customer@instapay",
@@ -639,6 +649,8 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
 
   return (
     <div style={{ marginTop: '36px', direction: isRtl ? 'rtl' : 'ltr' }}>
+      <MerchantIntegrationGuide baseUrl={baseUrl} />
+      <p style={{ color: textSecondary, fontSize: 13 }}>{isRtl ? 'الأمثلة التالية تشرح البروتوكول فقط؛ المشروع القابل للتحميل يضيف التخزين الدائم ومنع التكرار والتنفيذ الذري. لا تُعد الأمثلة حزم SDK منشورة.' : 'The snippets below illustrate the protocol. The downloadable project adds durable storage, deduplication and atomic fulfillment. These are code examples, not published SDK packages.'}</p>
       {/* ─── Main Section Header Banner ─── */}
       <div style={{
         ...cardStyle({ padding: '24px 28px' }),
@@ -794,7 +806,7 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
             { id: 'endpoints', label: isRtl ? 'نقاط API (Checkout)' : 'Checkout Endpoints', icon: Code2 },
             { id: 'webhook', label: isRtl ? 'التحقق من التوقيع (HMAC)' : 'HMAC-SHA256 Webhook', icon: ShieldCheck },
             { id: 'tester', label: isRtl ? 'مختبر التوقيع الحي' : 'Live Signature Tester', icon: Play },
-            { id: 'code', label: isRtl ? 'نماذج الشيفرة (SDK)' : 'Code Examples (SDK)', icon: Terminal },
+            { id: 'code', label: isRtl ? 'نماذج الشيفرة' : 'Code Examples', icon: Terminal },
             { id: 'events', label: isRtl ? 'الأحداث والحمولات (Events)' : 'Events & Payloads', icon: Layers },
             { id: 'errors', label: isRtl ? 'دورة الحياة والأخطاء' : 'Lifecycle & Errors', icon: AlertCircle },
           ].map((tab) => {
@@ -1088,7 +1100,7 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
                       cURL Example
                     </span>
                     <button
-                      onClick={() => copyToClipboard(`curl -X POST ${baseUrl}/api/v1/checkout/create \\\n  -H "Authorization: Bearer ${displayApiKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "amountEgp": 150.00,\n    "senderHandle": "customer@instapay",\n    "note": "Order #1042"\n  }'`, 'curlcreate')}
+                      onClick={() => copyToClipboard(curlCreateCode, 'curlcreate')}
                       style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
                     >
                       {copiedId === 'curlcreate' ? <Check size={13} color="#34d399" /> : <Copy size={13} />}
@@ -1104,10 +1116,7 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
                     lineHeight: 1.6,
                     overflowX: 'auto',
                   }}>
-                    <span style={{ color: '#fbbf24' }}>curl</span> -X POST {baseUrl}/api/v1/checkout/create \{'\n'}
-                    {'  '}-H <span style={{ color: '#fb923c' }}>"Authorization: Bearer {displayApiKey}"</span> \{'\n'}
-                    {'  '}-H <span style={{ color: '#fb923c' }}>"Content-Type: application/json"</span> \{'\n'}
-                    {'  '}-d <span style={{ color: '#a78bfa' }}>'{"{"}\n    "amountEgp": 150.00,\n    "senderHandle": "customer@instapay",\n    "note": "Order #1042"\n  {"}"}'</span>
+                    {curlCreateCode}
                   </pre>
                 </div>
 
@@ -1124,8 +1133,8 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
                           status: 'PENDING',
                           amountEgp: 150.0,
                           currency: 'EGP',
-                          deepLinkUrl: 'instapay://pay?handle=merchant@instapay&amount=150.00&ref=cmt_8f1b2c3d4e5f6a7b',
-                          checkoutUrl: `${baseUrl}/pay/cmt_8f1b2c3d4e5f6a7b`,
+                          deepLinkUrl: 'https://ipn.eg/S/merchant/instapay/exampletoken',
+                          checkoutUrl: `${window.location.origin}/pay/cmt_8f1b2c3d4e5f6a7b`,
                           recipientHandle: 'merchant@instapay',
                           senderHandle: 'customer@instapay',
                           expiresAt: '2026-10-02T00:45:00.000Z'
@@ -1146,7 +1155,7 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
                     lineHeight: 1.6,
                     overflowX: 'auto',
                   }}>
-                    {`{\n  "ok": true,\n  "checkout": {\n    "sessionId": "cmt_8f1b2c3d4e5f6a7b",\n    "status": "PENDING",\n    "amountEgp": 150.0,\n    "currency": "EGP",\n    "deepLinkUrl": "instapay://pay?...",\n    "checkoutUrl": "${baseUrl}/pay/cmt_...",\n    "recipientHandle": "merchant@instapay",\n    "senderHandle": "customer@instapay",\n    "expiresAt": "2026-10-02T00:45:00.000Z"\n  }\n}`}
+                    {`{\n  "ok": true,\n  "checkout": {\n    "sessionId": "cmt_8f1b2c3d4e5f6a7b",\n    "status": "PENDING",\n    "amountEgp": 150.0,\n    "currency": "EGP",\n    "deepLinkUrl": "https://ipn.eg/S/merchant/instapay/exampletoken",\n    "checkoutUrl": "${window.location.origin}/pay/cmt_...",\n    "recipientHandle": "merchant@instapay",\n    "senderHandle": "customer@instapay",\n    "expiresAt": "2026-10-02T00:45:00.000Z"\n  }\n}`}
                   </pre>
                 </div>
               </div>

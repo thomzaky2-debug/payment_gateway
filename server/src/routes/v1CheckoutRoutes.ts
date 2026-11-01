@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { authenticateByApiKey } from '../services/authService.js'
-import { createCheckoutSession, getCheckoutSession, CheckoutValidationError } from '../services/checkoutService.js'
+import { createCheckoutSession, getCheckoutSession, CheckoutIdempotencyConflict, CheckoutValidationError } from '../services/checkoutService.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { decryptCredential } from '../lib/credentialCrypto.js'
 
@@ -30,10 +30,11 @@ v1CheckoutRouter.post('/create', requireApiKey, async (req: Request, res: Respon
     const client = (req as unknown as { client: any }).client
     const { amountEgp, senderHandle, note, productCategory, items, products, returnUrl, redirectUrl, storeUrl } = req.body
     const orderItems = items ?? products
-    const finalReturnUrl = (returnUrl || redirectUrl || storeUrl || '')?.trim() || undefined
+    const finalReturnUrl = returnUrl || redirectUrl || storeUrl || undefined
 
     const checkout = await createCheckoutSession({
       client,
+      idempotencyKey: req.get('Idempotency-Key'),
       amountEgp: amountEgp != null && !isNaN(Number(amountEgp)) ? Number(amountEgp) : undefined,
       senderHandle,
       note,
@@ -48,7 +49,7 @@ v1CheckoutRouter.post('/create', requireApiKey, async (req: Request, res: Respon
     })
   } catch (err: unknown) {
     if (err instanceof CheckoutValidationError) {
-      return res.status(err.status).json({ ok: false, error: err.message })
+      return res.status(err.status).json({ ok: false, error: err.message, ...(err instanceof CheckoutIdempotencyConflict ? {code:'IDEMPOTENCY_CONFLICT'} : {}) })
     }
     return sendInternalError(res, err, 'Unable to create checkout session')
   }
@@ -105,10 +106,12 @@ v1CheckoutRouter.get('/snippets', requireApiKey, (req: Request, res: Response) =
   const curl = `curl -X POST ${baseUrl}/api/v1/checkout/create \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer ${apiKey}" \\
+  -H "Idempotency-Key: order_1042_attempt_1" \\
   -d '{
     "amountEgp": 150.00,
     "senderHandle": "customer@instapay",
     "note": "Order #1042",
+    "returnUrl": "https://your-store.example/payment-return",
     "items": [
       { "name": "Wireless Gaming Mouse", "quantity": 1, "unitPrice": 100.00 },
       { "name": "Mousepad Pro", "quantity": 1, "unitPrice": 50.00 }
@@ -122,6 +125,7 @@ async function createInstapayCheckout() {
     amountEgp: 150.00,
     senderHandle: 'customer@instapay',
     note: 'Order #1042',
+    returnUrl: 'https://your-store.example/payment-return',
     items: [
       { name: 'Wireless Gaming Mouse', quantity: 1, unitPrice: 100.00 },
       { name: 'Mousepad Pro', quantity: 1, unitPrice: 50.00 }
@@ -129,7 +133,8 @@ async function createInstapayCheckout() {
   }, {
     headers: {
       'Authorization': 'Bearer ${apiKey}',
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Idempotency-Key': 'order_1042_attempt_1'
     }
   });
 
@@ -141,12 +146,14 @@ async function createInstapayCheckout() {
 url = "${baseUrl}/api/v1/checkout/create"
 headers = {
     "Authorization": "Bearer ${apiKey}",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "Idempotency-Key": "order_1042_attempt_1"
 }
 payload = {
     "amountEgp": 150.00,
     "senderHandle": "customer@instapay",
     "note": "Order #1042",
+    "returnUrl": "https://your-store.example/payment-return",
     "items": [
         {"name": "Wireless Gaming Mouse", "quantity": 1, "unitPrice": 100.00},
         {"name": "Mousepad Pro", "quantity": 1, "unitPrice": 50.00}
@@ -162,6 +169,7 @@ $payload = json_encode([
     'amountEgp' => 150.00,
     'senderHandle' => 'customer@instapay',
     'note' => 'Order #1042',
+    'returnUrl' => 'https://your-store.example/payment-return',
     'items' => [
         ['name' => 'Wireless Gaming Mouse', 'quantity' => 1, 'unitPrice' => 100.00],
         ['name' => 'Mousepad Pro', 'quantity' => 1, 'unitPrice' => 50.00]
@@ -174,7 +182,8 @@ curl_setopt_array($ch, [
     CURLOPT_POSTFIELDS => $payload,
     CURLOPT_HTTPHEADER => [
         'Authorization: Bearer ${apiKey}',
-        'Content-Type: application/json'
+        'Content-Type: application/json',
+        'Idempotency-Key: order_1042_attempt_1'
     ]
 ]);
 

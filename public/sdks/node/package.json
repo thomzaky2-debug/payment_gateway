@@ -1,0 +1,10 @@
+{
+  "name": "@nilepay/node",
+  "version": "1.0.0",
+  "description": "Official NilePay API client for Node.js",
+  "type": "module",
+  "main": "index.js",
+  "engines": { "node": ">=18" },
+  "files": ["index.js", "README.md"],
+  "license": "MIT"
+}

@@ -164,6 +164,53 @@ if (isDbOnline) {
     assert.equal(JSON.parse(log.payload).transaction.productCategory, 'Electronics')
   })
 
+  test('real-db: checkout keys serialize concurrent retries, isolate merchants, reject conflicts and retain expired sessions', async () => {
+    const { createCheckoutSession } = await import('./services/checkoutService.js');
+    const original = await createTestMerchant('idempotency');
+    const merchant = await db.client.update({where:{id:original.id},data:{subscriptionPlan:'BASIC',isFreeTrial:false,txLimit:1,subscriptionEndsAt:new Date(Date.now()+86400000)}});
+    const input={client:merchant,amountEgp:150,senderHandle:'customer@instapay',idempotencyKey:'order_1042_attempt_1',note:'Order #1042',returnUrl:'https://merchant.example/return'};
+    const responses=await Promise.all(Array.from({length:10},()=>createCheckoutSession(input)));
+    assert.equal(new Set(responses.map(r=>r.sessionId)).size,1);
+    assert.equal(await db.transaction.count({where:{clientId:merchant.id}}),1);
+    const saved=await db.transaction.findUniqueOrThrow({where:{sessionId:responses[0].sessionId}});
+    assert.equal(saved.idempotencyKeyHash?.length,64);
+    await assert.rejects(createCheckoutSession({...input,amountEgp:151}),{status:409});
+    await assert.rejects(createCheckoutSession({...input,idempotencyKey:'new_order_attempt_1'}),/Transaction limit reached/);
+    await db.transaction.update({where:{id:saved.id},data:{status:'EXPIRED',expiresAt:new Date(Date.now()-1000)}});
+    const replay=await createCheckoutSession(input);
+    assert.equal(replay.sessionId,saved.sessionId);assert.equal(replay.status,'EXPIRED');
+    const otherOriginal=await createTestMerchant('idempotency_other');
+    const other=await db.client.update({where:{id:otherOriginal.id},data:{subscriptionPlan:'BASIC',isFreeTrial:false,txLimit:1,subscriptionEndsAt:new Date(Date.now()+86400000)}});
+    const foreign=await createCheckoutSession({...input,client:other});
+    assert.notEqual(foreign.sessionId,saved.sessionId);
+    assert.equal(await db.transaction.count({where:{clientId:merchant.id}}),1);
+  });
+
+  test('real-db HTTP: checkout create honors the key header, emits 409 conflicts and scopes status to the API key', async () => {
+    const express = (await import('express')).default;
+    const { v1CheckoutRouter } = await import('./routes/v1CheckoutRoutes.js');
+    const { hashToken } = await import('./services/authService.js');
+    const created = await createTestMerchant('keyed_http');
+    const key = 'egp_live_' + crypto.randomBytes(24).toString('hex');
+    const merchant = await db.client.update({where:{id:created.id},data:{apiKeyHash:hashToken(key),subscriptionPlan:'BASIC',isFreeTrial:false,txLimit:1,subscriptionEndsAt:new Date(Date.now()+86400000)}});
+    const app=express();app.use(express.json());app.use('/api/v1/checkout',v1CheckoutRouter);
+    const server=app.listen(0,'127.0.0.1');await new Promise<void>(resolve=>server.once('listening',resolve));
+    const port=(server.address() as {port:number}).port,base=`http://127.0.0.1:${port}`;
+    const headers={'Content-Type':'application/json',Authorization:`Bearer ${key}`,'Idempotency-Key':'http_order_1042_attempt_1'};
+    const body={amountEgp:150,senderHandle:'customer@instapay',returnUrl:'https://merchant.example/return'};
+    try {
+      const responses=await Promise.all([1,2].map(()=>fetch(base+'/api/v1/checkout/create',{method:'POST',headers,body:JSON.stringify(body)})));
+      assert.ok(responses.every(r=>r.status===201));const json:any[]=await Promise.all(responses.map(r=>r.json()));
+      assert.equal(json[0].checkout.sessionId,json[1].checkout.sessionId);
+      const conflict=await fetch(base+'/api/v1/checkout/create',{method:'POST',headers,body:JSON.stringify({...body,amountEgp:151})});
+      assert.equal(conflict.status,409);assert.equal((await conflict.json() as {code:string}).code,'IDEMPOTENCY_CONFLICT');
+      const status=await fetch(base+'/api/v1/checkout/status?sessionId='+json[0].checkout.sessionId,{headers:{Authorization:`Bearer ${key}`}});
+      assert.equal(status.status,200);assert.equal((await status.json() as {checkout:{amountEgp:number}}).checkout.amountEgp,150);
+      const invalid=await fetch(base+'/api/v1/checkout/status?sessionId='+json[0].checkout.sessionId,{headers:{Authorization:'Bearer wrong'}});assert.equal(invalid.status,401);
+      assert.equal(await db.transaction.count({where:{clientId:merchant.id}}),1);
+    } finally { await new Promise<void>((resolve,reject)=>server.close(err=>err?reject(err):resolve())); }
+  });
+
   // ─── (a) Refresh Rotation Concurrency ──────────────────────────────────────
   test('real-db: (a) 10 concurrent refreshes with one token: exactly one succeeds, family ends up revoked', async () => {
     const merchant = await createTestMerchant('rot')

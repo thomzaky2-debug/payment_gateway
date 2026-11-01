@@ -15,6 +15,7 @@ export interface OrderItem {
 
 export interface CreateCheckoutInput {
   client: Client
+  idempotencyKey?: string
   amountEgp?: number
   senderHandle?: string | null
   note?: string | null
@@ -48,7 +49,7 @@ function isSerializableConflict(error: unknown): boolean {
     error &&
       typeof error === 'object' &&
       'code' in error &&
-      (error as { code?: unknown }).code === 'P2034'
+      ['P2034', 'P2002'].includes(String((error as { code?: unknown }).code))
   )
 }
 
@@ -82,6 +83,10 @@ export class CheckoutValidationError extends Error {
   status = 400
 }
 
+export class CheckoutIdempotencyConflict extends CheckoutValidationError {
+  status = 409
+}
+
 export class CheckoutCapacityBusyError extends CheckoutValidationError {
   status = 503
 }
@@ -89,6 +94,21 @@ export class CheckoutCapacityBusyError extends CheckoutValidationError {
 export async function createCheckoutSession(
   input: CreateCheckoutInput
 ): Promise<CheckoutResult> {
+  const key = input.idempotencyKey;
+  if (key && input.purpose && input.purpose !== 'CHECKOUT') throw new CheckoutValidationError('Idempotency keys are supported for ordinary checkout sessions only.');
+  if (key !== undefined && (typeof key !== 'string' || !/^[A-Za-z0-9._:-]{8,128}$/.test(key))) {
+    throw new CheckoutValidationError('Idempotency-Key must contain 8–128 letters, numbers, dots, colons, underscores or hyphens.');
+  }
+  if (input.senderHandle != null && (typeof input.senderHandle !== 'string' || input.senderHandle.length > 200)) throw new CheckoutValidationError('senderHandle must be text up to 200 characters.');
+  if (input.note != null && (typeof input.note !== 'string' || input.note.length > 1000)) throw new CheckoutValidationError('note must be text up to 1000 characters.');
+  const rawReturnUrl = input.returnUrl || input.redirectUrl || null;
+  if (rawReturnUrl !== null && typeof rawReturnUrl !== 'string') throw new CheckoutValidationError('returnUrl must be a URL string.');
+  const validReturnUrl = rawReturnUrl?.trim() || null;
+  if (validReturnUrl) {
+    let valid = false;
+    try { const url = new URL(validReturnUrl); valid = ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password; } catch { valid = validReturnUrl.startsWith('/') && !validReturnUrl.startsWith('//'); }
+    if (!valid || /[\\\x00-\x1f\x7f]/.test(validReturnUrl)) throw new CheckoutValidationError('returnUrl must be an HTTP(S) URL or a local absolute path.');
+  }
   if (input.productCategory != null && (typeof input.productCategory !== 'string' || input.productCategory.trim().length > 100)) {
     throw new CheckoutValidationError('Product category must be text with at most 100 characters')
   }
@@ -132,13 +152,16 @@ export async function createCheckoutSession(
     })
   }
 
-  const { client, note, purpose = 'CHECKOUT', subscriptionPlanName } = input
+  const { client, purpose = 'CHECKOUT', subscriptionPlanName } = input
 
+  const note = input.note?.trim() || null
   let amountEgp = input.amountEgp
   if (sanitizedItems && sanitizedItems.length > 0) {
     const itemsSum = Math.round(sanitizedItems.reduce((acc, it) => acc + (it.totalPrice || 0), 0) * 100) / 100
     if (amountEgp == null || isNaN(Number(amountEgp))) {
       amountEgp = itemsSum
+    } else if (toEgpCents(Number(amountEgp)) !== toEgpCents(itemsSum)) {
+      throw new CheckoutValidationError('amountEgp must match the total of the supplied items')
     }
   }
 
@@ -157,6 +180,12 @@ export async function createCheckoutSession(
     : 'pending@instapay'
   const amountCents = toEgpCents(cleanAmountEgp)
 
+  const idempotencyKeyHash = key ? crypto.createHash('sha256').update(key).digest('hex') : null;
+  const idempotencyRequestHash = key ? crypto.createHash('sha256').update(JSON.stringify({
+    amountCents, sender, note, productCategory, items: sanitizedItems, purpose,
+    subscriptionPlanName: subscriptionPlanName || null, returnUrl: validReturnUrl,
+  })).digest('hex') : null;
+
   const createTransaction = (
     transactionDb: Pick<Prisma.TransactionClient, 'transaction'>,
     effectiveClient: Client,
@@ -173,6 +202,7 @@ export async function createCheckoutSession(
     return transactionDb.transaction.create({
       data: {
         sessionId,
+        ...(key ? { idempotencyKeyHash, idempotencyRequestHash } : {}),
         clientId: effectiveClient.id,
         senderHandle: sender,
         recipientHandle: effectiveClient.instapayHandle,
@@ -199,6 +229,15 @@ export async function createCheckoutSession(
 
         if (!freshClient || freshClient.approvalStatus !== 'APPROVED' || !freshClient.isActive) {
           throw new CheckoutValidationError('Merchant account is inactive or not approved.')
+        }
+        if (idempotencyKeyHash) {
+          const existing = await transactionDb.transaction.findUnique({ where: {
+            clientId_idempotencyKeyHash: { clientId: freshClient.id, idempotencyKeyHash },
+          } });
+          if (existing) {
+            if (existing.idempotencyRequestHash !== idempotencyRequestHash) throw new CheckoutIdempotencyConflict('Idempotency-Key was already used with different checkout details. Use the original request or a new key for a new order.');
+            return existing;
+          }
         }
         if (
           (freshClient.isFreeTrial || freshClient.subscriptionPlan === 'FREE_TRIAL') &&
@@ -230,11 +269,6 @@ export async function createCheckoutSession(
     : await createTransaction(db, client, new Date())
 
   const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173'
-  const rawReturnUrl = (input.returnUrl || input.redirectUrl)?.trim() || null
-  let validReturnUrl: string | null = null
-  if (rawReturnUrl && (/^https?:\/\//i.test(rawReturnUrl) || rawReturnUrl.startsWith('/'))) {
-    validReturnUrl = rawReturnUrl
-  }
   const checkoutUrl = validReturnUrl
     ? `${clientUrl}/pay/${transaction.sessionId}?returnUrl=${encodeURIComponent(validReturnUrl)}`
     : `${clientUrl}/pay/${transaction.sessionId}`

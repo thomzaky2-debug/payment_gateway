@@ -28,6 +28,7 @@ interface UnifiedAuditItem {
   rawPayload?: any;
   sessionId?: string;
   eventId?: string;
+  webhookLogId?: string;
 }
 
 const fallbackAuditLogs: UnifiedAuditItem[] = [
@@ -158,6 +159,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
   const [inspectItem, setInspectItem] = useState<UnifiedAuditItem | null>(null);
   const [copiedInspect, setCopiedInspect] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [replayingWebhookId, setReplayingWebhookId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
   // Auto tick every 10s so relative timestamps update in real-time
@@ -214,6 +216,7 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
             status: w.isSuccess ? 'success' : 'failed',
             httpCode: w.statusCode,
             eventId: w.eventId,
+            webhookLogId: w.id,
             rawPayload: {
               url: w.url,
               event: w.event,
@@ -297,6 +300,25 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  const replayWebhook = useCallback(async (log: UnifiedAuditItem) => {
+    if (!log.webhookLogId || log.status !== 'failed') return;
+    const approved = window.confirm(isRtl
+      ? 'سيُعاد إرسال نفس الحدث إلى رابط الويب هوك الحالي. تأكد أن خادمك يعالج التكرار بأمان. هل تريد المتابعة؟'
+      : 'This redelivers the same event to your current webhook URL. Confirm that your server handles duplicates safely. Continue?');
+    if (!approved) return;
+    setReplayingWebhookId(log.webhookLogId);
+    try {
+      const response = await settingsApi.resendWebhook(log.webhookLogId);
+      showToast?.(response.ok ? 'success' : 'warning', response.message || 'Webhook replay requested.');
+      await fetchLogs(true);
+      setInspectItem(null);
+    } catch (error: any) {
+      showToast?.('error', error?.response?.data?.error || error?.message || 'Unable to replay this webhook.');
+    } finally {
+      setReplayingWebhookId(null);
+    }
+  }, [fetchLogs, isRtl, showToast]);
 
   /* ──────────────── Filter & Search ──────────────── */
   const filteredLogs = useMemo(() => {
@@ -1379,6 +1401,29 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
                 {inspectItem.details}
               </p>
             </div>
+
+            {inspectItem.category === 'webhook' && inspectItem.status === 'failed' && inspectItem.webhookLogId && (
+              <div style={{ marginBottom: '16px', padding: '14px', borderRadius: '12px', backgroundColor: isDark ? 'rgba(245,158,11,0.1)' : '#fffbeb', border: `1px solid ${isDark ? 'rgba(245,158,11,0.32)' : '#fde68a'}` }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '10px' }}>
+                  <AlertTriangle size={16} color="#f59e0b" style={{ flexShrink: 0, marginTop: '1px' }} />
+                  <div>
+                    <strong style={{ color: textPrimary, fontSize: '13px' }}>{isRtl ? 'إعادة إرسال آمنة' : 'Safe webhook replay'}</strong>
+                    <p style={{ color: textSecondary, fontSize: '12px', margin: '3px 0 0', lineHeight: 1.45 }}>
+                      {isRtl ? 'سيُرسل نفس الحدث الموقّع إلى الرابط الحالي. لا تعِد التسليم الناجح؛ يجب أن يستخدم خادمك معرّف الحدث لمنع تنفيذ الطلب مرتين.' : 'The same signed event will be sent to the current endpoint. Never replay a successful delivery; your receiver must use the event ID to prevent double fulfillment.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void replayWebhook(inspectItem)}
+                  disabled={replayingWebhookId === inspectItem.webhookLogId}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', border: 0, borderRadius: '8px', padding: '8px 12px', cursor: replayingWebhookId === inspectItem.webhookLogId ? 'wait' : 'pointer', backgroundColor: '#d97706', color: '#fff', fontWeight: 750, fontSize: '12px', opacity: replayingWebhookId === inspectItem.webhookLogId ? .7 : 1 }}
+                >
+                  <RefreshCw size={14} className={replayingWebhookId === inspectItem.webhookLogId ? 'animate-spin' : ''} />
+                  {replayingWebhookId === inspectItem.webhookLogId ? (isRtl ? 'جارٍ الإرسال…' : 'Replaying…') : (isRtl ? 'إعادة إرسال هذا الحدث' : 'Replay this event')}
+                </button>
+              </div>
+            )}
 
             {/* JSON Payload Viewer */}
             <div>
