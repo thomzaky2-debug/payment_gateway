@@ -28,6 +28,8 @@ import {
   ShoppingBag,
   ArrowUpRight,
   CreditCard,
+  Calendar,
+  TimerOff,
 } from 'lucide-react';
 import { transactionsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -462,15 +464,344 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
     }
   ) => {
     if (item.status === 'EXPIRED' && item.detectedAmountEgp == null) {
-      return <article key={item.id} style={{ padding: '18px', borderRadius: '14px', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
-          <strong style={{ overflowWrap: 'anywhere' }}>{item.sessionId}</strong>
-          <span>{isRtl ? 'منتهية — لم يُرصد دفع' : 'Expired — no payment detected'}</span>
+      const isSessCopied = copiedId === `sess-${item.sessionId}`;
+      const isSenderCopied = copiedId === `sender-${item.id}`;
+      const isLinkCopied = copiedId === `link-${item.sessionId}`;
+      const checkoutUrl = `${window.location.origin}/pay/${item.sessionId}`;
+
+      const noteRaw = item.note || '';
+      const cleanNote = noteRaw
+        .replace(/\s*\(Expected:\s*[^)]+\)/i, '')
+        .replace(/\s*\(Duplicate[^\)]*\)/i, '')
+        .replace(/\s*\(Flagged[^\)]*\)/i, '')
+        .trim();
+
+      const elapsed = getRelativeTime(item.expiresAt || item.createdAt, isRtl);
+
+      return (
+        <div
+          key={item.id}
+          className="review-tx-card review-expired-card"
+          style={{
+            backgroundColor: isDark ? '#111827' : '#ffffff',
+            borderRadius: '16px',
+            border: isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0',
+            boxShadow: isDark
+              ? '0 6px 20px -4px rgba(0,0,0,0.45)'
+              : '0 4px 16px rgba(0,0,0,0.05)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+          }}
+        >
+          {/* Card Header: Expired Badge, Sequence #, Relative Elapsed */}
+          <div
+            style={{
+              padding: '12px 16px',
+              borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #f1f5f9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap',
+              background: isDark
+                ? 'linear-gradient(180deg, rgba(245, 158, 11, 0.04) 0%, transparent 100%)'
+                : 'linear-gradient(180deg, #fffbeb 0%, #ffffff 100%)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 9px',
+                  borderRadius: '8px',
+                  backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#fef3c7',
+                  border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid #fde68a',
+                  color: '#f59e0b',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
+                  flexShrink: 0,
+                }}
+              >
+                <Clock size={12} />
+                <span>{isRtl ? 'جلسة منتهية الصلاحية' : 'EXPIRED SESSION'}</span>
+              </span>
+
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: isDark ? '#64748b' : '#94a3b8',
+                  fontFamily: 'monospace',
+                }}
+              >
+                #{index + 1}
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+                color: isDark ? '#94a3b8' : '#64748b',
+                fontWeight: 500,
+              }}
+              title={`${isRtl ? 'انتهت في' : 'Expired at'}: ${formatReviewDate(item.expiresAt, isRtl)}`}
+            >
+              <Clock size={12} />
+              <span>
+                {item.expiresAt
+                  ? `${isRtl ? 'انتهت' : 'Expired'} ${elapsed || formatReviewDate(item.expiresAt, isRtl)}`
+                  : (isRtl ? 'منتهية' : 'Expired')}
+              </span>
+            </div>
+          </div>
+
+          {/* Card Body */}
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', flex: 1 }}>
+            {/* Session ID & Clean Note / Category */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                  <span style={{ fontSize: '11px', color: isDark ? '#64748b' : '#94a3b8', fontWeight: 600 }}>SESSION:</span>
+                  <span
+                    style={{
+                      fontFamily: 'monospace',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {item.sessionId}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(item.sessionId, `sess-${item.sessionId}`)}
+                    title={isRtl ? 'نسخ معرف الجلسة' : 'Copy Session ID'}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '2px',
+                      cursor: 'pointer',
+                      color: isSessCopied ? '#10b981' : (isDark ? '#64748b' : '#94a3b8'),
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    {isSessCopied ? <Check size={12} /> : <Copy size={12} />}
+                  </button>
+                </div>
+
+                {item.productCategory && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0f9ff',
+                      color: isDark ? '#38bdf8' : '#0284c7',
+                      border: isDark ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid #bae6fd',
+                    }}
+                  >
+                    {item.productCategory === 'PRODUCT_ORDER' ? (isRtl ? 'طلب منتجات' : 'Product Order') : item.productCategory}
+                  </span>
+                )}
+              </div>
+
+              {cleanNote && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    marginTop: '6px',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    color: isDark ? '#e2e8f0' : '#1e293b',
+                  }}
+                >
+                  <ShoppingBag size={13} color={isDark ? '#94a3b8' : '#64748b'} />
+                  <span>{cleanNote}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Financial & Customer Cardlet */}
+            <div
+              style={{
+                borderRadius: '12px',
+                padding: '12px 14px',
+                backgroundColor: isDark ? 'rgba(15, 23, 42, 0.65)' : '#f8fafc',
+                border: isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0',
+                display: 'grid',
+                gridTemplateColumns: 'minmax(120px, 1fr) minmax(160px, 1.4fr)',
+                gap: '12px',
+                alignItems: 'center',
+              }}
+            >
+              {/* Requested Amount */}
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  {isRtl ? 'المبلغ المطلوب' : 'Requested Amount'}
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', marginTop: '2px', fontFamily: 'monospace' }}>
+                  {Number(item.amountEgp || 0).toFixed(2)}{' '}
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#f59e0b' }}>EGP</span>
+                </div>
+              </div>
+
+              {/* Intended Payer Handle */}
+              <div style={{ borderInlineStart: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0', paddingInlineStart: '12px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  {isRtl ? 'حساب العميل المتوقع' : 'Intended Payer IPA'}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px' }}>
+                  <User size={13} style={{ color: isDark ? '#94a3b8' : '#64748b', flexShrink: 0 }} />
+                  <span
+                    style={{
+                      fontFamily: 'monospace',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      color: isDark ? '#cbd5e1' : '#334155',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={item.senderHandle}
+                  >
+                    {item.senderHandle || '—'}
+                  </span>
+                  {item.senderHandle && (
+                    <button
+                      type="button"
+                      onClick={() => copyText(item.senderHandle, `sender-${item.id}`)}
+                      title={isRtl ? 'نسخ الحساب' : 'Copy Handle'}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: '1px',
+                        cursor: 'pointer',
+                        color: isSenderCopied ? '#10b981' : (isDark ? '#64748b' : '#94a3b8'),
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {isSenderCopied ? <Check size={11} /> : <Copy size={11} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Timestamps Timeline */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                fontSize: '11.5px',
+                color: isDark ? '#94a3b8' : '#64748b',
+                padding: '7px 10px',
+                borderRadius: '8px',
+                backgroundColor: isDark ? 'rgba(30, 41, 59, 0.4)' : '#f1f5f9',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ fontWeight: 600 }}>{isRtl ? 'تم الإنشاء:' : 'Created:'}</span>
+                <span>{formatReviewDate(item.createdAt, isRtl)}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#f59e0b' }}>
+                <span style={{ fontWeight: 600 }}>{isRtl ? 'انتهت الصلاحية:' : 'Expired:'}</span>
+                <span>{formatReviewDate(item.expiresAt, isRtl)}</span>
+              </div>
+            </div>
+
+            {/* Advisory Status & Action Footer */}
+            <div
+              style={{
+                marginTop: 'auto',
+                paddingTop: '10px',
+                borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.35)' : '1px solid #f1f5f9',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                <AlertCircle size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                <span>
+                  {isRtl
+                    ? 'لم يُرصد دفع بنكي ضمن مهلة الجلسة (للعرض فقط)'
+                    : 'No payment detected within TTL (Read-only)'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => copyText(checkoutUrl, `link-${item.sessionId}`)}
+                  title={isRtl ? 'نسخ رابط صفحة الدفع' : 'Copy Checkout URL'}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '5px 9px',
+                    borderRadius: '7px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor: isDark ? 'rgba(51, 65, 85, 0.4)' : '#f1f5f9',
+                    border: isDark ? '1px solid rgba(71, 85, 105, 0.4)' : '1px solid #cbd5e1',
+                    color: isLinkCopied ? '#10b981' : (isDark ? '#cbd5e1' : '#475569'),
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {isLinkCopied ? <Check size={11} /> : <Copy size={11} />}
+                  <span>{isLinkCopied ? (isRtl ? 'تم النسخ' : 'Copied!') : (isRtl ? 'نسخ الرابط' : 'Copy Link')}</span>
+                </button>
+
+                <a
+                  href={`/pay/${item.sessionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={isRtl ? 'فتح صفحة الدفع المنتهية' : 'Open Expired Checkout Page'}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '5px 9px',
+                    borderRadius: '7px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0f9ff',
+                    border: isDark ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid #bae6fd',
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <ExternalLink size={11} />
+                  <span>{isRtl ? 'معاينة' : 'Preview'}</span>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
-        <p>{Number(item.amountEgp).toFixed(2)} EGP · {item.senderHandle}</p>
-        <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{isRtl ? 'انتهت في' : 'Expired at'} {formatReviewDate(item.expiresAt, isRtl)}</p>
-        <p style={{ marginBottom: 0, fontSize: '13px' }}>{isRtl ? 'سجل للعرض فقط. لا يمكن تأكيده بدون دفع مرصود.' : 'Read-only checkout record. Confirmation requires a detected payment.'}</p>
-      </article>;
+      );
     }
     const expected = Number(item.amountEgp || 0);
     const detected = Number(item.detectedAmountEgp || item.amountEgp || 0);
@@ -1457,7 +1788,28 @@ export function ReviewPage({ showToast, showConfirm, onNavigate, subPath, onSubP
                 </span>
               </div>
 
-              <p style={{ color: textSecondary, fontSize: '13px' }}>{isRtl ? 'تُعرض أحدث ١٠٠ جلسة منتهية بدون دفع. السجلات بدون دفع للعرض فقط ولا تحتاج إجراءً.' : 'Includes the latest 100 unpaid expired checkouts. Unpaid records are read-only and need no action.'}</p>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '16px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: isDark ? 'rgba(30, 41, 59, 0.45)' : '#f8fafc',
+                  border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+                  color: textSecondary,
+                  fontSize: '12.5px',
+                  lineHeight: 1.5,
+                }}
+              >
+                <Info size={15} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                <span>
+                  {isRtl
+                    ? 'تُعرض أحدث ١٠٠ جلسة منتهية بدون دفع. السجلات غير المدفوعة للعرض والتدقيق ولا تتطلب أي إجراء يدوي.'
+                    : 'Includes the latest 100 unpaid expired checkouts. Unpaid records are read-only and need no manual intervention.'}
+                </span>
+              </div>
               <div className="review-cards-grid">
                 {filteredLate.map((item, index) =>
                   renderTransactionCard(item, index, {

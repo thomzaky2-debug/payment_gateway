@@ -1845,6 +1845,21 @@ th, td {
   border-color: rgba(56, 189, 248, 0.4) !important;
 }
 
+.review-expired-card {
+  position: relative;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s ease !important;
+}
+
+.review-expired-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(245, 158, 11, 0.5) !important;
+  box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.4), 0 0 15px -2px rgba(245, 158, 11, 0.15) !important;
+}
+
+html.dark .review-expired-card {
+  background: linear-gradient(180deg, #111827 0%, #0d131f 100%) !important;
+}
+
 .review-stats-strip > div:hover {
   border-color: rgba(56, 189, 248, 0.4) !important;
 }
