@@ -1788,7 +1788,12 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
               margin: 0,
               lineHeight: 1.7,
               overflowX: 'auto',
-              maxHeight: '520px',
+              overflowY: 'auto',
+              // Every language/action tab keeps its own contained reading area.
+              // `min()` avoids a tiny code window on short mobile screens.
+              maxHeight: 'min(58vh, 520px)',
+              overscrollBehavior: 'contain',
+              scrollbarGutter: 'stable',
             }}>
               {codeType === 'webhook' && selectedLang === 'node' && nodeVerificationCode}
               {codeType === 'webhook' && selectedLang === 'python' && pythonVerificationCode}

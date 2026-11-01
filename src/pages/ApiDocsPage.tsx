@@ -2430,7 +2430,7 @@ curl -X POST "http://localhost:8080/webhooks/nilepay" \\
                 </button>
               </div>
 
-              <div style={{ padding: '18px 22px', maxHeight: '520px', overflowY: 'auto' }}>
+              <div style={{ padding: '18px 22px', maxHeight: 'min(58vh, 520px)', overflowY: 'auto', overscrollBehavior: 'contain', scrollbarGutter: 'stable' }}>
                 <pre style={{ margin: 0, fontFamily: 'monospace', fontSize: '12px', lineHeight: 1.6, color: codeText, overflowX: 'auto' }}>
                   {selectedCodeType === 'create' && selectedLang === 'node' && nodeCreateSnippet}
                   {selectedCodeType === 'create' && selectedLang === 'python' && pythonCreateSnippet}
