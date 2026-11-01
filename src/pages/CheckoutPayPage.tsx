@@ -31,11 +31,13 @@ import {
   Package,
   Receipt,
   Tag,
+  FileDown,
 } from 'lucide-react';
 import { useDevicePlatform } from '../hooks/useDevicePlatform';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { apiOrigin, apiUrl } from '../services/api';
+import { saveReceiptAsPdf } from '../utils/receiptPdf';
 
 export interface OrderItem {
   name: string;
@@ -846,7 +848,26 @@ export function CheckoutPayPage() {
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
-                onClick={() => window.print()}
+                type="button"
+                onClick={() => {
+                  saveReceiptAsPdf(
+                    {
+                      sessionId: checkout.sessionId,
+                      amountEgp: checkout.amountEgp,
+                      status: checkout.status,
+                      senderHandle: checkout.senderHandle,
+                      recipientHandle: checkout.recipientHandle,
+                      detectedRef: checkout.detectedRef,
+                      detectedAt: checkout.detectedAt,
+                      createdAt: checkout.startDate || new Date().toISOString(),
+                      productCategory: checkout.productCategory,
+                      businessName: checkout.businessName,
+                      subtitle: checkout.businessName ? `${checkout.businessName} — Payment Confirmation` : null,
+                      items: checkout.items,
+                    },
+                    isRtl
+                  );
+                }}
                 style={{
                   flex: 1,
                   padding: '12px',
@@ -857,9 +878,15 @@ export function CheckoutPayPage() {
                   fontWeight: 600,
                   fontSize: '13px',
                   cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
                 }}
+                title={isRtl ? 'حفظ الإيصال كملف PDF' : 'Save Receipt as PDF'}
               >
-                {isRtl ? 'طباعة الإيصال' : 'Print Receipt'}
+                <FileDown size={15} style={{ color: '#10b981' }} />
+                <span>{isRtl ? 'حفظ كـ PDF' : 'Save as PDF'}</span>
               </button>
               <button
                 onClick={() => {

@@ -15,10 +15,12 @@ import {
   FileText,
   Download,
   ShoppingBag,
+  FileDown,
 } from 'lucide-react';
 import { transactionsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { saveReceiptAsPdf } from '../utils/receiptPdf';
 
 interface TransactionsPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
@@ -1283,7 +1285,26 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '12px' }}>
               <button
-                onClick={() => window.print()}
+                type="button"
+                onClick={() => {
+                  saveReceiptAsPdf(
+                    {
+                      sessionId: selectedTx.sessionId,
+                      amountEgp: selectedTx.amountEgp,
+                      status: selectedTx.status,
+                      senderHandle: selectedTx.senderHandle,
+                      recipientHandle: selectedTx.recipientHandle,
+                      detectedRef: selectedTx.detectedRef,
+                      detectedAt: selectedTx.detectedAt,
+                      createdAt: selectedTx.createdAt,
+                      note: selectedTx.note,
+                      productCategory: selectedTx.productCategory,
+                      subtitle: getPurchaseTypeInfo(selectedTx, isRtl).label,
+                      items: selectedTx.items,
+                    },
+                    isRtl
+                  );
+                }}
                 style={{
                   flex: 1,
                   display: 'flex',
@@ -1300,9 +1321,10 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                 }}
+                title={isRtl ? 'حفظ الإيصال كملف PDF بنفس التصميم' : 'Save receipt as PDF with identical design'}
               >
-                <Printer size={16} />
-                <span>{isRtl ? 'طباعة الإيصال' : 'Print Receipt'}</span>
+                <FileDown size={16} style={{ color: '#38bdf8' }} />
+                <span>{isRtl ? 'حفظ كـ PDF' : 'Save as PDF'}</span>
               </button>
 
               <button

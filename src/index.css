@@ -1970,3 +1970,34 @@ html.dark .security-refresh-btn:hover:not(:disabled) {
     width: 100% !important;
   }
 }
+
+/* ─── Dedicated Print & Save As PDF Styles ─── */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+
+  body {
+    background-color: #0b1120 !important;
+    color: #f8fafc !important;
+  }
+
+  /* Hide navigation, sidebars and headers when printing modal */
+  .merchant-sidebar,
+  .merchant-topbar,
+  .merchant-sidebar-mobile-drawer,
+  .merchant-mobile-backdrop,
+  .merchant-notif-backdrop,
+  .app-toast-container,
+  button[title="Close"],
+  button[aria-label="Close"] {
+    display: none !important;
+  }
+}
