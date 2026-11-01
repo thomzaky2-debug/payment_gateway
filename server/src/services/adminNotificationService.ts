@@ -47,7 +47,8 @@ export function presentNotificationAudit<T extends {action: string; details: str
   }} : row
 }
 const hash = (value: string) => crypto.createHash('sha256').update(value).digest('hex')
-export async function sendAdminNotification(raw: unknown, database: any = db) {
+export interface NotificationSendResult { sentCount:number; replayed:boolean; batchPrefix:string; input:NotificationInput }
+export async function sendAdminNotification(raw: unknown, database: Pick<typeof db, '$transaction' | 'auditLog'> = db): Promise<NotificationSendResult> {
   const input = validateNotification(raw)
   const payloadHash = hash(JSON.stringify([input.title, input.message, input.severity, input.clientId || 'ALL']))
   const auditId = `notification_${hash(input.requestId || crypto.randomUUID()).slice(0, 40)}`
@@ -58,7 +59,7 @@ export async function sendAdminNotification(raw: unknown, database: any = db) {
     return {sentCount: meta.sentCount, replayed: true, batchPrefix, input}
   }
   try {
-    return await database.$transaction(async (tx: any) => {
+    return await database.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.auditLog.findUnique({where:{id:auditId}, select:{details:true}})
       if (existing) return replay(existing.details)
       const where = {isActive:true, approvalStatus:'APPROVED', ...(input.clientId ? {id:input.clientId} : {})}

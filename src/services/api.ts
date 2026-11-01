@@ -225,8 +225,8 @@ export const adminApi = {
     const res = await adminHttp.get('/admin/transactions', { params: { status } })
     return res.data
   },
-  async listClients() {
-    const res = await adminHttp.get('/admin/clients')
+  async listClients(signal?: AbortSignal) {
+    const res = await adminHttp.get('/admin/clients', { signal })
     return res.data
   },
   async getClientOverview(id: string) {
@@ -261,8 +261,8 @@ export const adminApi = {
     const res = await adminHttp.post(`/admin/transactions/${sessionId}/confirm`, {})
     return res.data
   },
-  async getAuditLogs() {
-    const res = await adminHttp.get('/admin/audit')
+  async getAuditLogs(signal?: AbortSignal) {
+    const res = await adminHttp.get('/admin/audit', { signal })
     return res.data
   },
   async getWebhooks() {
@@ -321,7 +321,10 @@ export const adminApi = {
     const res = await adminHttp.patch(`/admin/special-offers/${id}`, data)
     return res.data
   },
-  async sendNotification(data: { target?: string; clientId?: string; title: string; message: string; severity?: string }) {
+  async getNotificationCenter(signal?: AbortSignal) {
+    return (await adminHttp.get('/admin/notifications', { signal })).data;
+  },
+  async sendNotification(data: { target?: string; clientId?: string; title: string; message: string; severity?: string; requestId?: string; expectedCount?: number }) {
     const res = await adminHttp.post('/admin/notifications', data)
     return res.data
   },
