@@ -21,6 +21,7 @@ import {
   Sun,
   Moon,
   Smartphone,
+  Settings,
 } from 'lucide-react';
 import { authApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -38,6 +39,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
 
   const [isRegister, setIsRegister] = useState(false);
   const [businessName, setBusinessName] = useState('');
+  const [ipnOption, setIpnOption] = useState<'now' | 'later'>('now');
   const [instapayHandle, setInstapayHandle] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -90,14 +92,16 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
       if (!businessName.trim()) {
         newErrors.businessName = 'Business name is required';
       }
-      if (!instapayHandle.trim()) {
-        newErrors.instapayHandle = lang === 'ar'
-          ? 'رابط الدفع مطلوب'
-          : 'Payment link is required';
-      } else if (!/^https:\/\/ipn\.eg\/S\/[^/?#\s]+\/instapay\/[^/?#\s]+\/?$/i.test(instapayHandle.trim())) {
-        newErrors.instapayHandle = lang === 'ar'
-          ? 'أدخل رابط دفع صحيحًا بالتنسيق https://ipn.eg/S/platform/instapay/TOKEN'
-          : 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN';
+      if (ipnOption === 'now') {
+        if (!instapayHandle.trim()) {
+          newErrors.instapayHandle = lang === 'ar'
+            ? 'رابط الدفع مطلوب (أو اختر "ضبطه لاحقاً من الإعدادات")'
+            : 'Payment link is required (or choose "Set later in settings")';
+        } else if (!/^https:\/\/ipn\.eg\/S\/[^/?#\s]+\/instapay\/[^/?#\s]+\/?$/i.test(instapayHandle.trim())) {
+          newErrors.instapayHandle = lang === 'ar'
+            ? 'أدخل رابط دفع صحيحًا بالتنسيق https://ipn.eg/S/platform/instapay/TOKEN'
+            : 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN';
+        }
       }
       if (!/^01\d{9}$/.test(phoneNumber)) {
         newErrors.phoneNumber = lang === 'ar'
@@ -142,7 +146,7 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     try {
       const res = await authApi.sendOtp(email.trim(), 'MERCHANT_SIGNUP', {
         whatsappNumber: phoneNumber.trim() || undefined,
-        instapayPaymentUrl: instapayHandle.trim() || undefined,
+        instapayPaymentUrl: ipnOption === 'now' && instapayHandle.trim() ? instapayHandle.trim() : undefined,
       });
       if (res.ok) {
         setRegisterVerificationId(res.verificationId || '');
@@ -244,9 +248,16 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
     setLoading(true);
     try {
       if (isRegister) {
-        const paymentUrl = instapayHandle.trim();
-        const linkMatch = paymentUrl.match(/^https:\/\/ipn\.eg\/S\/([^/?#\s]+)\/instapay\/[^/?#\s]+\/?$/i);
-        const handle = `${linkMatch![1].toLowerCase().replace(/^@/, '')}@instapay`;
+        let paymentUrl: string | undefined = undefined;
+        let handle: string | undefined = undefined;
+
+        if (ipnOption === 'now' && instapayHandle.trim()) {
+          paymentUrl = instapayHandle.trim();
+          const linkMatch = paymentUrl.match(/^https:\/\/ipn\.eg\/S\/([^/?#\s]+)\/instapay\/[^/?#\s]+\/?$/i);
+          if (linkMatch) {
+            handle = `${linkMatch[1].toLowerCase().replace(/^@/, '')}@instapay`;
+          }
+        }
 
         const res = await authApi.register({
           businessName: businessName.trim(),
@@ -783,122 +794,232 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', gap: '8px', flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--auth-label)' }}>
-                        {lang === 'ar' ? 'رابط الدفع' : 'Payment Link'}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '8px', flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--auth-label)', margin: 0 }}>
+                        {lang === 'ar' ? 'رابط الدفع المباشر (IPN Link)' : 'Direct Payment Link (IPN)'}
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowIpnGuide((prev) => !prev)}
-                        style={{
-                          background: 'rgba(16, 185, 129, 0.12)',
-                          border: '1px solid rgba(16, 185, 129, 0.35)',
-                          color: '#10b981',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          padding: '3px 9px',
-                          borderRadius: '999px',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        <span>
-                          {showIpnGuide
-                            ? (lang === 'ar' ? 'إخفاء الشرح المصور' : 'Hide IPN Link Guide')
-                            : (lang === 'ar' ? 'كيف تحصل على الرابط؟ (اختر "رابط")' : 'How to find IPN link? (Select "رابط")')}
-                        </span>
-                      </button>
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                      <AtSign size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: 'var(--auth-muted)', pointerEvents: 'none' }} />
-                      <input
-                        type="url"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        value={instapayHandle}
-                        onChange={(e) => setInstapayHandle(e.target.value)}
-                        placeholder="https://ipn.eg/S/platform/instapay/TOKEN"
-                        className="merchant-auth-input has-icon-left"
-                        style={{
-                          fontFamily: 'monospace',
-                          fontSize: '13px',
-                          border: `1px solid ${errors.instapayHandle ? '#ef4444' : 'var(--auth-border)'}`,
-                        }}
-                      />
-                    </div>
-                    {errors.instapayHandle ? (
-                      <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.instapayHandle}</p>
-                    ) : (
-                      <p style={{ fontSize: '10.5px', color: 'var(--auth-muted)', margin: '4px 0 0 0' }}>
-                        {lang === 'ar'
-                          ? 'استخدم رابط الدفع المباشر بالتنسيق: https://ipn.eg/S/platform/instapay/TOKEN'
-                          : 'Use your direct payment link: https://ipn.eg/S/platform/instapay/TOKEN'}
-                      </p>
-                    )}
-
-                    {showIpnGuide && (
-                      <div
-                        style={{
-                          marginTop: '10px',
-                          padding: '12px',
-                          borderRadius: '12px',
-                          backgroundColor: 'var(--auth-raised)',
-                          border: '1px solid rgba(16, 185, 129, 0.35)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                        }}
-                      >
-                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#10b981' }}>
-                          {lang === 'ar'
-                            ? 'خطوات استخراج رابط الدفع (IPN Link) من تطبيق إنستاباي:'
-                            : 'How to get your IPN Payment Link from the InstaPay App:'}
-                        </div>
-                        <div
+                      {ipnOption === 'now' && (
+                        <button
+                          type="button"
+                          onClick={() => setShowIpnGuide((prev) => !prev)}
                           style={{
-                            borderRadius: '10px',
-                            overflow: 'hidden',
-                            border: '1px solid rgba(255, 255, 255, 0.12)',
-                            backgroundColor: '#0b101e',
-                          }}
-                        >
-                          <img
-                            src="/guides/instapay-ipn-link-guide.jpg"
-                            alt={lang === 'ar' ? 'اضغط على زر رابط في تطبيق إنستاباي' : 'Tap رابط in the InstaPay app'}
-                            style={{ width: '100%', height: 'auto', display: 'block' }}
-                          />
-                        </div>
-                        <ol
-                          style={{
-                            margin: 0,
-                            paddingInlineStart: '18px',
+                            background: 'rgba(16, 185, 129, 0.12)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            color: '#10b981',
                             fontSize: '11px',
-                            color: 'var(--auth-label)',
-                            lineHeight: 1.6,
-                            display: 'flex',
-                            flexDirection: 'column',
+                            fontWeight: 700,
+                            padding: '3px 9px',
+                            borderRadius: '999px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
                             gap: '4px',
                           }}
                         >
-                          <li>
+                          <span>
+                            {showIpnGuide
+                              ? (lang === 'ar' ? 'إخفاء الشرح المصور' : 'Hide IPN Link Guide')
+                              : (lang === 'ar' ? 'كيف تحصل على الرابط؟ (اختر "رابط")' : 'How to find IPN link? (Select "رابط")')}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Mode Selector: Type Now vs Set Later in Profile Settings */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '8px',
+                        marginBottom: '10px',
+                        padding: '3px',
+                        borderRadius: '10px',
+                        backgroundColor: 'var(--auth-raised)',
+                        border: '1px solid var(--auth-border)',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIpnOption('now');
+                          if (errors.instapayHandle) {
+                            setErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.instapayHandle;
+                              return next;
+                            });
+                          }
+                        }}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: ipnOption === 'now' ? 'var(--auth-btn-bg, #2563eb)' : 'transparent',
+                          color: ipnOption === 'now' ? '#ffffff' : 'var(--auth-muted)',
+                          fontSize: '11.5px',
+                          fontWeight: ipnOption === 'now' ? 700 : 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.18s',
+                        }}
+                      >
+                        <AtSign size={13} />
+                        <span>{lang === 'ar' ? 'إدخال الرابط الآن' : 'Type IPN link now'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIpnOption('later');
+                          setShowIpnGuide(false);
+                          if (errors.instapayHandle) {
+                            setErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.instapayHandle;
+                              return next;
+                            });
+                          }
+                        }}
+                        style={{
+                          padding: '7px 10px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: ipnOption === 'later' ? 'var(--auth-btn-bg, #2563eb)' : 'transparent',
+                          color: ipnOption === 'later' ? '#ffffff' : 'var(--auth-muted)',
+                          fontSize: '11.5px',
+                          fontWeight: ipnOption === 'later' ? 700 : 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.18s',
+                        }}
+                      >
+                        <Settings size={13} />
+                        <span>{lang === 'ar' ? 'ضبطه لاحقاً من الإعدادات' : 'Set later in settings'}</span>
+                      </button>
+                    </div>
+
+                    {ipnOption === 'now' ? (
+                      <>
+                        <div style={{ position: 'relative' }}>
+                          <AtSign size={16} style={{ position: 'absolute', ...iconLeftPos, top: '50%', transform: 'translateY(-50%)', color: 'var(--auth-muted)', pointerEvents: 'none' }} />
+                          <input
+                            type="url"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            value={instapayHandle}
+                            onChange={(e) => setInstapayHandle(e.target.value)}
+                            placeholder="https://ipn.eg/S/platform/instapay/TOKEN"
+                            className="merchant-auth-input has-icon-left"
+                            style={{
+                              fontFamily: 'monospace',
+                              fontSize: '13px',
+                              border: `1px solid ${errors.instapayHandle ? '#ef4444' : 'var(--auth-border)'}`,
+                            }}
+                          />
+                        </div>
+                        {errors.instapayHandle ? (
+                          <p style={{ fontSize: '11px', color: '#ef4444', margin: '4px 0 0 0' }}>{errors.instapayHandle}</p>
+                        ) : (
+                          <p style={{ fontSize: '10.5px', color: 'var(--auth-muted)', margin: '4px 0 0 0' }}>
                             {lang === 'ar'
-                              ? 'افتح تطبيق إنستاباي ومن قسم "الحسابات" حدد بطاقة حسابك البنكي.'
-                              : 'Open the InstaPay app and locate your bank account card under "الحسابات" (Accounts).'}
-                          </li>
-                          <li>
+                              ? 'استخدم رابط الدفع المباشر بالتنسيق: https://ipn.eg/S/platform/instapay/TOKEN'
+                              : 'Use your direct payment link: https://ipn.eg/S/platform/instapay/TOKEN'}
+                          </p>
+                        )}
+
+                        {showIpnGuide && (
+                          <div
+                            style={{
+                              marginTop: '10px',
+                              padding: '12px',
+                              borderRadius: '12px',
+                              backgroundColor: 'var(--auth-raised)',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px',
+                            }}
+                          >
+                            <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#10b981' }}>
+                              {lang === 'ar'
+                                ? 'خطوات استخراج رابط الدفع (IPN Link) من تطبيق إنستاباي:'
+                                : 'How to get your IPN Payment Link from the InstaPay App:'}
+                            </div>
+                            <div
+                              style={{
+                                borderRadius: '10px',
+                                overflow: 'hidden',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                backgroundColor: '#0b101e',
+                              }}
+                            >
+                              <img
+                                src="/guides/instapay-ipn-link-guide.jpg"
+                                alt={lang === 'ar' ? 'اضغط على زر رابط في تطبيق إنستاباي' : 'Tap رابط in the InstaPay app'}
+                                style={{ width: '100%', height: 'auto', display: 'block' }}
+                              />
+                            </div>
+                            <ol
+                              style={{
+                                margin: 0,
+                                paddingInlineStart: '18px',
+                                fontSize: '11px',
+                                color: 'var(--auth-label)',
+                                lineHeight: 1.6,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px',
+                              }}
+                            >
+                              <li>
+                                {lang === 'ar'
+                                  ? 'افتح تطبيق إنستاباي ومن قسم "الحسابات" حدد بطاقة حسابك البنكي.'
+                                  : 'Open the InstaPay app and locate your bank account card under "الحسابات" (Accounts).'}
+                              </li>
+                              <li>
+                                {lang === 'ar'
+                                  ? 'اضغط على خيار "رابط" (المحدد بالأخضر في الصورة) لنسخ رابط الدفع الخاص بك.'
+                                  : 'Tap "رابط" (Link) — highlighted in green on the screenshot — to copy your official share link.'}
+                              </li>
+                              <li>
+                                {lang === 'ar'
+                                  ? 'الصق الرابط المنسوخ في خانة "رابط الدفع" أعلاه.'
+                                  : 'Paste the copied link into the Payment Link field above.'}
+                              </li>
+                            </ol>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: '12px',
+                          backgroundColor: 'var(--auth-raised)',
+                          border: '1px solid rgba(14, 165, 233, 0.3)',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '10px',
+                        }}
+                      >
+                        <Settings size={18} style={{ color: '#0ea5e9', flexShrink: 0, marginTop: '2px' }} />
+                        <div style={{ fontSize: '11.5px', color: 'var(--auth-label)', lineHeight: 1.5 }}>
+                          <span style={{ fontWeight: 700, color: '#0ea5e9', display: 'block', marginBottom: '2px' }}>
+                            {lang === 'ar' ? 'يمكنك ضبط رابط الدفع لاحقاً في أي وقت' : 'You can configure your IPN link anytime'}
+                          </span>
+                          <span style={{ color: 'var(--auth-muted)', fontSize: '11px' }}>
                             {lang === 'ar'
-                              ? 'اضغط على خيار "رابط" (المحدد بالأخضر في الصورة) لنسخ رابط الدفع الخاص بك.'
-                              : 'Tap "رابط" (Link) — highlighted in green on the screenshot — to copy your official share link.'}
-                          </li>
-                          <li>
-                            {lang === 'ar'
-                              ? 'الصق الرابط المنسوخ في خانة "رابط الدفع" أعلاه.'
-                              : 'Paste the copied link into the Payment Link field above.'}
-                          </li>
-                        </ol>
+                              ? 'يمكنك إكمال التسجيل الآن واستكشاف لوحة التحكم، ثم إضافة رابط إنستاباي في أي وقت من الإعدادات > بوابة الدفع قبل تفعيل المعاملات الحية.'
+                              : 'You can complete registration now to explore your dashboard, and set your InstaPay payment link under Settings > Checkout before enabling live payments.'}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>

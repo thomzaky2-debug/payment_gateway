@@ -1,3 +1,6 @@
+import { AdminPricingWorkspace } from '../components/AdminPricingWorkspace';
+import { planPromotionUpdate, pricingValidation } from '../utils/adminPricing';
+import { AdminNotificationCenter } from '../components/AdminNotificationCenter';
 import React, { useState, useEffect } from 'react';
 import {
   Shield,
@@ -200,6 +203,7 @@ export function AdminPortalPage() {
   const [webhookLogs, setWebhookLogs] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
+  const [planSaving, setPlanSaving] = useState(false);
   const [bundles, setBundles] = useState<any[]>([]);
   const [editingBundle, setEditingBundle] = useState<any | null>(null);
   const [bundleSaving, setBundleSaving] = useState(false);
@@ -214,15 +218,27 @@ export function AdminPortalPage() {
   const [trialDescription, setTrialDescription] = useState<string>('14-Day introductory free trial with live InstaPay detection and 50 transactions');
   const [trialSaving, setTrialSaving] = useState(false);
 
-  // Notification Broadcast State
-  const [notifTarget, setNotifTarget] = useState<'ALL' | string>('ALL');
-  const [notifTitle, setNotifTitle] = useState('');
-  const [notifMessage, setNotifMessage] = useState('');
-  const [notifSeverity, setNotifSeverity] = useState<'INFO' | 'WARNING' | 'ALERT'>('INFO');
-  const [sendingNotif, setSendingNotif] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (!editingPlan && !editingBundle && !editingOffer) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = document.querySelector<HTMLFormElement>('.pricing-editor');
+    const timer = requestAnimationFrame(() => dialog?.querySelector<HTMLElement>('input:not(:disabled),select:not(:disabled),button:not(:disabled)')?.focus());
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !planSaving && !bundleSaving && !offerSaving) { setEditingPlan(null); setEditingBundle(null); setEditingOffer(null); }
+      if (event.key === 'Tab') {
+        const controls = dialog?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)');
+        if (!controls?.length) return;
+        const first = controls[0], last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => { cancelAnimationFrame(timer); document.removeEventListener('keydown', keydown); previous?.focus(); };
+  }, [Boolean(editingPlan), Boolean(editingBundle), Boolean(editingOffer), planSaving, bundleSaving, offerSaving]);
 
   // Filters & Search
   const initialMerchantFilter: 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' = (() => {
@@ -705,12 +721,18 @@ export function AdminPortalPage() {
       offerPriceEgp: offerIsActive ? plan.offerPriceEgp : '',
       offerLabel: offerIsActive ? (plan.offerLabel || 'Limited-time offer') : 'Limited-time offer',
       offerValidDays: remainingDays,
+      _originalOfferValidDays: remainingDays,
     });
   };
 
   const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingPlan) return;
+    if (!editingPlan || planSaving) return;
+    const error = pricingValidation('plan', editingPlan);
+    if (error) { showToast(error, 'error'); return; }
+    const promotion = planPromotionUpdate(editingPlan, plans.find(p => p.name === editingPlan.name) || {});
+    if (!window.confirm(`Save ${editingPlan.name}: ${editingPlan.priceEgp} EGP, ${editingPlan.maxTransactions} transactions, ${editingPlan.periodDays} days, ${editingPlan.isActive !== false ? 'available' : 'hidden'}? Catalog changes take effect immediately. ${promotion.offerPriceEgp !== undefined ? `Promotion: ${promotion.offerPriceEgp} EGP for ${promotion.offerValidDays} days from today.` : promotion.clearOffer ? 'No promotion will apply.' : 'The existing promotion deadline is preserved.'}`)) return;
+    setPlanSaving(true);
     try {
       const res = await adminApi.updatePlan({
         name: editingPlan.name,
@@ -719,12 +741,7 @@ export function AdminPortalPage() {
         periodDays: Number(editingPlan.periodDays) || 30,
         description: editingPlan.description,
         isActive: editingPlan.isActive !== false,
-        offerPriceEgp: editingPlan.offerPriceEgp === '' || editingPlan.offerPriceEgp === null
-          ? null
-          : Number(editingPlan.offerPriceEgp),
-        offerLabel: String(editingPlan.offerLabel || '').trim(),
-        offerValidDays: Number(editingPlan.offerValidDays) || 7,
-        clearOffer: editingPlan.offerPriceEgp === '' || editingPlan.offerPriceEgp === null,
+        ...promotion,
       });
       if (res.ok) {
         showToast(`Plan ${editingPlan.name} updated successfully!`);
@@ -735,6 +752,8 @@ export function AdminPortalPage() {
       }
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Failed to update plan', 'error');
+    } finally {
+      setPlanSaving(false);
     }
   };
 
@@ -752,7 +771,10 @@ export function AdminPortalPage() {
 
   const handleSaveBundle = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingBundle) return;
+    if (!editingBundle || bundleSaving) return;
+    const error = pricingValidation('bundle', editingBundle);
+    if (error) { showToast(error, 'error'); return; }
+    if (!window.confirm(`${editingBundle.id ? 'Update' : 'Create'} ${editingBundle.displayName}: ${editingBundle.priceEgp} EGP for ${editingBundle.extraTx} extra transactions, ${editingBundle.isActive !== false ? 'available in merchant billing' : 'hidden'}?`)) return;
     if (!editingBundle.displayName?.trim() || !editingBundle.name?.trim()) {
       showToast('Bundle key and display name are required', 'error');
       return;
@@ -783,6 +805,7 @@ export function AdminPortalPage() {
   };
 
   const handleToggleBundle = async (bundle: any) => {
+    if (bundleSaving || !window.confirm(`${bundle.isActive ? 'Hide' : 'Make available'} ${bundle.displayName} in merchant billing?`)) return;
     setBundleSaving(true);
     try {
       const res = await adminApi.updateBundle(bundle.id, { isActive: !bundle.isActive });
@@ -802,7 +825,12 @@ export function AdminPortalPage() {
 
   const handleSaveSpecialOffer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingOffer) return;
+    if (!editingOffer || offerSaving) return;
+    const error = pricingValidation('offer', editingOffer);
+    if (error) { showToast(error, 'error'); return; }
+    const recipient = merchants.find(m => m.id === editingOffer.clientId);
+    if (!recipient || recipient.approvalStatus !== 'APPROVED') { showToast('Select an approved merchant.', 'error'); return; }
+    if (!window.confirm(`${editingOffer.id ? 'Update offer for' : 'Send private offer to'} ${recipient.businessName}: ${editingOffer.priceEgp} EGP, ${editingOffer.maxTransactions} transactions for ${editingOffer.periodDays} days, valid for ${editingOffer.validDays} days?`)) return;
     setOfferSaving(true);
     try {
       const payload = {
@@ -829,6 +857,7 @@ export function AdminPortalPage() {
   };
 
   const handleOfferStatus = async (offer: any, status: 'ACTIVE' | 'REVOKED') => {
+    if (offerSaving || !window.confirm(`${status === 'ACTIVE' ? 'Restore' : 'Revoke'} ${offer.title} for ${offer.client?.businessName || 'this merchant'}?`)) return;
     setOfferSaving(true);
     try {
       const res = await adminApi.updateSpecialOffer(offer.id, { status });
@@ -858,6 +887,10 @@ export function AdminPortalPage() {
 
   const handleSaveTrialPlan = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (trialSaving) return;
+    const error = pricingValidation('trial', {periodDays: trialPeriodDays, maxTransactions: trialMaxTransactions});
+    if (error) { showToast(error, 'error'); return; }
+    if (!window.confirm(`Save trial: ${trialPeriodDays} days, ${trialMaxTransactions} transactions, ${trialIsActive ? 'available' : 'hidden'}? Existing trial merchants receive the new quota. Their expiry dates do not change.`)) return;
     setTrialSaving(true);
     try {
       const res = await adminApi.updateTrialPlan({
@@ -876,36 +909,6 @@ export function AdminPortalPage() {
       showToast(err.response?.data?.error || 'Failed to update trial plan', 'error');
     } finally {
       setTrialSaving(false);
-    }
-  };
-
-  // Broadcast Notification
-  const handleSendBroadcast = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!notifTitle.trim() || !notifMessage.trim()) {
-      showToast('Title and message are required', 'error');
-      return;
-    }
-    setSendingNotif(true);
-    try {
-      const res = await adminApi.sendNotification({
-        target: notifTarget === 'ALL' ? 'ALL' : undefined,
-        clientId: notifTarget !== 'ALL' ? notifTarget : undefined,
-        title: notifTitle,
-        message: notifMessage,
-        severity: notifSeverity,
-      });
-      if (res.ok) {
-        showToast(`Notification broadcasted to ${res.sentCount || 1} merchant(s)`);
-        setNotifTitle('');
-        setNotifMessage('');
-      } else {
-        showToast(res.error || 'Failed to dispatch notification', 'error');
-      }
-    } catch (err: any) {
-      showToast(err.response?.data?.error || 'Failed to dispatch notification', 'error');
-    } finally {
-      setSendingNotif(false);
     }
   };
 
@@ -2262,492 +2265,39 @@ export function AdminPortalPage() {
         {/* ─── TAB 5: PLANS & BILLING MANAGEMENT ───────────────────── */}
         {activeTab === 'plans' && (
           <div>
-            <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '0 0 4px 0' }}>
-                  Subscription Tiers & Trial Plan Management
-                </h3>
-                <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>
-                  Configure trial periods, transaction limits, and subscription tiers offered across the platform.
-                </p>
-              </div>
-            </div>
-
-            {/* ─── Dedicated Admin Trial Plan Controls ────────────────── */}
-            <div
-              style={{
-                backgroundColor: '#0f172a',
-                border: '1px solid rgba(16, 185, 129, 0.35)',
-                borderRadius: '20px',
-                padding: '24px',
-                marginBottom: '32px',
-                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.09) 0%, rgba(15, 23, 42, 0.95) 100%)',
-                boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.5)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        color: '#34d399',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        padding: '3px 9px',
-                        borderRadius: '6px',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
-                      }}
-                    >
-                      Admin Trial Control
-                    </span>
-                    <span style={{ fontSize: '12px', color: trialIsActive ? '#10b981' : '#ef4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: trialIsActive ? '#10b981' : '#ef4444' }} />
-                      {trialIsActive ? 'Active & Live for Merchants' : 'Disabled'}
-                    </span>
-                  </div>
-                  <h4 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '4px 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Gift size={20} color="#10b981" /> Free Trial Configuration (Period & Transaction Times)
-                  </h4>
-                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, maxWidth: '640px' }}>
-                    Each merchant account can activate the free trial once. Duration changes apply to future activations and do not restart or extend existing trials. Transaction limits remain configurable.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSaveTrialPlan}
-                  disabled={trialSaving}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 22px',
-                    backgroundColor: '#10b981',
-                    border: 'none',
-                    borderRadius: '10px',
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {trialSaving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
-                  Save Trial Configuration
-                </button>
-              </div>
-
-              {/* Trial Form Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px' }}>
-                {/* Period in Days */}
-                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
-                    Trial Duration Period (Days)
-                  </label>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    <input
-                      type="number"
-                      min="1"
-                      max="365"
-                      value={trialPeriodDays}
-                      onChange={(e) => handleTrialDaysChange(e.target.value)}
-                      style={{
-                        flex: 1,
-                        padding: '10px 12px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        borderRadius: '8px',
-                        color: '#ffffff',
-                        fontSize: '15px',
-                        fontWeight: 700,
-                      }}
-                    />
-                    <span style={{ display: 'flex', alignItems: 'center', fontSize: '13px', color: '#94a3b8' }}>days</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    {[7, 14, 21, 30, 60].map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => handleTrialDaysChange(d)}
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          border: 'none',
-                          backgroundColor: Number(trialPeriodDays) === d ? '#10b981' : '#334155',
-                          color: 'white',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {d}d
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Max Transactions Limit */}
-                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
-                    Transaction Times (Max Limit)
-                  </label>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    <input
-                      type="number"
-                      min="1"
-                      max="10000"
-                      value={trialMaxTransactions}
-                      onChange={(e) => handleTrialMaxTxChange(e.target.value)}
-                      style={{
-                        flex: 1,
-                        padding: '10px 12px',
-                        backgroundColor: '#1e293b',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        borderRadius: '8px',
-                        color: '#ffffff',
-                        fontSize: '15px',
-                        fontWeight: 700,
-                      }}
-                    />
-                    <span style={{ display: 'flex', alignItems: 'center', fontSize: '13px', color: '#94a3b8' }}>txs</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    {[20, 50, 100, 200].map((tx) => (
-                      <button
-                        key={tx}
-                        type="button"
-                        onClick={() => handleTrialMaxTxChange(tx)}
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          border: 'none',
-                          backgroundColor: Number(trialMaxTransactions) === tx ? '#10b981' : '#334155',
-                          color: 'white',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {tx} tx
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Status Toggle & Active Merchants */}
-                <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
-                      Trial Visibility to Merchants
-                    </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#ffffff' }}>
-                      <input
-                        type="checkbox"
-                        checked={trialIsActive}
-                        onChange={(e) => setTrialIsActive(e.target.checked)}
-                        style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }}
-                      />
-                      Offer Free Trial in Merchant Billing
-                    </label>
-                  </div>
-                  <div style={{ marginTop: '12px', fontSize: '12px', color: '#94a3b8' }}>
-                    Merchants currently on Trial:{' '}
-                    <strong style={{ color: '#34d399' }}>
-                      {merchants.filter((m) => m.subscriptionPlan === 'FREE_TRIAL').length}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Trial Description */}
-              <div style={{ marginTop: '16px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: '6px' }}>
-                  Merchant-Facing Trial Description
-                </label>
-                <input
-                  type="text"
-                  value={trialDescription}
-                  onChange={(e) => setTrialDescription(e.target.value)}
-                  placeholder="e.g. 14-Day introductory free trial with live InstaPay detection and 50 transactions"
-                  style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    padding: '10px 14px',
-                    backgroundColor: '#1e293b',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '8px',
-                    color: '#ffffff',
-                    fontSize: '13px',
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Plans Section Header */}
-            <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', margin: '0 0 16px 0' }}>
-              All Platform Plans & Tiers
-            </h4>
-
-            {/* Plans Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-              {plans
-                .slice()
-                .sort((a, b) => {
-                  const order = ['FREE_TRIAL', 'BASIC', 'PLUS', 'PRO', 'ENTERPRISE'];
-                  const idxA = order.indexOf(a.name);
-                  const idxB = order.indexOf(b.name);
-                  return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
-                })
-                .map((p) => {
-                  const isTrial = p.name === 'FREE_TRIAL';
-                  const isEnterprise = p.name === 'ENTERPRISE';
-                  const isPlus = p.name === 'PLUS';
-                  const offerActive = !isTrial && !isEnterprise && p.offerPriceEgp !== null && p.offerEndsAt && new Date(p.offerEndsAt).getTime() > Date.now() && p.offerPriceEgp < p.priceEgp;
-                  const offerPercent = offerActive ? Math.round(((p.priceEgp - p.offerPriceEgp) / p.priceEgp) * 100) : 0;
-                  return (
-                    <div
-                      key={p.name}
-                      style={{
-                        backgroundColor: '#0f172a',
-                        border: isTrial
-                          ? '1px solid rgba(16, 185, 129, 0.4)'
-                          : isEnterprise
-                          ? '1px solid rgba(245, 158, 11, 0.4)'
-                          : isPlus
-                          ? '1px solid rgba(99, 102, 241, 0.4)'
-                          : '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '16px',
-                        padding: '24px',
-                        position: 'relative',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                        <div>
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: 800,
-                              color: isTrial
-                                ? '#34d399'
-                                : isEnterprise
-                                ? '#fbbf24'
-                                : isPlus
-                                ? '#818cf8'
-                                : '#c084fc',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.05em',
-                            }}
-                          >
-                            TIER {p.name}
-                          </span>
-                          <h4 style={{ fontSize: '20px', fontWeight: 800, color: '#ffffff', margin: '4px 0 0 0' }}>
-                            {p.name}
-                          </h4>
-                          {isEnterprise && (
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                marginTop: '4px',
-                                fontSize: '10px',
-                                fontWeight: 700,
-                                padding: '2px 8px',
-                                borderRadius: '6px',
-                                backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                                color: '#f59e0b',
-                                border: '1px solid rgba(245, 158, 11, 0.3)',
-                              }}
-                            >
-                              Customer Service Managed
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => openEditPlan(p)}
-                          style={{
-                            padding: '6px 12px',
-                            backgroundColor: isTrial
-                              ? 'rgba(16, 185, 129, 0.15)'
-                              : isEnterprise
-                              ? 'rgba(245, 158, 11, 0.15)'
-                              : 'rgba(124, 58, 237, 0.15)',
-                            border: isTrial
-                              ? '1px solid rgba(16, 185, 129, 0.3)'
-                              : isEnterprise
-                              ? '1px solid rgba(245, 158, 11, 0.3)'
-                              : '1px solid rgba(124, 58, 237, 0.3)',
-                            borderRadius: '8px',
-                            color: isTrial ? '#34d399' : isEnterprise ? '#fbbf24' : '#c084fc',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          <Edit2 size={13} /> Edit
-                        </button>
-                      </div>
-
-                      <div style={{ marginBottom: '16px' }}>
-                        {offerActive && <div style={{ display: 'inline-flex', marginBottom: '7px', padding: '3px 8px', borderRadius: '999px', background: 'rgba(236,72,153,.14)', color: '#f472b6', fontSize: '10px', fontWeight: 850 }}>{p.offerLabel || 'Limited-time offer'} • {offerPercent}% OFF</div>}
-                        {offerActive && <div style={{ color: '#64748b', fontSize: '12px', textDecoration: 'line-through' }}>{p.priceEgp} EGP</div>}
-                        <span
-                          style={{
-                            fontSize: isEnterprise ? '24px' : '32px',
-                            fontWeight: 900,
-                            color: isTrial ? '#10b981' : isEnterprise ? '#f59e0b' : '#38bdf8',
-                          }}
-                        >
-                          {isEnterprise ? 'Contact Sales' : offerActive ? p.offerPriceEgp : p.priceEgp}
-                        </span>
-                        <span style={{ fontSize: '14px', color: '#94a3b8', marginLeft: '4px' }}>
-                          {isTrial
-                            ? 'EGP (Free Trial)'
-                            : isEnterprise
-                            ? '(Customer Service / Custom)'
-                            : `EGP / ${p.periodDays || 30} days`}
-                        </span>
-                        {offerActive && <div style={{ marginTop: '5px', color: '#94a3b8', fontSize: '10px' }}>Offer ends {new Date(p.offerEndsAt).toLocaleString()}</div>}
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '16px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                          <span style={{ color: '#94a3b8' }}>Transaction Limit:</span>
-                          <span style={{ fontWeight: 600, color: '#ffffff' }}>{p.maxTransactions?.toLocaleString()} txs</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                          <span style={{ color: '#94a3b8' }}>Period Duration:</span>
-                          <span style={{ fontWeight: 600, color: '#38bdf8' }}>{p.periodDays || (isTrial ? 14 : 30)} days</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                          <span style={{ color: '#94a3b8' }}>Active Subscribers:</span>
-                          <span style={{ fontWeight: 600, color: '#34d399' }}>
-                            {merchants.filter((m) => m.subscriptionPlan === p.name).length} merchants
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-
-            <section style={{ marginTop: '10px', marginBottom: '32px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Sparkles size={18} color="#a855f7" /><h4 style={{ fontSize: '18px', fontWeight: 800, color: textPrimary, margin: 0 }}>Private enterprise offers</h4></div>
-                  <p style={{ fontSize: '12px', color: textSecondary, margin: '5px 0 0' }}>Prepare company-specific pricing, capacity, and contract periods for high-volume merchants.</p>
-                </div>
-                <button type="button" onClick={openNewSpecialOffer} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 15px', border: 0, borderRadius: '10px', background: 'linear-gradient(135deg, #7c3aed, #ec4899)', color: '#fff', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}><Sparkles size={14} /> Create special offer</button>
-              </div>
-              {specialOffers.length === 0 ? (
-                <div style={{ padding: '30px', borderRadius: '18px', border: surfaceBorder, backgroundColor: surface, color: textSecondary, textAlign: 'center', boxShadow: cardShadow }}>No private offers yet. Create one for an approved large-company merchant.</div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px' }}>
-                  {specialOffers.map((offer) => {
-                    const expired = new Date(offer.validUntil).getTime() <= Date.now();
-                    const effectiveStatus = expired && offer.status === 'ACTIVE' ? 'EXPIRED' : offer.status;
-                    const statusColor = effectiveStatus === 'ACTIVE' ? '#34d399' : effectiveStatus === 'ACCEPTED' ? '#38bdf8' : '#94a3b8';
-                    return (
-                      <article key={offer.id} style={{ padding: '20px', borderRadius: '18px', border: isDark ? '1px solid rgba(168,85,247,.35)' : '1px solid #e9d5ff', background: isDark ? 'linear-gradient(135deg, rgba(124,58,237,.1), #111827)' : 'linear-gradient(135deg, #faf5ff, #fff)', boxShadow: cardShadow }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}><div><div style={{ color: '#a855f7', fontSize: '10px', fontWeight: 900 }}>{offer.client?.businessName}</div><h5 style={{ color: textPrimary, fontSize: '16px', margin: '5px 0' }}>{offer.title}</h5><div style={{ color: textSecondary, fontSize: '11px' }}>{offer.client?.email}</div></div><span style={{ height: 'fit-content', padding: '4px 8px', borderRadius: '999px', backgroundColor: `${statusColor}22`, color: statusColor, fontSize: '9px', fontWeight: 900 }}>{effectiveStatus}</span></div>
-                        <p style={{ color: textSecondary, fontSize: '11px', minHeight: '34px', lineHeight: 1.5 }}>{offer.description || 'Custom enterprise commercial proposal.'}</p>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px', margin: '14px 0' }}>
-                          <div style={{ padding: '9px', borderRadius: '9px', backgroundColor: isDark ? '#162033' : '#fff' }}><small style={{ color: textSecondary }}>PRICE</small><strong style={{ display: 'block', color: '#a855f7', fontSize: '12px' }}>{offer.priceEgp} EGP</strong></div>
-                          <div style={{ padding: '9px', borderRadius: '9px', backgroundColor: isDark ? '#162033' : '#fff' }}><small style={{ color: textSecondary }}>TX LIMIT</small><strong style={{ display: 'block', color: textPrimary, fontSize: '12px' }}>{Number(offer.maxTransactions).toLocaleString()}</strong></div>
-                          <div style={{ padding: '9px', borderRadius: '9px', backgroundColor: isDark ? '#162033' : '#fff' }}><small style={{ color: textSecondary }}>PERIOD</small><strong style={{ display: 'block', color: textPrimary, fontSize: '12px' }}>{offer.periodDays} days</strong></div>
-                        </div>
-                        <div style={{ color: textSecondary, fontSize: '10px', marginBottom: '12px' }}>Valid until {new Date(offer.validUntil).toLocaleDateString()}</div>
-                        {offer.status !== 'ACCEPTED' && <div style={{ display: 'flex', gap: '8px' }}><button type="button" onClick={() => setEditingOffer({ ...offer, validDays: 14 })} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary, cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>Edit</button><button type="button" disabled={offerSaving} onClick={() => handleOfferStatus(offer, offer.status === 'ACTIVE' ? 'REVOKED' : 'ACTIVE')} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 0, backgroundColor: offer.status === 'ACTIVE' ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.12)', color: offer.status === 'ACTIVE' ? '#f87171' : '#34d399', cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>{offer.status === 'ACTIVE' ? 'Revoke' : 'Restore'}</button></div>}
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+            <AdminPricingWorkspace plans={plans} bundles={bundles} offers={specialOffers} merchants={merchants} loading={loading}
+              bundleSaving={bundleSaving} offerSaving={offerSaving} onRefresh={fetchData} onEditPlan={openEditPlan}
+              onEditBundle={setEditingBundle} onNewBundle={openNewBundle} onToggleBundle={handleToggleBundle}
+              onNewOffer={openNewSpecialOffer} onEditOffer={setEditingOffer} onOfferStatus={handleOfferStatus}
+              onInspect={(record) => handleSelectMerchant(merchants.find(m => m.id === record.id) || null)}
+              trial={{ days: trialPeriodDays, limit: trialMaxTransactions, active: trialIsActive, description: trialDescription, saving: trialSaving,
+                onDays: handleTrialDaysChange, onLimit: handleTrialMaxTxChange, onActive: setTrialIsActive, onDescription: setTrialDescription,
+                onSave: () => { void handleSaveTrialPlan(); } }} />
 
             {editingOffer && (
               <div style={{ position: 'fixed', inset: 0, zIndex: 10000, padding: '20px', backgroundColor: 'rgba(2,6,23,.78)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <form onSubmit={handleSaveSpecialOffer} style={{ width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '20px', backgroundColor: surface, border: surfaceBorder, boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}><div><h3 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>{editingOffer.id ? 'Edit enterprise offer' : 'Create enterprise offer'}</h3><p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>This proposal will only be visible to the selected merchant.</p></div><button type="button" onClick={() => setEditingOffer(null)} style={{ border: 0, background: 'transparent', color: textSecondary, fontSize: '20px', cursor: 'pointer' }}>×</button></div>
+                <form role="dialog" aria-modal="true" aria-label="Pricing editor" className="pricing-editor" data-pricing-theme={isDark ? 'dark' : 'light'} onSubmit={handleSaveSpecialOffer} style={{ width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '20px', backgroundColor: surface, border: surfaceBorder, boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}><fieldset disabled={offerSaving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}><div><h3 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>{editingOffer.id ? 'Edit enterprise offer' : 'Create enterprise offer'}</h3><p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>This proposal will only be visible to the selected merchant.</p></div><button type="button" data-admin-close disabled={offerSaving} onClick={() => setEditingOffer(null)} style={{ border: 0, background: 'transparent', color: textSecondary, fontSize: '20px', cursor: 'pointer' }}>×</button></div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px' }}>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Company<select required disabled={Boolean(editingOffer.id)} value={editingOffer.clientId} onChange={(e) => setEditingOffer({ ...editingOffer, clientId: e.target.value })} style={{ width: '100%', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }}><option value="">Select approved merchant</option>{merchants.filter((m) => m.approvalStatus === 'APPROVED').map((m) => <option key={m.id} value={m.id}>{m.businessName} — {m.email}</option>)}</select></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Offer title<input required maxLength={120} value={editingOffer.title} onChange={(e) => setEditingOffer({ ...editingOffer, title: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
-                    <label style={{ color: textSecondary, fontSize: '11px' }}>Custom price (EGP)<input required type="number" min={1} value={editingOffer.priceEgp} onChange={(e) => setEditingOffer({ ...editingOffer, priceEgp: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
+                    <label style={{ color: textSecondary, fontSize: '11px' }}>Custom price (EGP)<input required type="number" min={0.01} step={0.01} max={10000000} value={editingOffer.priceEgp} onChange={(e) => setEditingOffer({ ...editingOffer, priceEgp: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Transaction allowance<input required type="number" min={1} value={editingOffer.maxTransactions} onChange={(e) => setEditingOffer({ ...editingOffer, maxTransactions: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Subscription duration (days)<input required type="number" min={1} max={3650} value={editingOffer.periodDays} onChange={(e) => setEditingOffer({ ...editingOffer, periodDays: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Offer valid for (days)<input required type="number" min={1} max={365} value={editingOffer.validDays} onChange={(e) => setEditingOffer({ ...editingOffer, validDays: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                   </div>
                   <label style={{ display: 'block', marginTop: '14px', color: textSecondary, fontSize: '11px' }}>Proposal details<textarea rows={4} maxLength={1000} value={editingOffer.description || ''} onChange={(e) => setEditingOffer({ ...editingOffer, description: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary, resize: 'vertical' }} /></label>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '9px', marginTop: '20px' }}><button type="button" onClick={() => setEditingOffer(null)} style={{ padding: '9px 14px', borderRadius: '9px', border: surfaceBorder, background: 'transparent', color: textSecondary, cursor: 'pointer' }}>Cancel</button><button type="submit" disabled={offerSaving} style={{ padding: '9px 16px', borderRadius: '9px', border: 0, background: 'linear-gradient(135deg, #7c3aed, #ec4899)', color: '#fff', fontWeight: 750, cursor: 'pointer' }}>{offerSaving ? 'Saving...' : editingOffer.id ? 'Save offer' : 'Send private offer'}</button></div>
-                </form>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '9px', marginTop: '20px' }}><button type="button" data-admin-close disabled={offerSaving} onClick={() => setEditingOffer(null)} style={{ padding: '9px 14px', borderRadius: '9px', border: surfaceBorder, background: 'transparent', color: textSecondary, cursor: 'pointer' }}>Cancel</button><button type="submit" disabled={offerSaving} style={{ padding: '9px 16px', borderRadius: '9px', border: 0, background: 'linear-gradient(135deg, #7c3aed, #ec4899)', color: '#fff', fontWeight: 750, cursor: 'pointer' }}>{offerSaving ? 'Saving...' : editingOffer.id ? 'Save offer' : 'Send private offer'}</button></div>
+                </fieldset></form>
               </div>
             )}
 
-            <section style={{ marginTop: '10px', marginBottom: '32px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Gift size={18} color="#38bdf8" />
-                    <h4 style={{ fontSize: '18px', fontWeight: 800, color: textPrimary, margin: 0 }}>Extra transaction bundles</h4>
-                  </div>
-                  <p style={{ fontSize: '12px', color: textSecondary, margin: '5px 0 0' }}>
-                    Control the top-up packs shown in merchant billing, including capacity, price, order, and availability.
-                  </p>
-                </div>
-                <button type="button" onClick={openNewBundle} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 15px', border: 0, borderRadius: '10px', background: 'linear-gradient(135deg, #0ea5e9, #6366f1)', color: '#fff', fontSize: '12px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 5px 14px rgba(14,165,233,.28)' }}>
-                  <Gift size={14} /> Create bundle
-                </button>
-              </div>
-
-              {bundles.length === 0 ? (
-                <div style={{ padding: '36px', border: surfaceBorder, borderRadius: '18px', backgroundColor: surface, color: textSecondary, textAlign: 'center', boxShadow: cardShadow }}>
-                  No extra bundles configured. Create the first bundle to make it available in merchant billing.
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
-                  {bundles.map((bundle) => (
-                    <article key={bundle.id} style={{ padding: '20px', borderRadius: '18px', border: bundle.isActive ? surfaceBorder : '1px dashed rgba(148,163,184,.45)', backgroundColor: surface, boxShadow: cardShadow, opacity: bundle.isActive ? 1 : .72 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                        <div>
-                          <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: 800, letterSpacing: '.06em' }}>{bundle.name}</span>
-                          <h5 style={{ margin: '4px 0 0', color: textPrimary, fontSize: '17px', fontWeight: 800 }}>{bundle.displayName}</h5>
-                        </div>
-                        <span style={{ padding: '4px 8px', borderRadius: '999px', backgroundColor: bundle.isActive ? 'rgba(16,185,129,.13)' : 'rgba(148,163,184,.13)', color: bundle.isActive ? '#34d399' : textSecondary, fontSize: '10px', fontWeight: 800 }}>
-                          {bundle.isActive ? 'LIVE' : 'HIDDEN'}
-                        </span>
-                      </div>
-                      <div style={{ margin: '18px 0 5px', display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                        <span style={{ color: '#38bdf8', fontSize: '28px', fontWeight: 900 }}>{bundle.priceEgp}</span>
-                        <span style={{ color: textSecondary, fontSize: '12px' }}>EGP</span>
-                      </div>
-                      <div style={{ color: textPrimary, fontSize: '14px', fontWeight: 750 }}>+{Number(bundle.extraTx).toLocaleString()} transactions</div>
-                      <p style={{ minHeight: '34px', color: textSecondary, fontSize: '11px', lineHeight: 1.5, margin: '8px 0 16px' }}>{bundle.description || 'No merchant-facing description.'}</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', padding: '10px', borderRadius: '10px', backgroundColor: isDark ? '#162033' : '#f8fafc', marginBottom: '14px' }}>
-                        <div><div style={{ color: textSecondary, fontSize: '9px' }}>PURCHASES</div><strong style={{ color: textPrimary, fontSize: '12px' }}>{bundle.confirmedPurchaseCount || 0}</strong></div>
-                        <div><div style={{ color: textSecondary, fontSize: '9px' }}>REVENUE</div><strong style={{ color: textPrimary, fontSize: '12px' }}>{Number(bundle.confirmedRevenueEgp || 0).toFixed(0)} EGP</strong></div>
-                        <div><div style={{ color: textSecondary, fontSize: '9px' }}>GRANTED</div><strong style={{ color: textPrimary, fontSize: '12px' }}>{Number(bundle.grantedTransactions || 0).toLocaleString()}</strong></div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button type="button" onClick={() => setEditingBundle({ ...bundle })} style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#f8fafc', color: textPrimary, fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}><Edit2 size={12} style={{ verticalAlign: 'middle', marginRight: '5px' }} />Edit</button>
-                        <button type="button" disabled={bundleSaving} onClick={() => handleToggleBundle(bundle)} style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: bundle.isActive ? '1px solid rgba(239,68,68,.35)' : '1px solid rgba(16,185,129,.35)', backgroundColor: bundle.isActive ? 'rgba(239,68,68,.08)' : 'rgba(16,185,129,.08)', color: bundle.isActive ? '#f87171' : '#34d399', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>{bundle.isActive ? 'Hide' : 'Publish'}</button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-
             {editingBundle && (
               <div style={{ position: 'fixed', inset: 0, zIndex: 10000, padding: '20px', backgroundColor: 'rgba(2,6,23,.78)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <form onSubmit={handleSaveBundle} style={{ width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '20px', backgroundColor: surface, border: surfaceBorder, boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}>
+                <form role="dialog" aria-modal="true" aria-label="Pricing editor" className="pricing-editor" data-pricing-theme={isDark ? 'dark' : 'light'} onSubmit={handleSaveBundle} style={{ width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '20px', backgroundColor: surface, border: surfaceBorder, boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}><fieldset disabled={bundleSaving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '20px' }}>
                     <div><h3 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>{editingBundle.id ? 'Edit extra bundle' : 'Create extra bundle'}</h3><p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>Changes affect the bundle catalog shown on merchant billing pages.</p></div>
-                    <button type="button" onClick={() => setEditingBundle(null)} style={{ border: 0, background: 'transparent', color: textSecondary, cursor: 'pointer', fontSize: '20px' }}>×</button>
+                    <button type="button" data-admin-close disabled={bundleSaving} onClick={() => setEditingBundle(null)} style={{ border: 0, background: 'transparent', color: textSecondary, cursor: 'pointer', fontSize: '20px' }}>×</button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px' }}>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Bundle key<input required disabled={Boolean(editingBundle.id)} value={editingBundle.name} onChange={(e) => setEditingBundle({ ...editingBundle, name: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })} placeholder="GROWTH_PACK" style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
@@ -2759,10 +2309,10 @@ export function AdminPortalPage() {
                   </div>
                   <label style={{ display: 'block', marginTop: '14px', color: textSecondary, fontSize: '11px' }}>Merchant-facing description<textarea maxLength={500} rows={3} value={editingBundle.description || ''} onChange={(e) => setEditingBundle({ ...editingBundle, description: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', marginTop: '5px', padding: '10px 12px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '9px', marginTop: '20px' }}>
-                    <button type="button" onClick={() => setEditingBundle(null)} style={{ padding: '9px 14px', borderRadius: '9px', border: surfaceBorder, backgroundColor: 'transparent', color: textSecondary, cursor: 'pointer' }}>Cancel</button>
+                    <button type="button" data-admin-close disabled={bundleSaving} onClick={() => setEditingBundle(null)} style={{ padding: '9px 14px', borderRadius: '9px', border: surfaceBorder, backgroundColor: 'transparent', color: textSecondary, cursor: 'pointer' }}>Cancel</button>
                     <button type="submit" disabled={bundleSaving} style={{ padding: '9px 16px', borderRadius: '9px', border: 0, backgroundColor: '#2563eb', color: '#fff', fontWeight: 750, cursor: 'pointer' }}>{bundleSaving ? 'Saving...' : editingBundle.id ? 'Save bundle' : 'Create bundle'}</button>
                   </div>
-                </form>
+                </fieldset></form>
               </div>
             )}
 
@@ -2784,6 +2334,7 @@ export function AdminPortalPage() {
                 }}
               >
                 <form
+                  role="dialog" aria-modal="true" aria-label="Pricing editor" className="pricing-editor" data-pricing-theme={isDark ? 'dark' : 'light'}
                   onSubmit={handleSavePlan}
                   style={{
                     width: '100%',
@@ -2797,7 +2348,7 @@ export function AdminPortalPage() {
                     overflowY: 'auto',
                   }}
                 >
-                  <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px 0' }}>
+                  <fieldset disabled={planSaving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 16px 0' }}>
                     Edit {editingPlan.name} Plan
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
@@ -2808,8 +2359,10 @@ export function AdminPortalPage() {
                       <input
                         type="number"
                         min="0"
+                        step="0.01"
+                        max="10000000"
                         value={editingPlan.priceEgp}
-                        onChange={(e) => setEditingPlan({ ...editingPlan, priceEgp: Number(e.target.value) })}
+                        onChange={(e) => setEditingPlan({ ...editingPlan, priceEgp: e.target.value })}
                         style={{
                           width: '100%',
                           padding: '10px 12px',
@@ -2859,7 +2412,7 @@ export function AdminPortalPage() {
                       <input
                         type="number"
                         min="1"
-                        max="365"
+                        max="3650"
                         value={editingPlan.periodDays ?? 30}
                         onChange={(e) => setEditingPlan({ ...editingPlan, periodDays: Number(e.target.value) })}
                         style={{
@@ -2891,10 +2444,13 @@ export function AdminPortalPage() {
                       />
                     </div>
                   </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px', fontSize: '13px' }}>
+                    <input type="checkbox" checked={editingPlan.isActive !== false} onChange={e => setEditingPlan({ ...editingPlan, isActive: e.target.checked })} />Available in merchant billing
+                  </label>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                     <button
                       type="button"
-                      onClick={() => setEditingPlan(null)}
+                      data-admin-close disabled={planSaving} onClick={() => setEditingPlan(null)}
                       style={{
                         padding: '8px 16px',
                         backgroundColor: '#334155',
@@ -2908,6 +2464,7 @@ export function AdminPortalPage() {
                     </button>
                     <button
                       type="submit"
+                      disabled={planSaving}
                       style={{
                         padding: '8px 18px',
                         backgroundColor: '#7c3aed',
@@ -2918,316 +2475,17 @@ export function AdminPortalPage() {
                         cursor: 'pointer',
                       }}
                     >
-                      Save Changes
+                      {planSaving ? 'Saving…' : 'Review & save changes'}
                     </button>
                   </div>
-                </form>
+                </fieldset></form>
               </div>
             )}
 
-            {/* Merchant Plan Assignment Table */}
-            <div style={{ backgroundColor: '#0f172a', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '16px', padding: '20px' }}>
-              <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#ffffff', margin: '0 0 16px 0' }}>
-                Merchant Plan Allocations & Usage
-              </h4>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
-                      <th style={{ padding: '10px 14px' }}>Business</th>
-                      <th style={{ padding: '10px 14px' }}>Current Plan</th>
-                      <th style={{ padding: '10px 14px' }}>Monthly Usage</th>
-                      <th style={{ padding: '10px 14px' }}>Quota Limit</th>
-                      <th style={{ padding: '10px 14px', textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {merchants.map((m) => {
-                      const usagePct = Math.min(100, Math.round(((m.txCount || 0) / (m.txLimit || 1)) * 100));
-                      return (
-                        <tr key={m.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
-                          <td style={{ padding: '12px 14px' }}>
-                            <div style={{ fontWeight: 600, color: '#ffffff' }}>{m.businessName}</div>
-                            <div style={{ fontSize: '12px', color: '#64748b' }}>{m.email}</div>
-                          </td>
-                          <td style={{ padding: '12px 14px' }}>
-                            <span
-                              style={{
-                                padding: '3px 10px',
-                                borderRadius: '9999px',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                backgroundColor:
-                                  m.subscriptionPlan === 'ENTERPRISE'
-                                    ? 'rgba(245, 158, 11, 0.2)'
-                                    : m.subscriptionPlan === 'PRO'
-                                    ? 'rgba(168, 85, 247, 0.2)'
-                                    : m.subscriptionPlan === 'PLUS'
-                                    ? 'rgba(99, 102, 241, 0.2)'
-                                    : m.subscriptionPlan === 'BASIC'
-                                    ? 'rgba(59, 130, 246, 0.2)'
-                                    : 'rgba(16, 185, 129, 0.2)',
-                                color:
-                                  m.subscriptionPlan === 'ENTERPRISE'
-                                    ? '#fbbf24'
-                                    : m.subscriptionPlan === 'PRO'
-                                    ? '#c084fc'
-                                    : m.subscriptionPlan === 'PLUS'
-                                    ? '#818cf8'
-                                    : m.subscriptionPlan === 'BASIC'
-                                    ? '#60a5fa'
-                                    : '#34d399',
-                              }}
-                            >
-                              {m.subscriptionPlan || 'FREE_TRIAL'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px 14px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span>{m.txCount || 0}</span>
-                              <div style={{ width: '60px', height: '6px', backgroundColor: '#1e293b', borderRadius: '3px', overflow: 'hidden' }}>
-                                <div
-                                  style={{
-                                    width: `${usagePct}%`,
-                                    height: '100%',
-                                    backgroundColor: usagePct > 90 ? '#ef4444' : usagePct > 70 ? '#f59e0b' : '#10b981',
-                                  }}
-                                />
-                              </div>
-                              <span style={{ fontSize: '11px', color: '#64748b' }}>{usagePct}%</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '12px 14px', color: '#94a3b8' }}>
-                            {m.txLimit?.toLocaleString() || '100'} tx
-                          </td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                            <select
-                              value={m.subscriptionPlan || 'FREE_TRIAL'}
-                              onChange={async (e) => {
-                                const newPlan = e.target.value;
-                                try {
-                                  const res = await adminApi.assignClientPlan(m.id, { planName: newPlan });
-                                  if (res.ok) {
-                                    showToast(`Plan for ${m.businessName} updated to ${newPlan}`);
-                                    fetchData();
-                                  } else {
-                                    showToast(res.error || 'Failed to assign plan', 'error');
-                                  }
-                                } catch (err: any) {
-                                  showToast(err.response?.data?.error || 'Failed to assign plan', 'error');
-                                }
-                              }}
-                              style={{
-                                padding: '4px 8px',
-                                backgroundColor: '#1e293b',
-                                border: '1px solid rgba(255, 255, 255, 0.1)',
-                                borderRadius: '6px',
-                                color: '#ffffff',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              {plans.length > 0 ? (
-                                plans
-                                  .slice()
-                                  .sort((a, b) => {
-                                    const order = ['FREE_TRIAL', 'BASIC', 'PLUS', 'PRO', 'ENTERPRISE'];
-                                    const idxA = order.indexOf(a.name);
-                                    const idxB = order.indexOf(b.name);
-                                    return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
-                                  })
-                                  .map((p) => (
-                                    <option key={p.name} value={p.name}>
-                                      {p.name}
-                                    </option>
-                                  ))
-                              ) : (
-                                <>
-                                  <option value="FREE_TRIAL">FREE_TRIAL</option>
-                                  <option value="BASIC">BASIC</option>
-                                  <option value="PLUS">PLUS</option>
-                                  <option value="PRO">PRO</option>
-                                  <option value="ENTERPRISE">ENTERPRISE</option>
-                                </>
-                              )}
-                            </select>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
         )}
 
-        {/* ─── TAB 6: BROADCAST NOTIFICATIONS ──────────────────────── */}
-        {activeTab === 'notifications' && (
-          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <div
-              style={{
-                backgroundColor: '#0f172a',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '20px',
-                padding: '28px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(124, 58, 237, 0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Bell size={22} color="#c084fc" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                    Dispatch Merchant Notification
-                  </h3>
-                  <p style={{ fontSize: '13px', color: '#94a3b8', margin: '2px 0 0 0' }}>
-                    Send high-priority alerts, maintenance notices, or system updates directly to merchant topbars & APKs.
-                  </p>
-                </div>
-              </div>
-
-              <form onSubmit={handleSendBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
-                    Target Audience
-                  </label>
-                  <select
-                    value={notifTarget}
-                    onChange={(e) => setNotifTarget(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 14px',
-                      backgroundColor: '#1e293b',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '10px',
-                      color: '#ffffff',
-                      fontSize: '13px',
-                    }}
-                  >
-                    <option value="ALL">📢 All Approved Merchants (Global Broadcast)</option>
-                    {merchants.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        🏢 {m.businessName} ({m.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
-                    Severity / Type
-                  </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                    {(['INFO', 'WARNING', 'ALERT'] as const).map((sev) => (
-                      <button
-                        type="button"
-                        key={sev}
-                        onClick={() => setNotifSeverity(sev)}
-                        style={{
-                          padding: '10px',
-                          borderRadius: '10px',
-                          border: notifSeverity === sev ? '2px solid #7c3aed' : '1px solid rgba(255, 255, 255, 0.1)',
-                          backgroundColor:
-                            notifSeverity === sev
-                              ? 'rgba(124, 58, 237, 0.2)'
-                              : '#1e293b',
-                          color: '#ffffff',
-                          fontWeight: 600,
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        {sev === 'ALERT' ? '🚨 Urgent Alert' : sev === 'WARNING' ? '⚠️ Warning' : 'ℹ️ System Info'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
-                    Notification Title
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Scheduled InstaPay Maintenance Tonight at 02:00 UTC"
-                    value={notifTitle}
-                    onChange={(e) => setNotifTitle(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 14px',
-                      backgroundColor: '#1e293b',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '10px',
-                      color: '#ffffff',
-                      fontSize: '14px',
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
-                    Notification Message
-                  </label>
-                  <textarea
-                    rows={4}
-                    placeholder="Enter full notification details for merchants..."
-                    value={notifMessage}
-                    onChange={(e) => setNotifMessage(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '12px 14px',
-                      backgroundColor: '#1e293b',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '10px',
-                      color: '#ffffff',
-                      fontSize: '13px',
-                      resize: 'vertical',
-                    }}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={sendingNotif}
-                  style={{
-                    marginTop: '8px',
-                    padding: '14px 20px',
-                    backgroundColor: '#7c3aed',
-                    border: 'none',
-                    borderRadius: '12px',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    boxShadow: '0 8px 20px rgba(124, 58, 237, 0.35)',
-                  }}
-                >
-                  <Send size={16} />
-                  {sendingNotif ? 'Dispatching...' : 'Broadcast Notification Now'}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        {activeTab === 'notifications' && <AdminNotificationCenter merchants={merchants} />}
 
         {/* ─── MODAL: MERCHANT KEYS & DETAILS ──────────────────────── */}
         {selectedMerchant && activeTab !== 'merchantDetails' && (

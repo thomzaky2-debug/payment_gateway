@@ -14,7 +14,7 @@
     "server:build": "tsc -p server/tsconfig.json",
     "start": "node server/dist/index.js",
     "typecheck": "tsc --noEmit",
-    "test:auth": "NODE_ENV=test tsx --test server/src/config.test.ts server/src/middleware/requireAdminOrigin.test.ts server/src/lib/proxyTrust.test.ts server/src/lib/rateLimiter.test.ts server/src/lib/phoneValidation.test.ts server/src/lib/instapayPaymentLink.test.ts server/src/services/authService.test.ts server/src/services/checkoutService.test.ts server/src/services/settlementService.test.ts server/src/policies/transactionPolicy.test.ts server/src/lib/totp.test.ts server/src/lib/credentialCrypto.test.ts server/src/lib/urlValidator.test.ts server/src/services/webhookService.test.ts server/src/services/webhookCallers.test.ts server/src/mobileBackend.test.ts server/src/lib/sessionPresentation.test.ts server/src/routes/settingsSessions.test.ts server/src/services/mobilePaymentService.test.ts server/src/views/otpEmail.test.ts server/src/services/transactionExpiryService.test.ts server/src/services/billingHistoryService.test.ts server/src/routes/merchantBillingReview.test.ts server/src/routes/merchantPendingBrowsing.test.ts server/src/routes/registrationCredentials.test.ts",
+    "test:auth": "NODE_ENV=test tsx --test server/src/config.test.ts server/src/middleware/requireAdminOrigin.test.ts server/src/lib/proxyTrust.test.ts server/src/lib/rateLimiter.test.ts server/src/lib/phoneValidation.test.ts server/src/lib/instapayPaymentLink.test.ts server/src/services/authService.test.ts server/src/services/checkoutService.test.ts server/src/services/settlementService.test.ts server/src/policies/transactionPolicy.test.ts server/src/lib/totp.test.ts server/src/lib/credentialCrypto.test.ts server/src/lib/urlValidator.test.ts server/src/services/webhookService.test.ts server/src/services/webhookCallers.test.ts server/src/mobileBackend.test.ts server/src/lib/sessionPresentation.test.ts server/src/routes/settingsSessions.test.ts server/src/services/mobilePaymentService.test.ts server/src/views/otpEmail.test.ts server/src/services/transactionExpiryService.test.ts server/src/services/billingHistoryService.test.ts server/src/routes/merchantBillingReview.test.ts server/src/routes/merchantPendingBrowsing.test.ts server/src/routes/registrationCredentials.test.ts server/src/services/adminNotificationService.test.ts",
     "test:integration": "NODE_ENV=test tsx --test server/src/mobileBackend.integration.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
@@ -25,7 +25,7 @@
     "local:seed": "tsx local-deploy/seed-local.ts",
     "admin:apk-ui": "node scripts/build-admin-apk-ui.mjs",
     "admin:typecheck": "tsc -p tsconfig.admin.json --noEmit",
-    "admin:test": "tsx --test src/utils/adminControls.test.ts"
+    "admin:test": "tsx --test src/utils/adminControls.test.ts src/utils/adminNotifications.test.ts src/utils/adminPricing.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

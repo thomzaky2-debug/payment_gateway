@@ -44,3 +44,5 @@ scratch/
 # Generated admin APK website bundle
 dist-admin/
 mobile/admin/src/main/assets/portal/
+
+mobile/.kotlin/

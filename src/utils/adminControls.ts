@@ -60,6 +60,9 @@ export function adminCsv(scope: AdminScope, rows: AdminRecord[]): string {
 export function exportAdminCsv(scope: AdminScope, rows: AdminRecord[]) {
   const csv = adminCsv(scope, rows);
   const filename = `NilePay-${scope}-${new Date().toISOString().slice(0, 10)}.csv`;
+  exportAdminCsvFile(csv, filename);
+}
+export function exportAdminCsvFile(csv: string, filename: string) {
   if (navigator.userAgent.includes('NilePayAdmin/')) {
     window.location.href = `nilepay-export://csv?filename=${encodeURIComponent(filename)}&csv=${encodeURIComponent(csv)}`;
   } else {

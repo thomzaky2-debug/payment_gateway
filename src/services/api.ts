@@ -77,7 +77,7 @@ export const authApi = {
     businessType?: string
     email: string
     password: string
-    instapayHandle: string
+    instapayHandle?: string
     instapayPaymentUrl?: string
     whatsappNumber: string
     verificationId?: string

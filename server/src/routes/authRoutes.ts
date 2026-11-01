@@ -199,10 +199,10 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       otp,
     } = req.body
 
-    if (!businessName || !email || !password || !instapayPaymentUrl) {
+    if (!businessName || !email || !password) {
       return res.status(400).json({
         ok: false,
-        error: 'Business name, email, password, and an InstaPay payment link are required',
+        error: 'Business name, email, and password are required',
       })
     }
 
@@ -230,12 +230,16 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       return res.status(400).json({ ok: false, error: emailError })
     }
 
-    const paymentLink = parseInstaPayPaymentLink(instapayPaymentUrl)
-    if (!paymentLink) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN',
-      })
+    const cleanPaymentUrl = typeof instapayPaymentUrl === 'string' ? instapayPaymentUrl.trim() : ''
+    let paymentLink: { handle: string; paymentUrl: string } | null = null
+    if (cleanPaymentUrl) {
+      paymentLink = parseInstaPayPaymentLink(cleanPaymentUrl)
+      if (!paymentLink) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN',
+        })
+      }
     }
 
     const phoneVariants = [
@@ -262,19 +266,21 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       })
     }
 
-    const existingByHandle = await db.client.findFirst({
-      where: {
-        OR: [
-          { instapayHandle: { equals: paymentLink.handle, mode: 'insensitive' } },
-          { instapayPaymentUrl: { equals: paymentLink.paymentUrl, mode: 'insensitive' } },
-        ],
-      },
-    })
-    if (existingByHandle) {
-      return res.status(409).json({
-        ok: false,
-        error: 'This InstaPay handle or payment link has already been registered with another merchant account.',
+    if (paymentLink) {
+      const existingByHandle = await db.client.findFirst({
+        where: {
+          OR: [
+            { instapayHandle: { equals: paymentLink.handle, mode: 'insensitive' } },
+            { instapayPaymentUrl: { equals: paymentLink.paymentUrl, mode: 'insensitive' } },
+          ],
+        },
       })
+      if (existingByHandle) {
+        return res.status(409).json({
+          ok: false,
+          error: 'This InstaPay handle or payment link has already been registered with another merchant account.',
+        })
+      }
     }
 
     // A signup code is mandatory and consumed exactly once.
@@ -302,8 +308,8 @@ authRouter.post('/register', async (req: Request, res: Response) => {
         businessType: businessType || 'E-commerce',
         email: cleanEmail,
         passwordHash,
-        instapayHandle: paymentLink.handle,
-        instapayPaymentUrl: paymentLink.paymentUrl,
+        instapayHandle: paymentLink ? paymentLink.handle : `pending_${slug.replace(/[^a-z0-9]/g, '_')}@instapay`,
+        instapayPaymentUrl: paymentLink ? paymentLink.paymentUrl : null,
         whatsappNumber: normalizedPhoneNumber,
         firstName: firstName || null,
         lastName: lastName || null,

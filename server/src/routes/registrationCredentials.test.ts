@@ -218,6 +218,35 @@ test('merchant registration rejects previously registered email, phone, or Insta
     const successBody = (await successRes.json()) as any
     assert.equal(successBody.ok, true)
     assert.equal(successBody.client.businessName, 'Unique Store')
+
+    // 7. Registration without IPN payment link (set later from settings) -> succeeds 201
+    const otpLaterRes = await fetch(`${baseUrl}/auth/email-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'later@store.com', purpose: 'MERCHANT_SIGNUP' }),
+    })
+    const { verificationId: verifLaterId, devOtp: devOtpLater } = (await otpLaterRes.json()) as any
+
+    const laterRes = await fetch(`${baseUrl}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        businessName: 'Later Store',
+        email: 'later@store.com',
+        password: 'Password123!',
+        whatsappNumber: '01077777777',
+        verificationId: verifLaterId,
+        otp: devOtpLater,
+      }),
+    })
+    assert.equal(laterRes.status, 201)
+    const laterBody = (await laterRes.json()) as any
+    assert.equal(laterBody.ok, true)
+    assert.equal(laterBody.client.businessName, 'Later Store')
+
+    const createdLaterClient = clients.find((c) => c.email === 'later@store.com')
+    assert.equal(createdLaterClient.instapayPaymentUrl, null)
+    assert.match(createdLaterClient.instapayHandle, /^pending_.*@instapay$/)
   } finally {
     server.close()
     ;(db as any).emailVerification = origEmailVerif
