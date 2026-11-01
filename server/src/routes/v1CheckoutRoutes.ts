@@ -28,14 +28,16 @@ async function requireApiKey(req: Request, res: Response, next: () => void) {
 v1CheckoutRouter.post('/create', requireApiKey, async (req: Request, res: Response) => {
   try {
     const client = (req as unknown as { client: any }).client
-    const { amountEgp, senderHandle, note, productCategory } = req.body
+    const { amountEgp, senderHandle, note, productCategory, items, products } = req.body
+    const orderItems = items ?? products
 
     const checkout = await createCheckoutSession({
       client,
-      amountEgp: Number(amountEgp),
+      amountEgp: amountEgp != null && !isNaN(Number(amountEgp)) ? Number(amountEgp) : undefined,
       senderHandle,
       note,
       productCategory,
+      items: orderItems,
     })
 
     return res.status(201).json({
@@ -73,6 +75,7 @@ v1CheckoutRouter.get('/status', requireApiKey, async (req: Request, res: Respons
         status: tx.status,
         amountEgp: tx.amountEgp,
         productCategory: tx.productCategory,
+        items: tx.items ?? null,
         currency: tx.currency,
         senderHandle: tx.senderHandle,
         recipientHandle: tx.recipientHandle,
@@ -103,7 +106,11 @@ v1CheckoutRouter.get('/snippets', requireApiKey, (req: Request, res: Response) =
   -d '{
     "amountEgp": 150.00,
     "senderHandle": "customer@instapay",
-    "note": "Order #1042"
+    "note": "Order #1042",
+    "items": [
+      { "name": "Wireless Gaming Mouse", "quantity": 1, "unitPrice": 100.00 },
+      { "name": "Mousepad Pro", "quantity": 1, "unitPrice": 50.00 }
+    ]
   }'`
 
   const nodeJs = `const axios = require('axios');
@@ -112,7 +119,11 @@ async function createInstapayCheckout() {
   const response = await axios.post('${baseUrl}/api/v1/checkout/create', {
     amountEgp: 150.00,
     senderHandle: 'customer@instapay',
-    note: 'Order #1042'
+    note: 'Order #1042',
+    items: [
+      { name: 'Wireless Gaming Mouse', quantity: 1, unitPrice: 100.00 },
+      { name: 'Mousepad Pro', quantity: 1, unitPrice: 50.00 }
+    ]
   }, {
     headers: {
       'Authorization': 'Bearer ${apiKey}',
@@ -133,7 +144,11 @@ headers = {
 payload = {
     "amountEgp": 150.00,
     "senderHandle": "customer@instapay",
-    "note": "Order #1042"
+    "note": "Order #1042",
+    "items": [
+        {"name": "Wireless Gaming Mouse", "quantity": 1, "unitPrice": 100.00},
+        {"name": "Mousepad Pro", "quantity": 1, "unitPrice": 50.00}
+    ]
 }
 
 response = requests.post(url, json=payload, headers=headers)
@@ -144,7 +159,11 @@ $ch = curl_init('${baseUrl}/api/v1/checkout/create');
 $payload = json_encode([
     'amountEgp' => 150.00,
     'senderHandle' => 'customer@instapay',
-    'note' => 'Order #1042'
+    'note' => 'Order #1042',
+    'items' => [
+        ['name' => 'Wireless Gaming Mouse', 'quantity' => 1, 'unitPrice' => 100.00],
+        ['name' => 'Mousepad Pro', 'quantity' => 1, 'unitPrice' => 50.00]
+    ]
 ]);
 
 curl_setopt_array($ch, [

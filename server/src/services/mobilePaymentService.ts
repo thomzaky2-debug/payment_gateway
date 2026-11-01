@@ -31,7 +31,7 @@ export async function listMobilePayments(clientId: string, status: string, searc
     status === 'UNMATCHED' ? [] : db.transaction.findMany({
       where: { clientId, ...(status !== 'ALL' ? { status: { in: statusCodes } } : {}), AND: [cursorWhere('checkout'), text(['senderHandle', 'sessionId', 'detectedRef'])] },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit + 1,
-      select: { id: true, sessionId: true, senderHandle: true, amountEgp: true, detectedAmountEgp: true, status: true, createdAt: true, expiresAt: true, detectedRef: true, note: true, productCategory: true },
+      select: { id: true, sessionId: true, senderHandle: true, amountEgp: true, detectedAmountEgp: true, status: true, createdAt: true, expiresAt: true, detectedRef: true, note: true, productCategory: true, items: true },
     }),
     status !== 'ALL' && status !== 'UNMATCHED' ? [] : db.mismatchedPayment.findMany({
       where: { clientId, status: 'UNMATCHED', AND: [cursorWhere('unmatched'), text(['senderHandle', 'reference', 'id'])] },

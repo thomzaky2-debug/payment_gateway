@@ -100,6 +100,19 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
         detectedAt: tx.detectedAt?.toISOString() ?? null,
         purpose: tx.purpose,
         productCategory: tx.productCategory,
+        items: tx.items ?? null,
+        itemsCount: Array.isArray(tx.items)
+          ? (tx.items as any[]).reduce((sum: number, it: any) => sum + (Number(it?.quantity) || 1), 0)
+          : 0,
+        subtotalEgp: Array.isArray(tx.items)
+          ? Math.round(
+              (tx.items as any[]).reduce(
+                (sum: number, it: any) =>
+                  sum + (Number(it?.totalPrice) || (Number(it?.quantity) || 1) * (Number(it?.unitPrice) || 0)),
+                0
+              ) * 100
+            ) / 100
+          : tx.amountEgp,
         subscriptionPlanName: tx.subscriptionPlanName,
         bundleInfo,
         basePeriodDays,

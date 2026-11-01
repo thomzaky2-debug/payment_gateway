@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Save,
   CheckCircle2,
@@ -173,10 +173,15 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
     transition: 'border-color 0.2s',
   };
 
+  const initialLoadDone = useRef(false);
+
   /* ──────────────── Data Fetching ──────────────── */
   const fetchSettings = useCallback(async (isManualRefresh = false) => {
-    if (isManualRefresh) setRefreshing(true);
-    else setLoading(true);
+    if (isManualRefresh) {
+      setRefreshing(true);
+    } else if (!initialLoadDone.current) {
+      setLoading(true);
+    }
 
     try {
       const res = await settingsApi.get();
@@ -196,6 +201,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
         setUnderpaidToleranceEgp(s.underpaidToleranceEgp ?? 5.0);
       }
       setLastRefreshedAt(new Date());
+      initialLoadDone.current = true;
       if (isManualRefresh && showToast) {
         showToast('success', isRtl ? 'تم تحديث الإعدادات والقواعد بنجاح' : 'Settings & rules refreshed successfully');
       }
@@ -267,7 +273,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
 
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'notifications') {
@@ -304,7 +310,9 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
   };
 
   const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
     setCopiedKey(key);
     if (showToast) {
       showToast('info', isRtl ? 'تم النسخ إلى الحافظة' : 'Copied to clipboard');

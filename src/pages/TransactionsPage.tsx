@@ -14,6 +14,7 @@ import {
   Printer,
   FileText,
   Download,
+  ShoppingBag,
 } from 'lucide-react';
 import { transactionsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -38,6 +39,7 @@ interface TransactionItem {
   createdAt: string;
   note?: string | null;
   productCategory?: string | null;
+  items?: Array<{ name: string; quantity: number; unitPrice: number; totalPrice?: number; category?: string }> | null;
   purpose?: string | null;
   subscriptionPlanName?: string | null;
 }
@@ -1210,6 +1212,70 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: textSecondary }}>{isRtl ? 'ملاحظة الطلب:' : 'Order Note:'}</span>
                   <span style={{ color: textPrimary, fontWeight: 500 }}>{selectedTx.note}</span>
+                </div>
+              )}
+
+              {/* Product Order Items Table */}
+              {selectedTx.items && Array.isArray(selectedTx.items) && selectedTx.items.length > 0 && (
+                <div style={{
+                  padding: '12px',
+                  borderRadius: '12px',
+                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#f8fafc',
+                  border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+                  marginTop: '4px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <ShoppingBag size={14} color="#38bdf8" />
+                      <span>{isRtl ? 'أصناف ومنتجات الطلب:' : 'Order Products & Quantities:'}</span>
+                    </span>
+                    <span style={{ fontSize: '11px', color: textSecondary }}>
+                      {selectedTx.items.length} {isRtl ? 'أصناف' : 'items'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {selectedTx.items.map((it, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          borderRadius: '8px',
+                          backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                          border: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
+                          fontSize: '11.5px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                          <span style={{ fontWeight: 600, color: textPrimary, wordBreak: 'break-word' }}>
+                            {it.name}
+                          </span>
+                          <span
+                            style={{
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                              color: isDark ? '#38bdf8' : '#0284c7',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            ×{it.quantity}
+                          </span>
+                          <span style={{ fontSize: '10.5px', color: textSecondary }}>
+                            ({Number(it.unitPrice).toFixed(2)} EGP)
+                          </span>
+                        </div>
+                        <span style={{ fontFamily: 'monospace', color: '#10b981', fontWeight: 700 }}>
+                          {(it.totalPrice ?? (it.quantity * it.unitPrice)).toFixed(2)} EGP
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

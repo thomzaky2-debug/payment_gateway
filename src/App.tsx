@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { authApi } from './services/api';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -138,37 +138,51 @@ function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const navigateTo = (page: Page, subPath?: string) => {
+  // Prevent browser native "Save Webpage As" dialog on Ctrl+S / Cmd+S
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  const navigateTo = useCallback((page: Page, subPath?: string) => {
     const targetHash = buildHash(page, subPath);
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;
     }
     setCurrentPage(page);
     setCurrentSubPath(subPath);
-  };
+  }, []);
 
-  const handleSubPathChange = (subPath?: string) => {
-    const targetHash = buildHash(currentPage, subPath);
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+
+  const handleSubPathChange = useCallback((subPath?: string) => {
+    const targetHash = buildHash(currentPageRef.current, subPath);
     if (window.location.hash !== targetHash) {
       window.location.hash = targetHash;
     }
     setCurrentSubPath(subPath);
-  };
+  }, []);
 
-  const showToast = (type: ToastMessage['type'], message: string) => {
+  const showToast = useCallback((type: ToastMessage['type'], message: string) => {
     const id = Date.now().toString();
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4000);
-  };
+  }, []);
 
-  const showConfirm = (action: Omit<ConfirmAction, 'id'>) => {
+  const showConfirm = useCallback((action: Omit<ConfirmAction, 'id'>) => {
     const id = Date.now().toString();
     setConfirmDialog({ ...action, id });
-  };
+  }, []);
 
-  const closeConfirm = () => setConfirmDialog(null);
+  const closeConfirm = useCallback(() => setConfirmDialog(null), []);
 
   const handleLogin = async () => {
     try {

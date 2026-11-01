@@ -254,6 +254,7 @@ model Transaction {
   subscriptionPlanName String?
   note                 String?
   productCategory      String?
+  items                Json?
 
   deepLinkUrl   String
   deepLinkToken String

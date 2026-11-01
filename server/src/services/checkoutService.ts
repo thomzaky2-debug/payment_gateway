@@ -5,18 +5,28 @@ import { normalizeHandle } from './matcherService.js'
 import { Prisma, type Client } from '@prisma/client'
 import { expirePendingTransactions } from './transactionExpiryService.js'
 
+export interface OrderItem {
+  name: string
+  quantity: number
+  unitPrice: number
+  totalPrice?: number
+  category?: string
+}
+
 export interface CreateCheckoutInput {
   client: Client
-  amountEgp: number
+  amountEgp?: number
   senderHandle?: string | null
   note?: string | null
   productCategory?: string | null
+  items?: OrderItem[] | null
   purpose?: 'CHECKOUT' | 'SUBSCRIPTION'
   subscriptionPlanName?: string | null
 }
 
 export interface CheckoutResult {
   productCategory: string | null
+  items?: OrderItem[] | null
   sessionId: string
   status: string
   amountEgp: number
@@ -80,7 +90,54 @@ export async function createCheckoutSession(
     throw new CheckoutValidationError('Product category must be text with at most 100 characters')
   }
   const productCategory = input.productCategory?.trim() || null
-  const { client, amountEgp, note, purpose = 'CHECKOUT', subscriptionPlanName } = input
+
+  let sanitizedItems: OrderItem[] | null = null
+  if (input.items != null) {
+    if (!Array.isArray(input.items) || input.items.length === 0) {
+      throw new CheckoutValidationError('items must be a non-empty array of product order items')
+    }
+    if (input.items.length > 100) {
+      throw new CheckoutValidationError('items cannot exceed 100 items per checkout session')
+    }
+    sanitizedItems = input.items.map((it, idx) => {
+      if (!it || typeof it !== 'object') {
+        throw new CheckoutValidationError(`Item at index ${idx} must be an object with name, quantity, and unitPrice`)
+      }
+      const name = typeof it.name === 'string' ? it.name.trim() : ''
+      if (!name || name.length > 200) {
+        throw new CheckoutValidationError(`Item at index ${idx} must have a valid name (1-200 characters)`)
+      }
+      const quantity = Number(it.quantity)
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        throw new CheckoutValidationError(`Item "${name}" must have a positive quantity`)
+      }
+      const unitPrice = Number(it.unitPrice)
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        throw new CheckoutValidationError(`Item "${name}" must have a valid positive unitPrice`)
+      }
+      const roundedUnitPrice = Math.round(unitPrice * 100) / 100
+      const totalPrice = Math.round(quantity * roundedUnitPrice * 100) / 100
+      const category = typeof it.category === 'string' && it.category.trim() ? it.category.trim().slice(0, 100) : undefined
+
+      return {
+        name,
+        quantity,
+        unitPrice: roundedUnitPrice,
+        totalPrice,
+        ...(category ? { category } : {}),
+      }
+    })
+  }
+
+  const { client, note, purpose = 'CHECKOUT', subscriptionPlanName } = input
+
+  let amountEgp = input.amountEgp
+  if (sanitizedItems && sanitizedItems.length > 0) {
+    const itemsSum = Math.round(sanitizedItems.reduce((acc, it) => acc + (it.totalPrice || 0), 0) * 100) / 100
+    if (amountEgp == null || isNaN(Number(amountEgp))) {
+      amountEgp = itemsSum
+    }
+  }
 
   if (!amountEgp || !Number.isFinite(amountEgp) || amountEgp <= 0) {
     throw new CheckoutValidationError('amountEgp must be a positive finite number')
@@ -120,6 +177,7 @@ export async function createCheckoutSession(
         amountCents,
         currency: 'EGP',
         productCategory,
+        items: sanitizedItems ? (sanitizedItems as any) : undefined,
         status: 'PENDING',
         purpose,
         subscriptionPlanName,
@@ -175,6 +233,7 @@ export async function createCheckoutSession(
     sessionId: transaction.sessionId,
     status: transaction.status,
     productCategory: transaction.productCategory,
+    items: (transaction.items as unknown as OrderItem[]) ?? null,
     amountEgp: transaction.amountEgp,
     currency: transaction.currency,
     deepLinkUrl: transaction.deepLinkUrl,

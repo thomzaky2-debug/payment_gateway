@@ -1049,12 +1049,30 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
                           {isRtl ? 'معرّف إنستاباي للعميل (الافتراضي: pending@instapay)' : 'Customer InstaPay handle / IPA (defaults to pending@instapay)'}
                         </td>
                       </tr>
-                      <tr>
+                      <tr style={{ borderBottom: `1px solid ${borderColor}` }}>
                         <td style={{ padding: '10px 12px', fontFamily: "'JetBrains Mono', monospace", color: '#38bdf8', fontWeight: 600 }}>note</td>
                         <td style={{ padding: '10px 12px', color: textSecondary }}>String</td>
                         <td style={{ padding: '10px 12px', color: textMuted }}>{isRtl ? 'اختياري' : 'Optional'}</td>
                         <td style={{ padding: '10px 12px', color: textSecondary }}>
                           {isRtl ? 'ملاحظة أو رقم طلب في متجرك (يظهر في إيصال الدفع)' : 'Order reference or memo shown on invoice'}
+                        </td>
+                      </tr>
+                      <tr style={{ borderBottom: `1px solid ${borderColor}` }}>
+                        <td style={{ padding: '10px 12px', fontFamily: "'JetBrains Mono', monospace", color: '#38bdf8', fontWeight: 600 }}>items</td>
+                        <td style={{ padding: '10px 12px', color: textSecondary }}>Array&lt;Object&gt;</td>
+                        <td style={{ padding: '10px 12px', color: textMuted }}>{isRtl ? 'اختياري' : 'Optional'}</td>
+                        <td style={{ padding: '10px 12px', color: textSecondary }}>
+                          {isRtl
+                            ? 'أصناف ومنتجات الطلب؛ كائن يحتوي على { name, quantity, unitPrice }. تُعرض تفاصيل المنتجات والكميات والأسعار في صفحة الدفع وفاتورة العميل.'
+                            : 'Order items array; each item contains { name, quantity, unitPrice }. Details, quantities, and prices render on checkout page and receipts.'}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '10px 12px', fontFamily: "'JetBrains Mono', monospace", color: '#38bdf8', fontWeight: 600 }}>productCategory</td>
+                        <td style={{ padding: '10px 12px', color: textSecondary }}>String</td>
+                        <td style={{ padding: '10px 12px', color: textMuted }}>{isRtl ? 'اختياري' : 'Optional'}</td>
+                        <td style={{ padding: '10px 12px', color: textSecondary }}>
+                          {isRtl ? 'تصنيف المنتج أو الخدمة (مثال: Electronics)' : 'Optional product category string'}
                         </td>
                       </tr>
                     </tbody>

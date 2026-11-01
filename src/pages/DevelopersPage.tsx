@@ -3,7 +3,7 @@ import {
   Key, Copy, Eye, EyeOff, CheckCircle2, Play, ExternalLink,
   RefreshCw, Terminal, Code2, Shield, Zap, BookOpen, Hash,
   ArrowRight, Lock, Unlock, RotateCcw, Braces, Check, Clipboard,
-  FileCode2, Globe, ChevronRight, AlertTriangle
+  FileCode2, Globe, ChevronRight, AlertTriangle, ShoppingBag, Plus, Trash2
 } from 'lucide-react';
 import { apiUrl, settingsApi, subscriptionApi } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -26,10 +26,15 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   const [refreshing, setRefreshing] = useState(false);
 
   // Simulator state
-  const [testAmount, setTestAmount] = useState('50.00');
+  const [testAmount, setTestAmount] = useState('150.00');
   const [testSender, setTestSender] = useState('customer@instapay');
-  const [testNote, setTestNote] = useState('Test Order #101');
-  const [testCategory, setTestCategory] = useState('');
+  const [testNote, setTestNote] = useState('Order #4092');
+  const [testCategory, setTestCategory] = useState('Electronics');
+  const [useProductOrder, setUseProductOrder] = useState(true);
+  const [testItems, setTestItems] = useState<Array<{ name: string; quantity: number; unitPrice: number }>>([
+    { name: 'Wireless Mechanical Keyboard', quantity: 1, unitPrice: 100 },
+    { name: 'Ergonomic Gaming Mousepad', quantity: 1, unitPrice: 50 },
+  ]);
   const [simLoading, setSimLoading] = useState(false);
   const [simResult, setSimResult] = useState<any>(null);
 
@@ -153,14 +158,26 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
       return;
     }
 
-    const numAmount = Number(testAmount);
-    if (!testAmount || isNaN(numAmount) || numAmount <= 0) {
+    let numAmount = Number(testAmount);
+    if (useProductOrder && testItems.length > 0) {
+      numAmount = Math.round(testItems.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0) * 100) / 100;
+    }
+
+    if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
       if (showToast) showToast('error', isRtl ? 'يرجى إدخال مبلغ صحيح بالجنيه المصري أكبر من صفر' : 'Please enter a valid amount greater than 0 EGP');
       return;
     }
 
     setSimLoading(true);
     setSimResult(null);
+
+    const payload: any = {
+      amountEgp: numAmount,
+      senderHandle: testSender,
+      note: testNote,
+      productCategory: testCategory.trim() || undefined,
+      items: useProductOrder && testItems.length > 0 ? testItems : undefined,
+    };
 
     try {
       const res = await fetch(apiUrl('/api/v1/checkout/create'), {
@@ -169,18 +186,13 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${settings.apiKey}`,
         },
-        body: JSON.stringify({
-          amountEgp: Number(testAmount),
-          senderHandle: testSender,
-          note: testNote,
-          productCategory: testCategory.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (data.ok) {
         setSimResult(data.checkout);
-        if (showToast) showToast('success', isRtl ? 'تم إنشاء جلسة الدفع بنجاح!' : 'Checkout session created successfully!');
+        if (showToast) showToast('success', isRtl ? 'تم إنشاء جلسة الدفع بنجاح مع تفاصيل المنتجات!' : 'Checkout session created successfully with product order details!');
       } else if (data.error === 'Activate your free trial before creating checkout sessions.') {
         // A first checkout is an explicit merchant action, so activate an
         // eligible introductory trial and run the requested test once.
@@ -189,7 +201,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         const retry = await fetch(apiUrl('/api/v1/checkout/create'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.apiKey}` },
-          body: JSON.stringify({ amountEgp: Number(testAmount), senderHandle: testSender, note: testNote, productCategory: testCategory.trim() || undefined }),
+          body: JSON.stringify(payload),
         });
         const retryData = await retry.json();
         if (!retryData?.ok) throw new Error(retryData?.error || 'Simulator checkout failed');
@@ -212,9 +224,13 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   -H "Authorization: Bearer ${showApiKey ? apiKey : 'egp_live_***'}" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "amountEgp": 50.00,
+    "amountEgp": 150.00,
     "senderHandle": "customer@instapay",
-    "note": "Order #1042"
+    "note": "Order #4092",
+    "items": [
+      { "name": "Wireless Mechanical Keyboard", "quantity": 1, "unitPrice": 100.00 },
+      { "name": "Ergonomic Gaming Mousepad", "quantity": 1, "unitPrice": 50.00 }
+    ]
   }'`;
 
   /* ──────────────── Shared secret/key field component ──────────────── */
@@ -622,6 +638,190 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
                   style={{ width: '100%', padding: '10px 14px', fontSize: '13px', borderRadius: '10px', border: isDark ? '1px solid #334155' : '1px solid #cbd5e1', background: isDark ? '#0f172a' : '#ffffff', color: textPrimary }} />
               </div>
 
+              {/* Product Order Items Section */}
+              <div style={{
+                padding: '12px 14px',
+                borderRadius: '12px',
+                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.05)' : '#f0f9ff',
+                border: isDark ? '1px solid rgba(56, 189, 248, 0.2)' : '1px solid #bae6fd',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12.5px', fontWeight: 700, color: textPrimary, margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={useProductOrder}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setUseProductOrder(checked);
+                        if (checked && testItems.length > 0) {
+                          const sum = testItems.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0);
+                          setTestAmount(sum.toFixed(2));
+                        }
+                      }}
+                      style={{ cursor: 'pointer', accentColor: '#2563eb' }}
+                    />
+                    <ShoppingBag size={14} color="#0284c7" />
+                    <span>{isRtl ? 'تضمين تفاصيل المنتجات والكميات والأسعار' : 'Include Product Order Details (Items & Prices)'}</span>
+                  </label>
+
+                  {useProductOrder && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...testItems, { name: `Product #${testItems.length + 1}`, quantity: 1, unitPrice: 50 }];
+                        setTestItems(updated);
+                        const sum = updated.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0);
+                        setTestAmount(sum.toFixed(2));
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Plus size={12} />
+                      <span>{isRtl ? 'إضافة منتج' : 'Add Item'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {useProductOrder && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {testItems.map((item, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 70px 85px 30px',
+                          gap: '6px',
+                          alignItems: 'center',
+                          backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                          padding: '6px 8px',
+                          borderRadius: '8px',
+                          border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+                        }}
+                      >
+                        <input
+                          type="text"
+                          placeholder={isRtl ? 'اسم المنتج' : 'Item name'}
+                          value={item.name}
+                          onChange={(e) => {
+                            const updated = [...testItems];
+                            updated[idx] = { ...updated[idx], name: e.target.value };
+                            setTestItems(updated);
+                          }}
+                          style={{
+                            fontSize: '11.5px',
+                            padding: '4px 6px',
+                            borderRadius: '5px',
+                            border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+                            backgroundColor: 'transparent',
+                            color: textPrimary,
+                            outline: 'none',
+                          }}
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                          <span style={{ fontSize: '10px', color: textSecondary }}>×</span>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Qty"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const qty = Math.max(1, parseInt(e.target.value) || 1);
+                              const updated = [...testItems];
+                              updated[idx] = { ...updated[idx], quantity: qty };
+                              setTestItems(updated);
+                              const sum = updated.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0);
+                              setTestAmount(sum.toFixed(2));
+                            }}
+                            style={{
+                              width: '100%',
+                              fontSize: '11.5px',
+                              padding: '4px 6px',
+                              borderRadius: '5px',
+                              border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+                              backgroundColor: 'transparent',
+                              color: textPrimary,
+                              outline: 'none',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Price"
+                            value={item.unitPrice}
+                            onChange={(e) => {
+                              const price = Math.max(0, parseFloat(e.target.value) || 0);
+                              const updated = [...testItems];
+                              updated[idx] = { ...updated[idx], unitPrice: price };
+                              setTestItems(updated);
+                              const sum = updated.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0);
+                              setTestAmount(sum.toFixed(2));
+                            }}
+                            style={{
+                              width: '100%',
+                              fontSize: '11.5px',
+                              padding: '4px 6px',
+                              borderRadius: '5px',
+                              border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+                              backgroundColor: 'transparent',
+                              color: textPrimary,
+                              outline: 'none',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (testItems.length <= 1) return;
+                            const updated = testItems.filter((_, i) => i !== idx);
+                            setTestItems(updated);
+                            const sum = updated.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0);
+                            setTestAmount(sum.toFixed(2));
+                          }}
+                          disabled={testItems.length <= 1}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: testItems.length <= 1 ? textMuted : '#ef4444',
+                            cursor: testItems.length <= 1 ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '2px',
+                          }}
+                          title={isRtl ? 'حذف' : 'Remove'}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '11.5px', color: textSecondary, marginTop: '2px' }}>
+                      <span>
+                        {isRtl ? 'المجموع المحسوب تلقائياً:' : 'Auto Calculated Sum:'}{' '}
+                        <strong style={{ color: '#10b981', fontFamily: 'monospace' }}>
+                          {testItems.reduce((acc, it) => acc + (it.quantity * it.unitPrice), 0).toFixed(2)} EGP
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Note / reference */}
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: textSecondary, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -730,6 +930,15 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
                 <span style={{ color: '#64748b' }}>session:</span>{' '}
                 <span style={{ color: '#4ade80' }}>{simResult.sessionId}</span>
                 {simResult.productCategory && <><br /><span style={{ color: '#64748b' }}>{isRtl ? 'الفئة:' : 'category:'}</span>{' '}<span style={{ color: '#cbd5e1' }}>{simResult.productCategory}</span></>}
+                {simResult.items && simResult.items.length > 0 && (
+                  <>
+                    <br />
+                    <span style={{ color: '#64748b' }}>{isRtl ? 'المنتجات:' : 'items:'}</span>{' '}
+                    <span style={{ color: '#fbbf24' }}>
+                      {simResult.items.map((it: any) => `${it.name} (×${it.quantity})`).join(' + ')}
+                    </span>
+                  </>
+                )}
                 <br />
                 <span style={{ color: '#64748b' }}>url:</span>{' '}
                 <span style={{ color: '#38bdf8' }}>{simResult.checkoutUrl}</span>

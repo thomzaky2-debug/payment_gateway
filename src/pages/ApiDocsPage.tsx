@@ -1659,11 +1659,27 @@ curl -X POST "http://localhost:8080/api/webhook" \\
                       <td style={{ padding: '8px 12px', color: textMuted }}>Optional</td>
                       <td style={{ padding: '8px 12px', color: textSecondary }}>{isRtl ? 'عنوان إنستاباي للعميل (مثال: username@instapay)' : 'Customer InstaPay payment address handle'}</td>
                     </tr>
-                    <tr style={{ backgroundColor: bgCard }}>
+                    <tr style={{ borderBottom: `1px solid ${borderCard}`, backgroundColor: bgCard }}>
                       <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 600, color: accentSky }}>note</td>
                       <td style={{ padding: '8px 12px', color: textMuted }}>String</td>
                       <td style={{ padding: '8px 12px', color: textMuted }}>Optional</td>
                       <td style={{ padding: '8px 12px', color: textSecondary }}>{isRtl ? 'وصف أو رقم الفاتورة للطلب (مثال: Order #1042)' : 'Optional memo or order reference'}</td>
+                    </tr>
+                    <tr style={{ borderBottom: `1px solid ${borderCard}`, backgroundColor: bgCard }}>
+                      <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 600, color: accentSky }}>items</td>
+                      <td style={{ padding: '8px 12px', color: textMuted }}>Array&lt;Object&gt;</td>
+                      <td style={{ padding: '8px 12px', color: textMuted }}>Optional</td>
+                      <td style={{ padding: '8px 12px', color: textSecondary }}>
+                        {isRtl
+                          ? 'قائمة منتجات الطلب؛ كل صنف يحتوي على { name, quantity, unitPrice }. تُعرض تفاصيل المنتجات والكميات والأسعار في صفحة الدفع وفاتورة العميل.'
+                          : 'Itemized product order array; each item has { name, quantity, unitPrice }. Detailed items, quantities and prices render on checkout and receipt.'}
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: bgCard }}>
+                      <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 600, color: accentSky }}>productCategory</td>
+                      <td style={{ padding: '8px 12px', color: textMuted }}>String</td>
+                      <td style={{ padding: '8px 12px', color: textMuted }}>Optional</td>
+                      <td style={{ padding: '8px 12px', color: textSecondary }}>{isRtl ? 'تصنيف المنتج أو الخدمة (مثال: Electronics)' : 'Optional product category string'}</td>
                     </tr>
                   </tbody>
                 </table>

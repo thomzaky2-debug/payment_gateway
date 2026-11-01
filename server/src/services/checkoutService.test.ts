@@ -10,6 +10,25 @@ test('checkout categories reject invalid types and lengths before writing', asyn
   }
 })
 
+test('checkout product order items reject invalid structures and sanitize valid items', async () => {
+  await assert.rejects(
+    createCheckoutSession({ client: merchant(), amountEgp: 10, items: [] as any }),
+    /non-empty array/
+  )
+  await assert.rejects(
+    createCheckoutSession({ client: merchant(), amountEgp: 10, items: [{ name: '', quantity: 1, unitPrice: 10 }] as any }),
+    /valid name/
+  )
+  await assert.rejects(
+    createCheckoutSession({ client: merchant(), amountEgp: 10, items: [{ name: 'Item', quantity: 0, unitPrice: 10 }] as any }),
+    /positive quantity/
+  )
+  await assert.rejects(
+    createCheckoutSession({ client: merchant(), amountEgp: 10, items: [{ name: 'Item', quantity: 1, unitPrice: -5 }] as any }),
+    /positive unitPrice/
+  )
+})
+
 function replaceTransactionMethod(t: test.TestContext, replacement: (...args: any[]) => any) {
   const original = (db as any).$transaction
   ;(db as any).$transaction = replacement
