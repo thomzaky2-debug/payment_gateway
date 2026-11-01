@@ -1263,13 +1263,6 @@ export function AdminPortalPage() {
         }}
       >
         <div className="admin-portal-content-inner" style={{ maxWidth: '1400px', margin: '0 auto', animation: 'fadeIn 0.4s ease-out' }}>
-        {activeTab === 'controls' && <AdminOperations
-          merchants={merchants} transactions={transactions} webhooks={webhookLogs} audit={auditLogs}
-          loading={loading} syncedAt={lastSyncedAt} onRefresh={fetchData}
-          onInspectMerchant={id => { window.location.hash = buildAdminHash('merchantDetails', id); }}
-          onReviewPayment={id => { setForceSessionId(id); window.location.hash = buildAdminHash('transactions'); }}
-          onNavigate={tab => { window.location.hash = buildAdminHash(tab); }}
-        />}
         {/* Toast Notification */}
         {toastMessage && (
           <div
@@ -1351,6 +1344,14 @@ export function AdminPortalPage() {
               : `Last synced ${lastSyncedAt ? lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'}`}
           </div>
         </div>
+
+        {activeTab === 'controls' && <AdminOperations
+          merchants={merchants} transactions={transactions} webhooks={webhookLogs} audit={auditLogs}
+          loading={loading} syncedAt={lastSyncedAt} onRefresh={fetchData}
+          onInspectMerchant={id => { window.location.hash = buildAdminHash('merchantDetails', id); }}
+          onReviewPayment={id => { setForceSessionId(id); window.location.hash = buildAdminHash('transactions'); }}
+          onNavigate={tab => { window.location.hash = buildAdminHash(tab); }}
+        />}
 
         {activeTab === 'publicSettings' && <AdminPublicSettings />}
 

@@ -197,3 +197,38 @@ test('subscription checkout creation remains outside ordinary checkout quota res
   assert.equal(checkout.amountEgp, 250)
   assert.equal(checkout.recipientHandle, client.instapayHandle)
 })
+
+test('createCheckoutSession appends valid returnUrl to checkoutUrl and returns it in checkout object', async (t) => {
+  const freshClient = merchant()
+  const transactionDb = {
+    client: {
+      findUnique: async () => freshClient,
+      update: async () => freshClient,
+    },
+    transaction: {
+      count: async () => 0,
+      create: async ({ data }: any) => ({
+        ...data,
+        id: 'tx_return_url_test',
+        createdAt: new Date(),
+        detectedRef: null,
+        detectedAt: null,
+        detectedAmountEgp: null,
+        detectedAmountCents: null,
+      }),
+    },
+  }
+
+  replaceTransactionMethod(t, async (operation: any) => operation(transactionDb))
+
+  const checkout = await createCheckoutSession({
+    client: freshClient,
+    amountEgp: 45.0,
+    senderHandle: 'customer@instapay',
+    note: 'Order with return link',
+    returnUrl: 'https://store.example.com/checkout/complete',
+  })
+
+  assert.equal(checkout.returnUrl, 'https://store.example.com/checkout/complete')
+  assert.match(checkout.checkoutUrl, /returnUrl=https%3A%2F%2Fstore\.example\.com%2Fcheckout%2Fcomplete/)
+})

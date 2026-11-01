@@ -32,6 +32,7 @@ import {
   Receipt,
   Tag,
   FileDown,
+  Store,
 } from 'lucide-react';
 import { useDevicePlatform } from '../hooks/useDevicePlatform';
 import { useTheme } from '../context/ThemeContext';
@@ -108,6 +109,8 @@ interface CheckoutData {
   sessionId: string;
   businessName: string;
   profileImageData?: string | null;
+  merchantWebsiteUrl?: string | null;
+  returnUrl?: string | null;
   recipientHandle: string;
   senderHandle: string;
   amountEgp: number;
@@ -158,6 +161,138 @@ export function CheckoutPayPage() {
   const [isSavingSender, setIsSavingSender] = useState<boolean>(false);
   const [senderSaveSuccess, setSenderSaveSuccess] = useState<boolean>(false);
   const [senderSaveError, setSenderSaveError] = useState<string | null>(null);
+  const [returnedNotice, setReturnedNotice] = useState<boolean>(false);
+
+  // Capture return URL and store referrer for returning back after confirmation
+  useEffect(() => {
+    if (!effectiveSessionId) return;
+
+    // Check query params: returnUrl, redirectUrl, storeUrl, callbackUrl, backUrl
+    const searchParams = new URLSearchParams(window.location.search);
+    const qReturn =
+      searchParams.get('returnUrl') ||
+      searchParams.get('redirectUrl') ||
+      searchParams.get('storeUrl') ||
+      searchParams.get('callbackUrl') ||
+      searchParams.get('backUrl') ||
+      searchParams.get('return_url') ||
+      searchParams.get('redirect_url');
+
+    if (qReturn) {
+      try {
+        sessionStorage.setItem(`np_return_${effectiveSessionId}`, qReturn);
+      } catch {}
+    }
+
+    // Capture referrer if external
+    if (document.referrer) {
+      try {
+        const refUrl = new URL(document.referrer);
+        if (refUrl.origin !== window.location.origin && !refUrl.host.includes(window.location.host)) {
+          sessionStorage.setItem(`np_referrer_${effectiveSessionId}`, document.referrer);
+        }
+      } catch {}
+    }
+  }, [effectiveSessionId]);
+
+  const handleCloseAndReturn = () => {
+    // 1. Subscription return to platform billing dashboard
+    if (checkout?.purpose === 'SUBSCRIPTION') {
+      const merchantHost = window.location.host.replace(/^checkout\./, '');
+      window.location.href = `${window.location.protocol}//${merchantHost}/#settings/Billing`;
+      return;
+    }
+
+    // 2. Resolve destination URL to return back to merchant's website or store
+    let targetUrl: string | null = null;
+
+    // A. Query parameter returnUrl / redirectUrl
+    const searchParams = new URLSearchParams(window.location.search);
+    const qReturn =
+      searchParams.get('returnUrl') ||
+      searchParams.get('redirectUrl') ||
+      searchParams.get('storeUrl') ||
+      searchParams.get('callbackUrl') ||
+      searchParams.get('backUrl') ||
+      searchParams.get('return_url') ||
+      searchParams.get('redirect_url');
+
+    if (qReturn) {
+      targetUrl = qReturn;
+    }
+
+    // B. Cached returnUrl in sessionStorage
+    if (!targetUrl && effectiveSessionId) {
+      try {
+        targetUrl = sessionStorage.getItem(`np_return_${effectiveSessionId}`);
+      } catch {}
+    }
+
+    // C. Checkout session object returnUrl or storeUrl
+    if (!targetUrl && checkout?.returnUrl) {
+      targetUrl = checkout.returnUrl;
+    }
+
+    // D. Cached external document.referrer in sessionStorage or current document.referrer
+    if (!targetUrl && effectiveSessionId) {
+      try {
+        const cachedRef = sessionStorage.getItem(`np_referrer_${effectiveSessionId}`);
+        if (cachedRef) targetUrl = cachedRef;
+      } catch {}
+    }
+    if (!targetUrl && document.referrer) {
+      try {
+        const refUrl = new URL(document.referrer);
+        if (refUrl.origin !== window.location.origin && !refUrl.host.includes(window.location.host)) {
+          targetUrl = document.referrer;
+        }
+      } catch {}
+    }
+
+    // E. Merchant store website derived from webhookUrl
+    if (!targetUrl && checkout?.merchantWebsiteUrl) {
+      targetUrl = checkout.merchantWebsiteUrl;
+    }
+
+    // Execution:
+    // If opened in a popup/tab by the merchant store (window.opener exists)
+    if (window.opener && !window.opener.closed) {
+      try {
+        window.close();
+        if (targetUrl) {
+          setTimeout(() => {
+            window.location.href = targetUrl!;
+          }, 250);
+        }
+        return;
+      } catch {}
+    }
+
+    // If targetUrl is found, navigate back to merchant's store/website
+    if (targetUrl) {
+      if (/^https?:\/\//i.test(targetUrl) || targetUrl.startsWith('/')) {
+        window.location.href = targetUrl;
+        return;
+      }
+    }
+
+    // If history length > 1 (customer came from store in the same tab)
+    if (window.history.length > 1) {
+      window.history.back();
+      setTimeout(() => {
+        window.close();
+        setReturnedNotice(true);
+      }, 500);
+      return;
+    }
+
+    // Fallback: try window.close()
+    try {
+      window.close();
+    } catch {}
+
+    setReturnedNotice(true);
+  };
 
   // Fetch Checkout Session
   useEffect(() => {
@@ -945,10 +1080,7 @@ export function CheckoutPayPage() {
                 <span>{isRtl ? 'حفظ كـ PDF' : 'Save as PDF'}</span>
               </button>
               <button
-                onClick={() => {
-                  const merchantHost = window.location.host.replace(/^checkout\./, '');
-                  window.location.href = `${window.location.protocol}//${merchantHost}/#settings/Billing`;
-                }}
+                onClick={handleCloseAndReturn}
                 style={{
                   flex: 1,
                   padding: '12px',
@@ -960,13 +1092,57 @@ export function CheckoutPayPage() {
                   fontSize: '13px',
                   cursor: 'pointer',
                   boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s',
                 }}
+                title={
+                  checkout.purpose === 'SUBSCRIPTION'
+                    ? (isRtl ? 'العودة للوحة تحكم الحساب' : 'Return to Account Dashboard')
+                    : (isRtl ? `إغلاق والعودة لمتجر ${checkout.businessName}` : `Close & Return to ${checkout.businessName}`)
+                }
               >
-                {checkout.purpose === 'SUBSCRIPTION'
-                  ? (isRtl ? 'العودة للوحة التحكم' : 'Return to Dashboard')
-                  : (isRtl ? 'إغلاق والعودة للمتجر' : 'Done & Return')}
+                {checkout.purpose === 'SUBSCRIPTION' ? (
+                  <>
+                    <ExternalLink size={14} />
+                    <span>{isRtl ? 'العودة للوحة التحكم' : 'Return to Dashboard'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Store size={14} />
+                    <span>{isRtl ? 'إغلاق والعودة للمتجر' : 'Close and Return'}</span>
+                  </>
+                )}
               </button>
             </div>
+
+            {returnedNotice && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  color: '#10b981',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <CheckCircle2 size={14} />
+                <span>
+                  {isRtl
+                    ? `تم تأكيد دفع طلبك بنجاح! يمكنك الآن إغلاق هذه الصفحة والعودة لمتجر ${checkout.businessName}.`
+                    : `Payment confirmed! You may now safely close this window and return to ${checkout.businessName}.`}
+                </span>
+              </div>
+            )}
           </div>
         ) : checkout.status === 'UNDERPAID' ? (
           /* ─── Status 2: UNDERPAID State ─── */

@@ -22,6 +22,8 @@ export interface CreateCheckoutInput {
   items?: OrderItem[] | null
   purpose?: 'CHECKOUT' | 'SUBSCRIPTION'
   subscriptionPlanName?: string | null
+  returnUrl?: string | null
+  redirectUrl?: string | null
 }
 
 export interface CheckoutResult {
@@ -36,6 +38,7 @@ export interface CheckoutResult {
   recipientHandle: string
   senderHandle: string
   expiresAt: string
+  returnUrl?: string | null
 }
 
 const SERIALIZABLE_RETRY_LIMIT = 5
@@ -227,7 +230,14 @@ export async function createCheckoutSession(
     : await createTransaction(db, client, new Date())
 
   const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173'
-  const checkoutUrl = `${clientUrl}/pay/${transaction.sessionId}`
+  const rawReturnUrl = (input.returnUrl || input.redirectUrl)?.trim() || null
+  let validReturnUrl: string | null = null
+  if (rawReturnUrl && (/^https?:\/\//i.test(rawReturnUrl) || rawReturnUrl.startsWith('/'))) {
+    validReturnUrl = rawReturnUrl
+  }
+  const checkoutUrl = validReturnUrl
+    ? `${clientUrl}/pay/${transaction.sessionId}?returnUrl=${encodeURIComponent(validReturnUrl)}`
+    : `${clientUrl}/pay/${transaction.sessionId}`
 
   return {
     sessionId: transaction.sessionId,
@@ -241,6 +251,7 @@ export async function createCheckoutSession(
     recipientHandle: transaction.recipientHandle,
     senderHandle: transaction.senderHandle,
     expiresAt: transaction.expiresAt.toISOString(),
+    returnUrl: validReturnUrl,
   }
 }
 
@@ -258,6 +269,7 @@ export async function getCheckoutSession(sessionId: string) {
           subscriptionPlan: true,
           subscriptionEndsAt: true,
           profileImageData: true,
+          webhookUrl: true,
         },
       },
     },

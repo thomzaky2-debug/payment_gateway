@@ -25,6 +25,8 @@ export function AdminOperations(props: Props) {
   const [busy, setBusy] = useState('');
   const [feedback, setFeedback] = useState('');
   const [automatic, setAutomatic] = useState(false);
+  const [extraFilters, setExtraFilters] = useState(false);
+  const [extraActions, setExtraActions] = useState(false);
   const [health, setHealth] = useState<any>(null);
   const [healthError, setHealthError] = useState('');
   const [healthLoading, setHealthLoading] = useState(false);
@@ -90,7 +92,7 @@ export function AdminOperations(props: Props) {
       <div className="ops-row"><button disabled={props.loading || !!busy} onClick={() => void props.onRefresh()}>Refresh</button>
         <button aria-pressed={automatic} onClick={() => setAutomatic(value => !value)}>Auto: {automatic ? '30 seconds' : 'Off'}</button>
         </div>
-      <details><summary>Plans, quotas & messaging</summary><div className="ops-row"><button onClick={() => props.onNavigate('plans')}>Plans & quotas</button><button onClick={() => props.onNavigate('notifications')}>Send notification</button></div></details>
+      <button aria-expanded={extraActions} onClick={() => setExtraActions(value => !value)}>Plans, quotas & messaging</button>{extraActions && <div className="ops-row"><button onClick={() => props.onNavigate('plans')}>Plans & quotas</button><button onClick={() => props.onNavigate('notifications')}>Send notification</button></div>}
       <small>Last successful sync: {props.syncedAt ? date(props.syncedAt) : 'Not yet synced'} · Times shown in Cairo time.</small>
     </section>
     <div className="ops-row ops-tabs" role="group" aria-label="Control categories">{scopes.map(([value,label]) => <button key={value} aria-pressed={scope === value} onClick={() => changeScope(value)}>{label}</button>)}</div>
@@ -102,12 +104,13 @@ export function AdminOperations(props: Props) {
       <section className="ops-panel"><div className="ops-grid">
         <label>Search loaded records<input ref={search} placeholder="Name, email, session, reference, or action" value={filters.query} onChange={e => setFilters({...filters, query:e.target.value})}/></label>
         <label>Status<select value={filters.status} onChange={e => setFilters({...filters,status:e.target.value})}>{statuses.map(value => <option key={value} value={value}>{({EXPIRING:'Expiring within 7 days',QUOTA:'80% or more quota used',REVIEW:'Unknown outcome / review'} as Record<string,string>)[value] || value}</option>)}</select></label>
-      </div><details className="ops-filters"><summary>More filters & sorting{Object.entries(filters).some(([key,value]) => key !== 'query' && key !== 'status' && value !== initialControlFilters[key as keyof typeof filters]) ? ' · Active' : ''}</summary><div className="ops-grid">
+      </div><button aria-expanded={extraFilters} onClick={() => setExtraFilters(value => !value)}>More filters & sorting{Object.entries(filters).some(([key,value]) => key !== 'query' && key !== 'status' && value !== initialControlFilters[key as keyof typeof filters]) ? ' · Active' : ''}</button>{extraFilters && <div className="ops-grid">
         {(scope === 'merchants' || scope === 'payments') && <label>Merchant<select value={filters.merchantId} onChange={e => setFilters({...filters,merchantId:e.target.value})}><option value="">All merchants</option>{props.merchants.map(row => <option value={row.id} key={row.id}>{row.businessName}</option>)}</select></label>}
         <label>Created within<select value={filters.days} onChange={e => setFilters({...filters,days:e.target.value})}><option value="">Any time</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select></label>
-        <label>Sort<select value={filters.sort} onChange={e => setFilters({...filters,sort:e.target.value})}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Merchant / action name</option>{scope === 'payments' && <><option value="amount-high">Highest detected amount</option><option value="amount-low">Lowest detected amount</option></>}</select></label>
+        <label>Sort<select value={filters.sort} onChange={e => setFilters({...filters,sort:e.target.value})}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Merchant / action name</option>{scope === 'payments' && <><option value="amount-high">Highest amount</option><option value="amount-low">Lowest amount</option></>}</select></label>
         {scope === 'payments' && <><label>Minimum EGP<input type="number" min="0" step="0.01" value={filters.min} onChange={e => setFilters({...filters,min:e.target.value})}/></label><label>Maximum EGP<input type="number" min="0" step="0.01" value={filters.max} onChange={e => setFilters({...filters,max:e.target.value})}/></label></>}
-      </div></details><small>Filters, selection, and CSV exports apply to this loaded snapshot: {rows.length} records. Transaction, delivery, and audit lists are limited by the server.</small>
+      {scope === 'payments' && <small>Amount filters use detected value when available, otherwise the checkout amount.</small>}
+      </div>}<small>Filters, selection, and CSV exports apply to this loaded snapshot: {rows.length} records. Transaction, delivery, and audit lists are limited by the server.</small>
       {validation && <p role="alert">{validation}</p>}<div className="ops-row"><button onClick={() => setFilters(initialControlFilters)}>Reset</button>
         <button disabled={!filtered.length || !!validation} onClick={() => setSelected(new Set(filtered.map(row => recordKey(scope,row))))}>Select shown</button><button disabled={!selected.size} onClick={() => setSelected(new Set())}>Clear</button>
         <button className="ops-primary" disabled={!filtered.length || !!validation} onClick={exportRows} title={selectedShown.length ? 'Export selected shown records' : 'Export shown records'}>Export CSV ({selectedShown.length || filtered.length})</button></div>

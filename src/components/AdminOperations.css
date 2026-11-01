@@ -22,7 +22,7 @@
 
 #root .admin-controls h2 { font-size: 18px; font-weight: 700; }
 #root .admin-controls h3 { font-size: 15px; font-weight: 700; }
-.admin-controls .ops-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+.admin-controls .ops-tabs { flex-wrap: wrap; }
 .admin-controls .ops-tabs button { flex-shrink: 0; white-space: nowrap; }
 .admin-controls summary { cursor: pointer; color: var(--ops-muted); font-size: 12px; padding: 6px 0; }
 .admin-controls details[open] > summary { margin-bottom: 8px; }

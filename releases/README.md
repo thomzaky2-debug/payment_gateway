@@ -12,10 +12,14 @@ Version 1.3.2 retains compact layouts and reduces card padding, metric heights, 
 
 Version 1.3.2 simplifies Detector to readiness, last detection, and pending uploads. Setup actions appear only when needed; advanced checks remain under troubleshooting. Payment filters collapse by default, exports use a compact action, mixed-direction dates render correctly in Arabic, and changing sections dismisses the search keyboard.
 
-## NilePay Admin v1.2.0
+## NilePay Admin v1.2.1
 
 `nilepay-admin-release.apk` (`com.nilepay.admin`, Android 8.0+) contains the versioned admin website UI and uses the live HTTPS API with the existing admin login and permissions. It preserves the website's responsive layout and light/dark themes. UI updates require rebuilding this APK; website deployments use the same source component.
 
 The new Controls workspace provides merchant access/session controls and expiry/quota filters, payment inspection/search/filtering, selection and CSV export of shown records, webhook retry/review access, audit search, delivery health, optional refresh, and plan/quota and notification shortcuts. Native CSV export uses the system file picker.
 
 Original admin navigation and sign-in were verified on a Huawei DUB-LX1 (Android 8.1); phone-only layout fixes stack Merchant Details panels and correct search-icon spacing. Administrative changes are not submitted as part of live preview testing.
+
+Admin v1.2.0 validation: full TypeScript check, 5 admin filtering/export tests, 9 Android tests, Android lint, and release build passed. Signed-in device checks confirmed live records, health, payment inspection/back navigation, and the CSV save picker (canceled without saving). New Controls UI is bundled in the APK; the hosted website needs its normal deployment to show the shared source changes.
+
+Admin v1.2.1 moves the section heading, icon, and sync badge above the Controls workspace and all record cards.

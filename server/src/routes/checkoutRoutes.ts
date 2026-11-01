@@ -83,12 +83,24 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
       clientUrl.replace('://', '://checkout.')
     const checkoutUrl = `${checkoutSubdomainBase}/pay/${tx.sessionId}`
 
+    let merchantWebsiteUrl: string | null = null
+    const clientWebhookUrl = (tx.client as any)?.webhookUrl
+    if (clientWebhookUrl && typeof clientWebhookUrl === 'string') {
+      try {
+        const u = new URL(clientWebhookUrl)
+        if (u.protocol === 'http:' || u.protocol === 'https:') {
+          merchantWebsiteUrl = `${u.protocol}//${u.host}`
+        }
+      } catch {}
+    }
+
     return res.json({
       ok: true,
       checkout: {
         sessionId: tx.sessionId,
         businessName: tx.client.businessName,
         profileImageData: (tx.client as any)?.profileImageData ?? null,
+        merchantWebsiteUrl,
         recipientHandle: tx.recipientHandle,
         senderHandle: tx.senderHandle,
         amountEgp: tx.amountEgp,
