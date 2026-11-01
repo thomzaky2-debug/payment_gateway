@@ -55,12 +55,45 @@ private val MaterialDarkColors = darkColorScheme(
 fun NilePayTheme(
     darkTheme: Boolean = true,
     compact: Boolean = false,
+    storeStyle: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val customColors = if (darkTheme) DarkNilePayColors else LightNilePayColors
-    val materialColors = if (darkTheme) MaterialDarkColors else MaterialLightColors
+    val baseColors = if (darkTheme) DarkNilePayColors else LightNilePayColors
+    val customColors = if (storeStyle) baseColors.copy(
+        background = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFF131416 else 0xFFFBFCFA),
+        surface = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFF1E2023 else 0xFFF2F4F3),
+        surfaceCard = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFF1E2023 else 0xFFF2F4F3),
+        surfaceSubtle = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFF292D30 else 0xFFE6EAE7),
+        onBackground = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFFE3E3E3 else 0xFF1B1C1D),
+        onSurface = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFFE3E3E3 else 0xFF1B1C1D),
+        onSurfaceSecondary = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFFBFC8C2 else 0xFF535D57),
+        primary = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFFA8DAB5 else 0xFF006C45),
+        onPrimary = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFF003921 else 0xFFFFFFFF),
+        primaryGradient = androidx.compose.ui.graphics.Brush.linearGradient(listOf(
+            androidx.compose.ui.graphics.Color(if (darkTheme) 0xFFA8DAB5 else 0xFF006C45),
+            androidx.compose.ui.graphics.Color(if (darkTheme) 0xFFA8DAB5 else 0xFF006C45))),
+        border = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFF353A37 else 0xFFDCE3DD),
+        borderSubtle = androidx.compose.ui.graphics.Color(if (darkTheme) 0xFF303532 else 0xFFE1E7E2)
+    ) else baseColors
+    val baseMaterialColors = if (darkTheme) MaterialDarkColors else MaterialLightColors
+    val materialColors = if (storeStyle) baseMaterialColors.copy(
+        primary = customColors.primary, onPrimary = customColors.onPrimary,
+        primaryContainer = customColors.primary.copy(alpha = 0.16f),
+        onPrimaryContainer = customColors.primary,
+        secondary = customColors.primary,
+        secondaryContainer = if (darkTheme) androidx.compose.ui.graphics.Color(0xFF284B36) else androidx.compose.ui.graphics.Color(0xFFD3EEDC),
+        onSecondaryContainer = customColors.onSurface,
+        background = customColors.background, onBackground = customColors.onBackground,
+        surface = customColors.surface, onSurface = customColors.onSurface,
+        surfaceVariant = customColors.surfaceSubtle, onSurfaceVariant = customColors.onSurfaceSecondary,
+        outline = customColors.border
+    ) else baseMaterialColors
     val spacing = if (compact) NilePaySpacing(base = 12.dp, md = 8.dp) else NilePaySpacing()
-    val shapes = NilePayShapes()
+    val shapes = if (storeStyle) NilePayShapes(
+        medium = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        large = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        extraLarge = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
+    ) else NilePayShapes()
     val font = if (LocalConfiguration.current.locales[0].language == "ar") NotoSansArabicFontFamily else InterFontFamily
     val typography = NilePayTypography().let { t ->
         t.copy(

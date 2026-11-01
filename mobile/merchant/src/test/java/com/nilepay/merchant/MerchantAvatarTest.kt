@@ -12,7 +12,7 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35])
+@Config(sdk = [35], application = android.app.Application::class)
 class MerchantAvatarTest {
     @Test fun `valid inline profile photo is decoded at a bounded resolution`() {
         val source = Bitmap.createBitmap(2048, 1024, Bitmap.Config.ARGB_8888)
