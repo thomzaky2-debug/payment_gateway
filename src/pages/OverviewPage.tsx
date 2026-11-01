@@ -20,11 +20,14 @@ import {
   Shield,
   ArrowRight,
   ExternalLink,
+  ShoppingBag,
+  Receipt,
 } from 'lucide-react';
 import { transactionsApi, settingsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { saveReceiptAsPdf } from '../utils/receiptPdf';
+import { extractCheckoutItems } from './CheckoutPayPage';
 
 interface OverviewPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
@@ -1180,26 +1183,229 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
                   <span>{selectedTx.note}</span>
                 </div>
               )}
+
+              {/* Product Order Details Card (Matching Image 2) */}
+              {(() => {
+                const modalOrderItems = extractCheckoutItems(selectedTx);
+                if (modalOrderItems.length === 0) return null;
+                return (
+                  <div
+                    style={{
+                      backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                      borderRadius: '16px',
+                      border: isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0',
+                      padding: '16px',
+                      marginTop: '8px',
+                      boxShadow: isDark ? '0 4px 14px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.03)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '12px',
+                        paddingBottom: '10px',
+                        borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div
+                          style={{
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '8px',
+                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                            color: '#0284c7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <ShoppingBag size={16} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
+                            {isRtl ? 'تفاصيل طلب المنتجات' : 'Product Order Details'}
+                          </h4>
+                          <span style={{ fontSize: '11px', color: isDark ? '#94a3b8' : '#64748b' }}>
+                            {isRtl
+                              ? `${modalOrderItems.length} ${modalOrderItems.length === 1 ? 'صنف' : 'أصناف'} (${modalOrderItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} قطعة)`
+                              : `${modalOrderItems.length} ${modalOrderItems.length === 1 ? 'product' : 'products'} (${modalOrderItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} units)`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+                          border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+                          color: isDark ? '#94a3b8' : '#64748b',
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Receipt size={11} />
+                        <span>{isRtl ? 'فاتورة تفصيلية' : 'Itemized Receipt'}</span>
+                      </div>
+                    </div>
+
+                    {/* Items List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {modalOrderItems.map((item, idx) => {
+                        const itemTotal = item.totalPrice ?? (item.quantity * item.unitPrice);
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '10px',
+                              padding: '10px 12px',
+                              borderRadius: '10px',
+                              backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                              border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '120px', flex: 1 }}>
+                              <div
+                                style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '6px',
+                                  backgroundColor: isDark ? '#0f172a' : '#f1f5f9',
+                                  border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: isDark ? '#38bdf8' : '#2563eb',
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  flexShrink: 0,
+                                fontFamily: 'monospace',
+                                }}
+                              >
+                                {idx + 1}
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: '12.5px', fontWeight: 700, color: isDark ? '#f8fafc' : '#0f172a', wordBreak: 'break-word' }}>
+                                  {item.name}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px', fontSize: '10.5px', color: isDark ? '#94a3b8' : '#64748b', flexWrap: 'wrap' }}>
+                                  <span>
+                                    {isRtl ? 'سعر القطعة:' : 'Unit price:'}{' '}
+                                    <strong style={{ color: isDark ? '#f8fafc' : '#0f172a', fontFamily: 'monospace' }}>{item.unitPrice.toFixed(2)} EGP</strong>
+                                  </span>
+                                  {item.category && (
+                                    <span
+                                      style={{
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                                        fontSize: '9.5px',
+                                        color: isDark ? '#94a3b8' : '#64748b',
+                                      }}
+                                    >
+                                      {item.category}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, textAlign: isRtl ? 'left' : 'right' }}>
+                              <span
+                                style={{
+                                  padding: '3px 7px',
+                                  borderRadius: '5px',
+                                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
+                                  color: isDark ? '#38bdf8' : '#0284c7',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  fontFamily: 'monospace',
+                                }}
+                                title={isRtl ? `الكمية: ${item.quantity}` : `Quantity: ${item.quantity}`}
+                              >
+                                ×{item.quantity}
+                              </span>
+                              <div style={{ minWidth: '70px', textAlign: isRtl ? 'left' : 'right' }}>
+                                <span
+                                  style={{
+                                    fontSize: '13px',
+                                    fontWeight: 800,
+                                    color: '#10b981',
+                                    fontFamily: 'monospace',
+                                  }}
+                                >
+                                  {itemTotal.toFixed(2)} EGP
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer Total */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginTop: '12px',
+                        paddingTop: '10px',
+                        borderTop: isDark ? '1px dashed rgba(51, 65, 85, 0.5)' : '1px dashed #cbd5e1',
+                      }}
+                    >
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: isDark ? '#94a3b8' : '#64748b' }}>
+                        {isRtl ? 'إجمالي الطلب المحول:' : 'Order Total to Transfer:'}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '14px',
+                          fontWeight: 800,
+                          color: '#10b981',
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {Number(selectedTx.amountEgp || 0).toFixed(2)} EGP
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
                 type="button"
-                onClick={() => saveReceiptAsPdf({
-                  sessionId: selectedTx.sessionId,
-                  amountEgp: selectedTx.amountEgp,
-                  status: selectedTx.status,
-                  senderHandle: selectedTx.senderHandle,
-                  recipientHandle: selectedTx.recipientHandle || settings?.instapayHandle,
-                  detectedRef: selectedTx.detectedRef,
-                  detectedAt: selectedTx.detectedAt,
-                  createdAt: selectedTx.createdAt,
-                  note: selectedTx.note,
-                  productCategory: selectedTx.productCategory,
-                  subtitle: getPurchaseTypeInfo(selectedTx, isRtl).label,
-                  items: selectedTx.items,
-                }, isRtl)}
+                onClick={() => {
+                  const itemsForPdf = extractCheckoutItems(selectedTx);
+                  saveReceiptAsPdf({
+                    sessionId: selectedTx.sessionId,
+                    amountEgp: selectedTx.amountEgp,
+                    status: selectedTx.status,
+                    senderHandle: selectedTx.senderHandle,
+                    recipientHandle: selectedTx.recipientHandle || settings?.instapayHandle,
+                    detectedRef: selectedTx.detectedRef,
+                    detectedAt: selectedTx.detectedAt,
+                    createdAt: selectedTx.createdAt,
+                    note: selectedTx.note,
+                    productCategory: selectedTx.productCategory,
+                    subtitle: getPurchaseTypeInfo(selectedTx, isRtl).label,
+                    items: itemsForPdf.length > 0 ? itemsForPdf : selectedTx.items,
+                  }, isRtl);
+                }}
                 style={{
                   flex: 1,
                   display: 'flex',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import confetti from 'canvas-confetti';
@@ -47,6 +47,59 @@ export interface OrderItem {
   category?: string;
 }
 
+export function extractCheckoutItems(checkout?: { items?: OrderItem[] | null; productCategory?: string | null; amountEgp?: number; note?: string | null } | null): OrderItem[] {
+  if (!checkout) return [];
+  if (checkout.items && Array.isArray(checkout.items) && checkout.items.length > 0) {
+    return checkout.items.map((it: any) => ({
+      name: it.name || 'Product Item',
+      quantity: Number(it.quantity) || 1,
+      unitPrice: Number(it.unitPrice) || 0,
+      totalPrice: it.totalPrice != null ? Number(it.totalPrice) : (Number(it.quantity) || 1) * (Number(it.unitPrice) || 0),
+      category: it.category,
+    }));
+  }
+
+  const note = String(checkout.note || '');
+  if (note) {
+    const cleaned = note.replace(/^Order\s+#[^\s—:]+[\s—:]*/i, '').trim();
+    if (cleaned) {
+      const parts = cleaned.split(/[,;\n]+/).map(p => p.trim()).filter(Boolean);
+      const parsedItems: OrderItem[] = [];
+      for (const part of parts) {
+        const match = part.match(/^(.+?)\s*(?:[x×*]\s*(\d+)|\((\d+)\s*(?:pcs|units?)\))$/i) ||
+                      part.match(/^(\d+)\s*[x×*]\s*(.+)$/i);
+        if (match) {
+          const name = (match[1] && isNaN(Number(match[1])) ? match[1] : match[2] || match[1]).trim();
+          const qty = Number(match[2] && !isNaN(Number(match[2])) ? match[2] : match[3] || match[1]) || 1;
+          if (name) {
+            parsedItems.push({
+              name,
+              quantity: qty,
+              unitPrice: 0,
+              totalPrice: 0,
+            });
+          }
+        }
+      }
+      if (parsedItems.length > 0) {
+        const totalUnits = parsedItems.reduce((acc, it) => acc + it.quantity, 0);
+        const totalAmount = Number(checkout.amountEgp || 0);
+        return parsedItems.map(it => {
+          const unitPrice = totalUnits > 0 ? Math.round((totalAmount / totalUnits) * 100) / 100 : 0;
+          const totalPrice = Math.round(unitPrice * it.quantity * 100) / 100;
+          return {
+            ...it,
+            unitPrice,
+            totalPrice,
+          };
+        });
+      }
+    }
+  }
+
+  return [];
+}
+
 interface CheckoutData {
   productCategory?: string | null;
   items?: OrderItem[] | null;
@@ -54,6 +107,7 @@ interface CheckoutData {
   subtotalEgp?: number;
   sessionId: string;
   businessName: string;
+  profileImageData?: string | null;
   recipientHandle: string;
   senderHandle: string;
   amountEgp: number;
@@ -95,6 +149,8 @@ export function CheckoutPayPage() {
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [sessionLookupInput, setSessionLookupInput] = useState<string>('');
   const [showLookupModal, setShowLookupModal] = useState<boolean>(false);
+
+  const orderItems = useMemo(() => extractCheckoutItems(checkout), [checkout]);
 
   // Customer InstaPay Sender Handle state
   const [senderInput, setSenderInput] = useState<string>('');
@@ -665,7 +721,7 @@ export function CheckoutPayPage() {
       </header>
 
       {/* ─── Main Container ─── */}
-      <main style={{ flex: 1, padding: '24px 16px', maxWidth: '1000px', width: '100%', margin: '0 auto' }}>
+      <main style={{ flex: 1, padding: '24px 16px', maxWidth: orderItems.length > 0 ? '1280px' : '1000px', width: '100%', margin: '0 auto', transition: 'max-width 0.2s ease' }}>
         {/* ─── Status 1: CONFIRMED State ─── */}
         {checkout.status === 'CONFIRMED' ? (
           <div
@@ -1090,13 +1146,49 @@ export function CheckoutPayPage() {
                       : (isRtl ? 'متجر معتمد' : 'Verified Merchant')}
                   </span>
                 </div>
-                <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, color: textPrimary }}>
-                  {isBundle
-                    ? bundleDisplayName
-                    : checkout.purpose === 'SUBSCRIPTION' && checkout.subscriptionPlanName
-                    ? `${checkout.subscriptionPlanName} Plan`
-                    : checkout.businessName}
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
+                  {checkout.profileImageData ? (
+                    <img
+                      src={checkout.profileImageData}
+                      alt={checkout.businessName || 'Merchant'}
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '10px',
+                        objectFit: 'cover',
+                        border: isDark ? '1px solid rgba(51, 65, 85, 0.6)' : '1px solid #cbd5e1',
+                        flexShrink: 0,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '10px',
+                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                        border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                        color: isDark ? '#38bdf8' : '#0284c7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '17px',
+                        fontWeight: 800,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {(checkout.businessName || 'M').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, color: textPrimary }}>
+                    {isBundle
+                      ? bundleDisplayName
+                      : checkout.purpose === 'SUBSCRIPTION' && checkout.subscriptionPlanName
+                      ? `${checkout.subscriptionPlanName} Plan`
+                      : checkout.businessName}
+                  </h2>
+                </div>
                 {checkout.purpose === 'SUBSCRIPTION' && (
                   <>
                     <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
@@ -1267,197 +1359,27 @@ export function CheckoutPayPage() {
               </div>
             </div>
 
-            {/* ─── Product Order Details Card (When items exist) ─── */}
-            {checkout.items && checkout.items.length > 0 && (
+            {/* ─── Main Payment Layout (Image 3 Side-by-Side with Product Order Details) ─── */}
+            <div
+              className={`checkout-content-grid ${orderItems.length > 0 ? 'has-items' : ''}`}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: orderItems.length > 0 ? 'minmax(0, 1.42fr) minmax(320px, 1fr)' : '1fr',
+                gap: '24px',
+                alignItems: 'start',
+              }}
+            >
+              {/* Left / Main Section: Payment Steps & QR Code Scanner (Image 3) */}
               <div
+                className="checkout-payment-box"
                 style={{
-                  backgroundColor: bgCard,
-                  borderRadius: '20px',
-                  border: `1px solid ${borderCard}`,
-                  padding: '20px 24px',
-                  marginBottom: '20px',
-                  boxShadow: isDark ? '0 10px 25px rgba(0,0,0,0.3)' : '0 10px 20px rgba(0,0,0,0.03)',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
+                  gap: '20px',
+                  alignItems: 'start',
+                  width: '100%',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '14px',
-                    paddingBottom: '12px',
-                    borderBottom: `1px solid ${borderCard}`,
-                    flexWrap: 'wrap',
-                    gap: '10px',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div
-                      style={{
-                        width: '34px',
-                        height: '34px',
-                        borderRadius: '10px',
-                        backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
-                        color: '#0284c7',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <ShoppingBag size={18} />
-                    </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: textPrimary }}>
-                        {isRtl ? 'تفاصيل طلب المنتجات' : 'Product Order Details'}
-                      </h3>
-                      <span style={{ fontSize: '11.5px', color: textSecondary }}>
-                        {isRtl
-                          ? `${checkout.items.length} ${checkout.items.length === 1 ? 'صنف' : 'أصناف'} (${checkout.itemsCount || checkout.items.reduce((acc, it) => acc + (it.quantity || 1), 0)} قطعة)`
-                          : `${checkout.items.length} ${checkout.items.length === 1 ? 'product' : 'products'} (${checkout.itemsCount || checkout.items.reduce((acc, it) => acc + (it.quantity || 1), 0)} units)`}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      padding: '4px 10px',
-                      borderRadius: '8px',
-                      backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
-                      border: `1px solid ${borderSubtle}`,
-                      color: textSecondary,
-                      fontSize: '11px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    <Receipt size={12} />
-                    <span>{isRtl ? 'فاتورة تفصيلية' : 'Itemized Receipt'}</span>
-                  </div>
-                </div>
-
-                {/* Items List */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {checkout.items.map((item, idx) => {
-                    const itemTotal = item.totalPrice ?? (item.quantity * item.unitPrice);
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '12px',
-                          padding: '12px 14px',
-                          borderRadius: '12px',
-                          backgroundColor: bgSubCard,
-                          border: `1px solid ${borderSubtle}`,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '160px', flex: 1 }}>
-                          <div
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '7px',
-                              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                              border: `1px solid ${borderCard}`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: isDark ? '#38bdf8' : '#2563eb',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {idx + 1}
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 700, color: textPrimary, wordBreak: 'break-word' }}>
-                              {item.name}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', fontSize: '11px', color: textSecondary, flexWrap: 'wrap' }}>
-                              <span>
-                                {isRtl ? 'سعر القطعة:' : 'Unit price:'}{' '}
-                                <strong style={{ color: textPrimary, fontFamily: 'monospace' }}>{item.unitPrice.toFixed(2)} EGP</strong>
-                              </span>
-                              {item.category && (
-                                <span
-                                  style={{
-                                    padding: '1px 6px',
-                                    borderRadius: '4px',
-                                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                                    fontSize: '10px',
-                                    color: textSecondary,
-                                  }}
-                                >
-                                  {item.category}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, textAlign: isRtl ? 'left' : 'right' }}>
-                          <span
-                            style={{
-                              padding: '4px 9px',
-                              borderRadius: '6px',
-                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
-                              color: isDark ? '#38bdf8' : '#0284c7',
-                              fontSize: '11.5px',
-                              fontWeight: 700,
-                              fontFamily: 'monospace',
-                            }}
-                            title={isRtl ? `الكمية: ${item.quantity}` : `Quantity: ${item.quantity}`}
-                          >
-                            ×{item.quantity}
-                          </span>
-                          <div style={{ minWidth: '85px', textAlign: isRtl ? 'left' : 'right' }}>
-                            <span
-                              style={{
-                                fontSize: '14px',
-                                fontWeight: 800,
-                                color: '#10b981',
-                                fontFamily: 'monospace',
-                              }}
-                            >
-                              {itemTotal.toFixed(2)} EGP
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Subtotal Footer */}
-                <div
-                  style={{
-                    marginTop: '14px',
-                    paddingTop: '12px',
-                    borderTop: `1px dashed ${borderCard}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    fontSize: '13px',
-                  }}
-                >
-                  <span style={{ color: textSecondary, fontWeight: 600 }}>
-                    {isRtl ? 'إجمالي المنتجات المطلوب تحويله:' : 'Order Total to Transfer:'}
-                  </span>
-                  <span style={{ fontSize: '17px', fontWeight: 900, color: '#10b981', fontFamily: 'monospace' }}>
-                    {checkout.amountEgp.toFixed(2)} EGP
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Two-Column Layout Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
               {/* ─── Column 1: Payment Steps & Account Input ─── */}
               <div
                 style={{
@@ -1952,6 +1874,198 @@ export function CheckoutPayPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* ─── Product Order Details Card (Placed Beside Image 3) ─── */}
+              {orderItems.length > 0 && (
+                <div
+                  className="checkout-order-details-pane"
+                  style={{
+                    backgroundColor: bgCard,
+                    borderRadius: '20px',
+                    border: `1px solid ${borderCard}`,
+                    padding: '20px 24px',
+                    boxShadow: isDark ? '0 10px 25px rgba(0,0,0,0.3)' : '0 10px 20px rgba(0,0,0,0.03)',
+                    position: 'sticky',
+                    top: '20px',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '14px',
+                      paddingBottom: '12px',
+                      borderBottom: `1px solid ${borderCard}`,
+                      flexWrap: 'wrap',
+                      gap: '10px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '34px',
+                          height: '34px',
+                          borderRadius: '10px',
+                          backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                          color: '#0284c7',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <ShoppingBag size={18} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: textPrimary }}>
+                          {isRtl ? 'تفاصيل طلب المنتجات' : 'Product Order Details'}
+                        </h3>
+                        <span style={{ fontSize: '11.5px', color: textSecondary }}>
+                          {isRtl
+                            ? `${orderItems.length} ${orderItems.length === 1 ? 'صنف' : 'أصناف'} (${orderItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} قطعة)`
+                            : `${orderItems.length} ${orderItems.length === 1 ? 'product' : 'products'} (${orderItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} units)`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '4px 10px',
+                        borderRadius: '8px',
+                        backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+                        border: `1px solid ${borderSubtle}`,
+                        color: textSecondary,
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Receipt size={12} />
+                      <span>{isRtl ? 'فاتورة تفصيلية' : 'Itemized Receipt'}</span>
+                    </div>
+                  </div>
+
+                  {/* Items List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {orderItems.map((item, idx) => {
+                      const itemTotal = item.totalPrice ?? (item.quantity * item.unitPrice);
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                            padding: '12px 14px',
+                            borderRadius: '12px',
+                            backgroundColor: bgSubCard,
+                            border: `1px solid ${borderSubtle}`,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '140px', flex: 1 }}>
+                            <div
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '7px',
+                                backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                                border: `1px solid ${borderCard}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: isDark ? '#38bdf8' : '#2563eb',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {idx + 1}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: textPrimary, wordBreak: 'break-word' }}>
+                                {item.name}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', fontSize: '11px', color: textSecondary, flexWrap: 'wrap' }}>
+                                <span>
+                                  {isRtl ? 'سعر القطعة:' : 'Unit price:'}{' '}
+                                  <strong style={{ color: textPrimary, fontFamily: 'monospace' }}>{item.unitPrice.toFixed(2)} EGP</strong>
+                                </span>
+                                {item.category && (
+                                  <span
+                                    style={{
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                                      fontSize: '10px',
+                                      color: textSecondary,
+                                    }}
+                                  >
+                                    {item.category}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, textAlign: isRtl ? 'left' : 'right' }}>
+                            <span
+                              style={{
+                                padding: '4px 9px',
+                                borderRadius: '6px',
+                                backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
+                                color: isDark ? '#38bdf8' : '#0284c7',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                fontFamily: 'monospace',
+                              }}
+                              title={isRtl ? `الكمية: ${item.quantity}` : `Quantity: ${item.quantity}`}
+                            >
+                              ×{item.quantity}
+                            </span>
+                            <div style={{ minWidth: '85px', textAlign: isRtl ? 'left' : 'right' }}>
+                              <span
+                                style={{
+                                  fontSize: '14px',
+                                  fontWeight: 800,
+                                  color: '#10b981',
+                                  fontFamily: 'monospace',
+                                }}
+                              >
+                                {itemTotal.toFixed(2)} EGP
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Subtotal Footer */}
+                  <div
+                    style={{
+                      marginTop: '14px',
+                      paddingTop: '12px',
+                      borderTop: `1px dashed ${borderCard}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '13px',
+                    }}
+                  >
+                    <span style={{ color: textSecondary, fontWeight: 600 }}>
+                      {isRtl ? 'إجمالي المنتجات المطلوب تحويله:' : 'Order Total to Transfer:'}
+                    </span>
+                    <span style={{ fontSize: '17px', fontWeight: 900, color: '#10b981', fontFamily: 'monospace' }}>
+                      {checkout.amountEgp.toFixed(2)} EGP
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

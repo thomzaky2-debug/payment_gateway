@@ -1030,6 +1030,38 @@ private fun PaymentCard(payment: MerchantPayment, onClick: (MerchantPayment) -> 
     }
 }
 
+internal data class OrderProductItem(val name: String, val quantity: Int, val unitPrice: Double, val total: Double)
+
+internal fun parseOrderItems(note: String?, amountEgp: Double): List<OrderProductItem> {
+    if (note.isNullOrBlank()) return emptyList()
+    val cleaned = note.replace(Regex("^Order\\s+#[^\\s—:]+[\\s—:]*", RegexOption.IGNORE_CASE), "").trim()
+    if (cleaned.isBlank()) return emptyList()
+    val parts = cleaned.split(Regex("[,;\\n]+")).map { it.trim() }.filter { it.isNotBlank() }
+    val parsed = mutableListOf<Pair<String, Int>>()
+    val itemPattern = Regex("^(.+?)\\s*(?:[x×*]\\s*(\\d+)|\\((\\d+)\\s*(?:pcs|units?)\\))\$", RegexOption.IGNORE_CASE)
+    val itemPatternPrefix = Regex("^(\\d+)\\s*[x×*]\\s*(.+)\$", RegexOption.IGNORE_CASE)
+    for (part in parts) {
+        val m1 = itemPattern.find(part)
+        val m2 = if (m1 == null) itemPatternPrefix.find(part) else null
+        if (m1 != null) {
+            val name = m1.groupValues[1].trim()
+            val qty = (m1.groupValues[2].ifBlank { m1.groupValues[3] }).toIntOrNull() ?: 1
+            if (name.isNotBlank()) parsed.add(name to qty)
+        } else if (m2 != null) {
+            val qty = m2.groupValues[1].toIntOrNull() ?: 1
+            val name = m2.groupValues[2].trim()
+            if (name.isNotBlank()) parsed.add(name to qty)
+        }
+    }
+    if (parsed.isEmpty()) return emptyList()
+    val totalUnits = parsed.sumOf { it.second }.coerceAtLeast(1)
+    val unitPrice = Math.round((amountEgp / totalUnits) * 100.0) / 100.0
+    return parsed.map { (name, qty) ->
+        val lineTotal = Math.round(unitPrice * qty * 100.0) / 100.0
+        OrderProductItem(name, qty, unitPrice, lineTotal)
+    }
+}
+
 @Composable
 internal fun PaymentDetailsDialog(payment: MerchantPayment, onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -1174,6 +1206,44 @@ internal fun PaymentDetailsDialog(payment: MerchantPayment, onDismiss: () -> Uni
                             DetailRow(stringResource(R.string.payment_date), formattedDate)
                             DetailRow(stringResource(R.string.payment_id), paymentId)
                             payment.note?.let { DetailRow(stringResource(R.string.payment_note), it) }
+                        }
+                    }
+
+                    val parsedProducts = remember(payment.note, payment.amountEgp) {
+                        parseOrderItems(payment.note, payment.receivedAmountEgp ?: payment.amountEgp)
+                    }
+                    if (parsedProducts.isNotEmpty()) {
+                        NilePayCard(contentPadding = PaddingValues(12.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Filled.Payments, contentDescription = null, tint = NilePayTheme.colors.primary, modifier = Modifier.size(16.dp))
+                                        Text(stringResource(R.string.product_order_details), style = NilePayTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    }
+                                    Text("${parsedProducts.size} items", style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+                                }
+                                parsedProducts.forEachIndexed { index, item ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(NilePayTheme.shapes.small)
+                                            .background(NilePayTheme.colors.surfaceSubtle)
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("${index + 1}. ${item.name}", style = NilePayTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                            Text("%.2f EGP/unit".format(item.unitPrice), style = NilePayTheme.typography.bodySmall, color = NilePayTheme.colors.onSurfaceSecondary)
+                                        }
+                                        Text("×${item.quantity}  %.2f EGP".format(item.total), style = NilePayTheme.typography.labelLarge, color = NilePayTheme.colors.statusConfirmed)
+                                    }
+                                }
+                            }
                         }
                     }
 

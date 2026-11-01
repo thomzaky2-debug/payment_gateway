@@ -1,0 +1,28 @@
+.admin-controls { color: var(--ops-text); display: grid; gap: 14px; }
+.admin-controls h2,.admin-controls h3,.admin-controls p { margin: 0; }
+.admin-controls p,.admin-controls small { color: var(--ops-muted); overflow-wrap: anywhere; }
+.admin-controls .ops-panel { background: var(--ops-panel); border: 1px solid var(--ops-border); border-radius: 16px; padding: 12px; display: grid; gap: 12px; min-width: 0; }
+.admin-controls .ops-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.admin-controls .ops-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit,minmax(min(100%,290px),1fr)); }
+#root .admin-controls input,#root .admin-controls select { min-height: 42px; width: 100%; min-width: 0; padding: 9px 12px !important; border: 1px solid var(--ops-border); border-radius: 9px; background: var(--ops-input); color: var(--ops-text); font-size: 13px; box-sizing: border-box; }
+#root .admin-controls input[type=checkbox] { width: 20px; min-height: 20px; margin: 0; accent-color: #2563eb; }
+.admin-controls label { display: grid; gap: 5px; font-size: 12px; color: var(--ops-muted); }
+.admin-controls button { min-height: 36px; border: 1px solid var(--ops-border); border-radius: 9px; padding: 7px 10px; color: var(--ops-text); background: var(--ops-input); cursor: pointer; font-size: 13px; }
+.admin-controls button[aria-pressed=true],.admin-controls button.ops-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+.admin-controls button:disabled { opacity: .5; cursor: not-allowed; }
+.admin-controls .ops-danger { color: #f87171; }
+.admin-controls .ops-badge { padding: 4px 8px; background: var(--ops-input); border-radius: 7px; font-size: 11px; overflow-wrap: anywhere; }
+.admin-controls .ops-record { min-width: 0; overflow-wrap: anywhere; }
+.admin-controls .ops-dialog { position: fixed; inset: 0; background: #0009; z-index: 11000; display: grid; place-items: center; padding: 16px; }
+.admin-controls .ops-dialog > section { width: min(600px,100%); max-height: 85dvh; overflow: auto; box-sizing: border-box; }
+.admin-controls dl { margin: 0; display: grid; gap: 10px; }
+.admin-controls dt { color: var(--ops-muted); font-size: 12px; }
+.admin-controls dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.admin-controls .ops-status { border-left: 3px solid #38bdf8; padding: 10px 12px; background: var(--ops-panel); border-radius: 8px; }
+
+#root .admin-controls h2 { font-size: 18px; font-weight: 700; }
+#root .admin-controls h3 { font-size: 15px; font-weight: 700; }
+.admin-controls .ops-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+.admin-controls .ops-tabs button { flex-shrink: 0; white-space: nowrap; }
+.admin-controls summary { cursor: pointer; color: var(--ops-muted); font-size: 12px; padding: 6px 0; }
+.admin-controls details[open] > summary { margin-bottom: 8px; }

@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="admin_app_name">NilePay Admin</string>
+    <string name="admin_connection_error">Unable to load the admin portal. Check your connection and try again.</string>
+    <string name="admin_retry">Try again</string>
+    <string name="admin_no_link_app">No app can open this link.</string>
+    <string name="admin_export_saved">CSV export saved.</string>
+    <string name="admin_export_failed">Could not save the export. Try again.</string>
+    <string name="admin_export_too_large">Export is too large. Filter the records and try again.</string>
 </resources>

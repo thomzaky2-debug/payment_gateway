@@ -101,32 +101,92 @@ export function saveReceiptAsPdf(data: PrintableReceiptData, isRtl: boolean = fa
     return;
   }
 
+  let effectiveItems = data.items;
+  if (!effectiveItems || effectiveItems.length === 0) {
+    const note = String(data.note || '');
+    if (note) {
+      const cleaned = note.replace(/^Order\s+#[^\s—:]+[\s—:]*/i, '').trim();
+      if (cleaned) {
+        const parts = cleaned.split(/[,;\n]+/).map((p) => p.trim()).filter(Boolean);
+        const parsedItems: PrintableReceiptItem[] = [];
+        for (const part of parts) {
+          const match =
+            part.match(/^(.+?)\s*(?:[x×*]\s*(\d+)|\((\d+)\s*(?:pcs|units?)\))$/i) ||
+            part.match(/^(\d+)\s*[x×*]\s*(.+)$/i);
+          if (match) {
+            const name = (match[1] && isNaN(Number(match[1])) ? match[1] : match[2] || match[1]).trim();
+            const qty = Number(match[2] && !isNaN(Number(match[2])) ? match[2] : match[3] || match[1]) || 1;
+            if (name) {
+              parsedItems.push({
+                name,
+                quantity: qty,
+                unitPrice: 0,
+                totalPrice: 0,
+              });
+            }
+          }
+        }
+        if (parsedItems.length > 0) {
+          const totalUnits = parsedItems.reduce((acc, it) => acc + it.quantity, 0);
+          const totalAmount = Number(data.amountEgp || 0);
+          effectiveItems = parsedItems.map((it) => {
+            const unitPrice = totalUnits > 0 ? Math.round((totalAmount / totalUnits) * 100) / 100 : 0;
+            const totalPrice = Math.round(unitPrice * it.quantity * 100) / 100;
+            return {
+              ...it,
+              unitPrice,
+              totalPrice,
+            };
+          });
+        }
+      }
+    }
+  }
+
   const itemsHtml =
-    data.items && data.items.length > 0
+    effectiveItems && effectiveItems.length > 0
       ? `
-        <div style="margin-top: 14px; padding: 12px 14px; border-radius: 12px; background-color: rgba(0, 0, 0, 0.25); border: 1px solid rgba(51, 65, 85, 0.4);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 12px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-              <span>${isRtl ? 'أصناف ومنتجات الطلب:' : 'Order Products & Quantities:'}</span>
-            </span>
-            <span style="font-size: 11px; color: #94a3b8;">${data.items.length} ${isRtl ? 'أصناف' : 'items'}</span>
+        <div style="margin-top: 14px; padding: 14px 16px; border-radius: 14px; background-color: rgba(15, 23, 42, 0.7); border: 1px solid rgba(51, 65, 85, 0.5);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(51, 65, 85, 0.4);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 28px; height: 28px; border-radius: 7px; background-color: rgba(56, 189, 248, 0.15); color: #0284c7; display: flex; align-items: center; justify-content: center;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+              </div>
+              <div>
+                <span style="font-size: 13px; font-weight: 800; color: #f8fafc; display: block;">${isRtl ? 'تفاصيل طلب المنتجات' : 'Product Order Details'}</span>
+                <span style="font-size: 10.5px; color: #94a3b8;">${effectiveItems.length} ${effectiveItems.length === 1 ? (isRtl ? 'صنف' : 'product') : (isRtl ? 'أصناف' : 'products')} (${effectiveItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} ${isRtl ? 'قطعة' : 'units'})</span>
+              </div>
+            </div>
+            <div style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background-color: #1e293b; border: 1px solid #334155; color: #94a3b8; font-size: 10.5px; font-weight: 600;">
+              <span>${isRtl ? 'فاتورة تفصيلية' : 'Itemized Receipt'}</span>
+            </div>
           </div>
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            ${data.items
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${effectiveItems
               .map(
-                (it) => `
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-radius: 8px; background-color: #1e293b; border: 1px solid #334155; font-size: 11.5px;">
-                <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
-                  <span style="font-weight: 600; color: #f8fafc;">${escapeHtml(it.name)}</span>
-                  <span style="padding: 1px 5px; border-radius: 4px; background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 10px; font-weight: 700; font-family: monospace;">×${it.quantity}</span>
-                  <span style="font-size: 10.5px; color: #94a3b8;">(${Number(it.unitPrice).toFixed(2)} EGP)</span>
+                (it, idx) => `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 10px; background-color: #1e293b; border: 1px solid #334155; font-size: 11.5px;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                  <div style="width: 22px; height: 22px; border-radius: 5px; background-color: #0f172a; border: 1px solid rgba(51, 65, 85, 0.4); display: flex; align-items: center; justify-content: center; color: #38bdf8; font-size: 10px; font-weight: 700; flex-shrink: 0;">${idx + 1}</div>
+                  <div style="min-width: 0;">
+                    <div style="font-weight: 700; color: #f8fafc; word-break: break-word;">${escapeHtml(it.name)}</div>
+                    <div style="font-size: 10.5px; color: #94a3b8; margin-top: 1px;">
+                      <span>${isRtl ? 'سعر القطعة:' : 'Unit price:'} <strong style="color: #f8fafc; font-family: monospace;">${Number(it.unitPrice).toFixed(2)} EGP</strong></span>
+                    </div>
+                  </div>
                 </div>
-                <span style="font-family: monospace; color: #10b981; font-weight: 700;">${(it.totalPrice ?? it.quantity * it.unitPrice).toFixed(2)} EGP</span>
+                <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0; text-align: ${isRtl ? 'left' : 'right'};">
+                  <span style="padding: 2px 7px; border-radius: 5px; background-color: rgba(56, 189, 248, 0.12); color: #38bdf8; font-size: 11px; font-weight: 700; font-family: monospace;">×${it.quantity}</span>
+                  <span style="font-family: monospace; color: #10b981; font-weight: 800; font-size: 12.5px;">${(it.totalPrice ?? it.quantity * it.unitPrice).toFixed(2)} EGP</span>
+                </div>
               </div>
             `
               )
               .join('')}
+          </div>
+          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(51, 65, 85, 0.6); display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
+            <span style="color: #94a3b8; font-weight: 600;">${isRtl ? 'إجمالي المنتجات المطلوب تحويله:' : 'Order Total to Transfer:'}</span>
+            <span style="font-size: 15px; font-weight: 900; color: #10b981; font-family: monospace;">${Number(data.amountEgp || 0).toFixed(2)} EGP</span>
           </div>
         </div>
       `

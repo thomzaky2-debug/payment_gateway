@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="admin_app_name">نايل باي للإدارة</string>
+    <string name="admin_connection_error">تعذر تحميل لوحة الإدارة. تحقق من اتصال الإنترنت ثم حاول مجددًا.</string>
+    <string name="admin_retry">حاول مجددًا</string>
+    <string name="admin_no_link_app">لا يوجد تطبيق لفتح هذا الرابط.</string>
+    <string name="admin_export_saved">تم حفظ ملف CSV.</string>
+    <string name="admin_export_failed">تعذر حفظ الملف. حاول مجددًا.</string>
+    <string name="admin_export_too_large">الملف كبير جدًا. صفِّ السجلات وحاول مجددًا.</string>
 </resources>

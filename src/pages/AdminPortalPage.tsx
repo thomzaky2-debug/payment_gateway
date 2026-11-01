@@ -32,6 +32,7 @@ import {
 import { adminApi } from '../services/api';
 import { AdminSidebar } from '../components/AdminSidebar';
 import { AdminPublicSettings } from './AdminPublicSettings';
+import { AdminOperations } from '../components/AdminOperations';
 import { AdminTopbar } from '../components/AdminTopbar';
 import { useTheme } from '../context/ThemeContext';
 
@@ -101,7 +102,7 @@ interface PlatformStats {
   unmatchedPayments: number;
 }
 
-export type AdminTab = 'overview' | 'merchants' | 'merchantDetails' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications' | 'publicSettings';
+export type AdminTab = 'controls' | 'overview' | 'merchants' | 'merchantDetails' | 'transactions' | 'audit' | 'webhooks' | 'plans' | 'notifications' | 'publicSettings';
 
 export interface AdminRoute {
   tab: AdminTab;
@@ -134,6 +135,8 @@ export function parseAdminRouteFromHash(hashString?: string): AdminRoute {
   }
 
   const validTabs: Record<string, AdminTab> = {
+    controls: 'controls',
+    operations: 'controls',
     publicsettings: 'publicSettings',
     'public-settings': 'publicSettings',
     overview: 'overview',
@@ -510,7 +513,10 @@ export function AdminPortalPage() {
       if (offersRes.status === 'fulfilled' && offersRes.value?.ok) {
         setSpecialOffers(offersRes.value.offers || []);
       }
-      setLastSyncedAt(new Date());
+      const results = [statsRes, clientsRes, txRes, auditRes, webhooksRes, plansRes, bundlesRes, offersRes];
+      const failures = results.filter(result => result.status === 'rejected' || !result.value?.ok).length;
+      if (failures) showToast(`${failures} data source(s) could not refresh. Some records may be stale.`, 'error');
+      else setLastSyncedAt(new Date());
     } catch {
       showToast('Error syncing admin records', 'error');
     } finally {
@@ -670,6 +676,7 @@ export function AdminPortalPage() {
   // Force Confirm Transaction
   const handleForceConfirm = async (sessionId: string) => {
     if (!sessionId.trim()) return;
+    if (!window.confirm(`Confirm checkout ${sessionId.trim()} manually? This changes its payment status and may dispatch a merchant webhook.`)) return;
     setConfirmingId(sessionId);
     try {
       const res = await adminApi.forceConfirm(sessionId);
@@ -1188,6 +1195,7 @@ export function AdminPortalPage() {
     ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
     : '0 4px 16px rgba(0,0,0,0.06)';
   const tabHeading: Record<AdminTab, { title: string; description: string }> = {
+    controls: { title: 'Admin Controls', description: 'Search records, manage merchants, and review platform operations' },
     publicSettings: { title: 'Privacy & Support', description: 'Edit public contacts and the privacy policy' },
     overview: { title: 'Platform Overview', description: 'Live operational health and activity across the entire payment network' },
     merchants: { title: 'Merchant Management', description: 'Monitor merchant health, access, subscriptions, and integration readiness' },
@@ -1255,6 +1263,13 @@ export function AdminPortalPage() {
         }}
       >
         <div className="admin-portal-content-inner" style={{ maxWidth: '1400px', margin: '0 auto', animation: 'fadeIn 0.4s ease-out' }}>
+        {activeTab === 'controls' && <AdminOperations
+          merchants={merchants} transactions={transactions} webhooks={webhookLogs} audit={auditLogs}
+          loading={loading} syncedAt={lastSyncedAt} onRefresh={fetchData}
+          onInspectMerchant={id => { window.location.hash = buildAdminHash('merchantDetails', id); }}
+          onReviewPayment={id => { setForceSessionId(id); window.location.hash = buildAdminHash('transactions'); }}
+          onNavigate={tab => { window.location.hash = buildAdminHash(tab); }}
+        />}
         {/* Toast Notification */}
         {toastMessage && (
           <div

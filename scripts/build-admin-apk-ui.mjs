@@ -1,0 +1,11 @@
+import { execFileSync } from 'node:child_process';
+import { cpSync, mkdirSync, renameSync, rmSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+const root = fileURLToPath(new URL('../', import.meta.url));
+execFileSync(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--config', 'vite.admin.config.js'], {cwd: root, stdio: 'inherit'});
+const destination = new URL('../mobile/admin/src/main/assets/portal/', import.meta.url);
+rmSync(destination, { recursive: true, force: true });
+mkdirSync(destination, { recursive: true });
+cpSync(new URL('../dist-admin/', import.meta.url), destination, {recursive: true});
+renameSync(new URL('admin.html', destination), new URL('index.html', destination));
+cpSync(new URL('../public/brand/', import.meta.url), new URL('brand/', destination), {recursive: true});

@@ -23,6 +23,7 @@ const navigation: Array<{
   label: string;
   emoji: string;
 }> = [
+  { tab: 'controls', label: 'Controls', emoji: '🎛️' },
   { tab: 'overview', label: 'Overview', emoji: '📊' },
   { tab: 'merchants', label: 'Merchants', emoji: '🏪' },
   { tab: 'merchantDetails', label: 'Merchant Details', emoji: '🔎' },

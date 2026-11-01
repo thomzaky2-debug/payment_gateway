@@ -16,11 +16,13 @@ import {
   Download,
   ShoppingBag,
   FileDown,
+  Receipt,
 } from 'lucide-react';
 import { transactionsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { saveReceiptAsPdf } from '../utils/receiptPdf';
+import { extractCheckoutItems } from './CheckoutPayPage';
 
 interface TransactionsPageProps {
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
@@ -1217,69 +1219,198 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                 </div>
               )}
 
-              {/* Product Order Items Table */}
-              {selectedTx.items && Array.isArray(selectedTx.items) && selectedTx.items.length > 0 && (
-                <div style={{
-                  padding: '12px',
-                  borderRadius: '12px',
-                  backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : '#f8fafc',
-                  border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
-                  marginTop: '4px',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: textPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <ShoppingBag size={14} color="#38bdf8" />
-                      <span>{isRtl ? 'أصناف ومنتجات الطلب:' : 'Order Products & Quantities:'}</span>
-                    </span>
-                    <span style={{ fontSize: '11px', color: textSecondary }}>
-                      {selectedTx.items.length} {isRtl ? 'أصناف' : 'items'}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {selectedTx.items.map((it, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '6px 8px',
-                          borderRadius: '8px',
-                          backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                          border: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
-                          fontSize: '11.5px',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                          <span style={{ fontWeight: 600, color: textPrimary, wordBreak: 'break-word' }}>
-                            {it.name}
-                          </span>
-                          <span
-                            style={{
-                              padding: '1px 5px',
-                              borderRadius: '4px',
-                              backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
-                              color: isDark ? '#38bdf8' : '#0284c7',
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              fontFamily: 'monospace',
-                            }}
-                          >
-                            ×{it.quantity}
-                          </span>
-                          <span style={{ fontSize: '10.5px', color: textSecondary }}>
-                            ({Number(it.unitPrice).toFixed(2)} EGP)
+              {/* Product Order Details Card (Matching Image 2) */}
+              {(() => {
+                const modalOrderItems = extractCheckoutItems(selectedTx);
+                if (modalOrderItems.length === 0) return null;
+                return (
+                  <div
+                    style={{
+                      backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                      borderRadius: '16px',
+                      border: isDark ? '1px solid rgba(51, 65, 85, 0.45)' : '1px solid #e2e8f0',
+                      padding: '16px',
+                      marginTop: '8px',
+                      boxShadow: isDark ? '0 4px 14px rgba(0,0,0,0.2)' : '0 2px 8px rgba(0,0,0,0.03)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '12px',
+                        paddingBottom: '10px',
+                        borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div
+                          style={{
+                            width: '30px',
+                            height: '30px',
+                            borderRadius: '8px',
+                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#e0f2fe',
+                            color: '#0284c7',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <ShoppingBag size={16} />
+                        </div>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: 800, color: textPrimary }}>
+                            {isRtl ? 'تفاصيل طلب المنتجات' : 'Product Order Details'}
+                          </h4>
+                          <span style={{ fontSize: '11px', color: textSecondary }}>
+                            {isRtl
+                              ? `${modalOrderItems.length} ${modalOrderItems.length === 1 ? 'صنف' : 'أصناف'} (${modalOrderItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} قطعة)`
+                              : `${modalOrderItems.length} ${modalOrderItems.length === 1 ? 'product' : 'products'} (${modalOrderItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} units)`}
                           </span>
                         </div>
-                        <span style={{ fontFamily: 'monospace', color: '#10b981', fontWeight: 700 }}>
-                          {(it.totalPrice ?? (it.quantity * it.unitPrice)).toFixed(2)} EGP
-                        </span>
                       </div>
-                    ))}
+
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+                          border: isDark ? '1px solid #334155' : '1px solid #cbd5e1',
+                          color: textSecondary,
+                          fontSize: '10.5px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Receipt size={11} />
+                        <span>{isRtl ? 'فاتورة تفصيلية' : 'Itemized Receipt'}</span>
+                      </div>
+                    </div>
+
+                    {/* Items List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {modalOrderItems.map((item, idx) => {
+                        const itemTotal = item.totalPrice ?? (item.quantity * item.unitPrice);
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '10px',
+                              padding: '10px 12px',
+                              borderRadius: '10px',
+                              backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                              border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+                              flexWrap: 'wrap',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '120px', flex: 1 }}>
+                              <div
+                                style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '6px',
+                                  backgroundColor: isDark ? '#0f172a' : '#f1f5f9',
+                                  border: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: isDark ? '#38bdf8' : '#2563eb',
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {idx + 1}
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: '12.5px', fontWeight: 700, color: textPrimary, wordBreak: 'break-word' }}>
+                                  {item.name}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '1px', fontSize: '10.5px', color: textSecondary, flexWrap: 'wrap' }}>
+                                  <span>
+                                    {isRtl ? 'سعر القطعة:' : 'Unit price:'}{' '}
+                                    <strong style={{ color: textPrimary, fontFamily: 'monospace' }}>{item.unitPrice.toFixed(2)} EGP</strong>
+                                  </span>
+                                  {item.category && (
+                                    <span
+                                      style={{
+                                        padding: '1px 5px',
+                                        borderRadius: '4px',
+                                        backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                                        fontSize: '9.5px',
+                                        color: textSecondary,
+                                      }}
+                                    >
+                                      {item.category}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, textAlign: isRtl ? 'left' : 'right' }}>
+                              <span
+                                style={{
+                                  padding: '3px 7px',
+                                  borderRadius: '5px',
+                                  backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
+                                  color: isDark ? '#38bdf8' : '#0284c7',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  fontFamily: 'monospace',
+                                }}
+                                title={isRtl ? `الكمية: ${item.quantity}` : `Quantity: ${item.quantity}`}
+                              >
+                                ×{item.quantity}
+                              </span>
+                              <div style={{ minWidth: '70px', textAlign: isRtl ? 'left' : 'right' }}>
+                                <span
+                                  style={{
+                                    fontSize: '13px',
+                                    fontWeight: 800,
+                                    color: '#10b981',
+                                    fontFamily: 'monospace',
+                                  }}
+                                >
+                                  {itemTotal.toFixed(2)} EGP
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Subtotal Footer */}
+                    <div
+                      style={{
+                        marginTop: '12px',
+                        paddingTop: '10px',
+                        borderTop: isDark ? '1px dashed rgba(51, 65, 85, 0.6)' : '1px dashed #cbd5e1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        fontSize: '12px',
+                      }}
+                    >
+                      <span style={{ color: textSecondary, fontWeight: 600 }}>
+                        {isRtl ? 'إجمالي المنتجات المطلوب تحويله:' : 'Order Total to Transfer:'}
+                      </span>
+                      <span style={{ fontSize: '15px', fontWeight: 900, color: '#10b981', fontFamily: 'monospace' }}>
+                        {Number(selectedTx.amountEgp || 0).toFixed(2)} EGP
+                      </span>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Action Buttons */}
@@ -1287,6 +1418,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
               <button
                 type="button"
                 onClick={() => {
+                  const itemsForPdf = extractCheckoutItems(selectedTx);
                   saveReceiptAsPdf(
                     {
                       sessionId: selectedTx.sessionId,
@@ -1300,7 +1432,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
                       note: selectedTx.note,
                       productCategory: selectedTx.productCategory,
                       subtitle: getPurchaseTypeInfo(selectedTx, isRtl).label,
-                      items: selectedTx.items,
+                      items: itemsForPdf.length > 0 ? itemsForPdf : selectedTx.items,
                     },
                     isRtl
                   );

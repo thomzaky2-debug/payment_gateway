@@ -1,0 +1,12 @@
+/* Keep the portal's desktop layout, and stack its fixed-minimum merchant
+   selector/detail grid when there is not enough room for both panels. */
+@media (max-width: 768px) {
+  div[style*="grid-template-columns"][style*="0.85fr"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  #root input[aria-label="Search merchants"],
+  #root input[placeholder="Search merchants"],
+  #root input[placeholder^="Search by name, email"] {
+    padding-left: 32px !important;
+  }
+}

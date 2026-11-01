@@ -16,8 +16,8 @@ android {
         applicationId = "com.nilepay.admin"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 4
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -73,6 +73,8 @@ android {
         jvmTarget = "17"
     }
 
+    testOptions { unitTests.isIncludeAndroidResources = true }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -106,3 +108,15 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
 }
+
+// Rebuild the admin-only website from the same sources used by the portal.
+val bundleAdminPortal by tasks.registering(Exec::class) {
+    val repository = rootProject.projectDir.parentFile
+    workingDir(repository)
+    commandLine("node", "scripts/build-admin-apk-ui.mjs")
+    inputs.files(fileTree(File(repository, "src")), File(repository, "admin.html"),
+        File(repository, "vite.admin.config.js"), File(repository, "scripts/build-admin-apk-ui.mjs"),
+        File(repository, "package-lock.json"), fileTree(File(repository, "public/brand")))
+    outputs.dir("src/main/assets/portal")
+}
+tasks.named("preBuild") { dependsOn(bundleAdminPortal) }

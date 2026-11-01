@@ -128,6 +128,7 @@
     <string name="load_more_payments">تحميل المزيد</string>
     <string name="search_payments_hint">ابحث بالمرسل أو معرّف الدفع أو مرجع البنك</string>
     <string name="product_category">فئة المنتج</string>
+    <string name="product_order_details">تفاصيل طلب المنتجات</string>
     <string name="keep_alive_channel_name">كاشف نايل باي المستمر</string>
     <string name="keep_alive_channel_desc">يحافظ على عمل كاشف المدفوعات في الخلفية دون إيقاف بسبب البطارية</string>
     <string name="keep_alive_notification_title">كاشف نايل باي نشط</string>

@@ -198,6 +198,11 @@ export const settingsApi = {
 // ─── Admin API ──────────────────────────────────────────────────────
 
 export const adminApi = {
+  async getDeliveryHealth() {
+    const res = await adminHttp.get('/admin/health', { validateStatus: status => status === 200 || status === 503 });
+    if (!res.data?.ok) throw new Error(res.data?.error || 'Health check unavailable');
+    return res.data;
+  },
   async getPublicSiteSettings() { return (await adminHttp.get('/admin/public-site-settings')).data as PublicSiteContent },
   async savePublicSiteSettings(content: PublicSiteContent) { return (await adminHttp.put('/admin/public-site-settings', content)).data as PublicSiteContent },
   async checkSession() {

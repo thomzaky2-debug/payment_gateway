@@ -1856,6 +1856,20 @@ th, td {
   box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.4), 0 0 15px -2px rgba(245, 158, 11, 0.15) !important;
 }
 
+/* ─── Responsive Checkout Side-by-Side Layout ─── */
+.checkout-content-grid.has-items {
+  display: grid;
+  grid-template-columns: minmax(0, 1.42fr) minmax(320px, 1fr) !important;
+  gap: 24px !important;
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .checkout-content-grid.has-items {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 html.dark .review-expired-card {
   background: linear-gradient(180deg, #111827 0%, #0d131f 100%) !important;
 }

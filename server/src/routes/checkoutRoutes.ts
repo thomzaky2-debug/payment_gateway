@@ -88,6 +88,7 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
       checkout: {
         sessionId: tx.sessionId,
         businessName: tx.client.businessName,
+        profileImageData: (tx.client as any)?.profileImageData ?? null,
         recipientHandle: tx.recipientHandle,
         senderHandle: tx.senderHandle,
         amountEgp: tx.amountEgp,

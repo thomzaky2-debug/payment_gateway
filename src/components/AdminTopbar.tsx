@@ -11,6 +11,7 @@ interface AdminTopbarProps {
 }
 
 const titles: Record<AdminTab, { title: string; subtitle: string }> = {
+  controls: { title: 'Admin Controls', subtitle: 'Search, export, review, and manage platform operations' },
   publicSettings: { title: 'Privacy & Support', subtitle: 'Manage public website information and support contacts' },
   overview: { title: 'Platform Overview', subtitle: 'Operational health, activity, and actions requiring attention' },
   merchants: { title: 'Merchant Management', subtitle: 'Review accounts, approvals, detector health, and integration access' },

@@ -257,6 +257,7 @@ export async function getCheckoutSession(sessionId: string) {
           isFreeTrial: true,
           subscriptionPlan: true,
           subscriptionEndsAt: true,
+          profileImageData: true,
         },
       },
     },
