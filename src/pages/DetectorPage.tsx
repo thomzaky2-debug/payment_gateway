@@ -397,7 +397,7 @@ export function DetectorPage({ showToast }: DetectorPageProps) {
           >
             <Download size={18} />
             <span>
-              {isRtl ? 'تحميل تطبيق NilePay Merchant (الإصدار v1.0.0)' : 'Download NilePay Merchant APK (Release v1.0.0)'}
+              {isRtl ? 'تحميل تطبيق NilePay Merchant (الإصدار v1.3.2)' : 'Download NilePay Merchant APK (Release v1.3.2)'}
             </span>
           </a>
 
