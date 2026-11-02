@@ -9,7 +9,7 @@ export class NotificationInputError extends Error {
 }
 export interface NotificationInput {
   title: string; message: string; severity: 'INFO' | 'WARNING' | 'ALERT';
-  clientId?: string; requestId?: string; expectedCount?: number
+  clientId?: string; clientIds?: string[]; requestId?: string; expectedCount?: number
 }
 export function validateNotification(input: unknown): NotificationInput {
   const body = input as Record<string, unknown> | null
@@ -19,12 +19,15 @@ export function validateNotification(input: unknown): NotificationInput {
   if (!title || !message) throw new NotificationInputError('Title and message are required.')
   if (title.length > 150 || message.length > 2000) throw new NotificationInputError('Title must be at most 150 characters and message at most 2000 characters.')
   const severity = body.severity ?? 'INFO'
+  if (body.clientIds !== undefined && (!Array.isArray(body.clientIds) || !body.clientIds.length || body.clientIds.length > 1000 || body.clientIds.some(id => typeof id !== 'string' || !id.trim() || id.length > 128))) throw new NotificationInputError('Select between 1 and 1000 merchants.')
+  if (body.clientIds !== undefined && (body.clientId !== undefined || body.target !== undefined)) throw new NotificationInputError('Choose one audience mode.')
   if (!['INFO', 'WARNING', 'ALERT'].includes(String(severity)) || typeof severity !== 'string') throw new NotificationInputError('Invalid notification severity.')
   if (body.target !== undefined && body.target !== 'ALL') throw new NotificationInputError('Choose all active approved merchants or a specific merchant.')
   if (body.clientId !== undefined && (typeof body.clientId !== 'string' || !body.clientId.trim() || body.clientId.length > 128)) throw new NotificationInputError('Invalid merchant ID.')
   if (body.requestId !== undefined && (typeof body.requestId !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(body.requestId))) throw new NotificationInputError('Invalid send request identifier.')
   if (body.expectedCount !== undefined && (!Number.isSafeInteger(body.expectedCount) || Number(body.expectedCount) < 1)) throw new NotificationInputError('Expected recipient count must be a positive integer.')
   return { title, message, severity: severity as NotificationInput['severity'],
+    ...(Array.isArray(body.clientIds) ? {clientIds: [...new Set(body.clientIds.map(id => String(id).trim()))].sort()} : {}),
     ...(body.clientId ? {clientId: String(body.clientId).trim()} : {}),
     ...(body.requestId ? {requestId: String(body.requestId)} : {}),
     ...(body.expectedCount !== undefined ? {expectedCount: Number(body.expectedCount)} : {}) }
@@ -50,7 +53,7 @@ const hash = (value: string) => crypto.createHash('sha256').update(value).digest
 export interface NotificationSendResult { sentCount:number; replayed:boolean; batchPrefix:string; input:NotificationInput }
 export async function sendAdminNotification(raw: unknown, database: Pick<typeof db, '$transaction' | 'auditLog'> = db): Promise<NotificationSendResult> {
   const input = validateNotification(raw)
-  const payloadHash = hash(JSON.stringify([input.title, input.message, input.severity, input.clientId || 'ALL']))
+  const payloadHash = hash(JSON.stringify([input.title, input.message, input.severity, input.clientIds || input.clientId || 'ALL']))
   const auditId = `notification_${hash(input.requestId || crypto.randomUUID()).slice(0, 40)}`
   const batchPrefix = `${auditId}_`
   const replay = (details: string) => {
@@ -62,8 +65,9 @@ export async function sendAdminNotification(raw: unknown, database: Pick<typeof 
     return await database.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.auditLog.findUnique({where:{id:auditId}, select:{details:true}})
       if (existing) return replay(existing.details)
-      const where = {isActive:true, approvalStatus:'APPROVED', ...(input.clientId ? {id:input.clientId} : {})}
+      const where = {isActive:true, approvalStatus:'APPROVED', ...(input.clientIds ? {id:{in:input.clientIds}} : input.clientId ? {id:input.clientId} : {})}
       const total = await tx.client.count({where})
+      if (input.clientIds && total !== input.clientIds.length) throw new NotificationInputError('Selected merchants changed eligibility. Refresh recipients.',409,'AUDIENCE_CHANGED')
       if (!total) throw new NotificationInputError('No active approved merchants match this audience.', 404, 'NO_RECIPIENTS')
       if (input.expectedCount !== undefined && total !== input.expectedCount) throw new NotificationInputError('The audience changed. Refresh recipients and review the message again.', 409, 'AUDIENCE_CHANGED')
       let cursor: string | undefined

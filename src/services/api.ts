@@ -340,7 +340,7 @@ export const adminApi = {
   async getNotificationCenter(signal?: AbortSignal) {
     return (await adminHttp.get('/admin/notifications', { signal })).data;
   },
-  async sendNotification(data: { target?: string; clientId?: string; title: string; message: string; severity?: string; requestId?: string; expectedCount?: number }) {
+  async sendNotification(data: { target?: string; clientId?: string; clientIds?: string[]; title: string; message: string; severity?: string; requestId?: string; expectedCount?: number }) {
     const res = await adminHttp.post('/admin/notifications', data)
     return res.data
   },

@@ -46,7 +46,7 @@ export const AdminNotificationCenter=memo(function AdminNotificationCenter({merc
   const eligible=useMemo(()=>merchants.filter(isNotificationRecipient),[merchants]);
   const matches=useMemo(()=>{const term=deferredQuery.trim().toLowerCase();return eligible.filter(m=>`${m.businessName} ${m.email} ${m.id}`.toLowerCase().includes(term));},[eligible,deferredQuery]);
   const selected=eligible.find(m=>m.id===draft.clientId);
-  const count=draft.audience==='ALL'?eligible.length:selected?1:0;
+  const count=draft.audience==='ALL'?eligible.length:draft.clientIds?.length?eligible.filter(m=>draft.clientIds!.includes(m.id)).length:selected?1:0;
   const validation=notificationError(draft,count);
   const fingerprint=notificationFingerprint(draft);
   const sameAttempt=attempt.current?.fingerprint===fingerprint;
@@ -60,7 +60,7 @@ export const AdminNotificationCenter=memo(function AdminNotificationCenter({merc
     if(busy.current || validation || !ready || refreshing || locked || (draft.audience==='ALL'&&!audienceReviewed))return;
     if(!navigator.onLine){setFeedback('You are offline. Your message has not been sent.');return;}
     busy.current=true;setSending(true);
-    const current=advanced&&sameAttempt?attempt.current!:{fingerprint,payload:{title:draft.title.trim(),message:draft.message.trim(),severity:draft.severity,requestId:notificationRequestId(),expectedCount:count,...(draft.audience==='ALL'?{target:'ALL'}:{clientId:draft.clientId})}};
+    const current=advanced&&sameAttempt?attempt.current!:{fingerprint,payload:{title:draft.title.trim(),message:draft.message.trim(),severity:draft.severity,requestId:notificationRequestId(),expectedCount:count,...(draft.audience==='ALL'?{target:'ALL'}:draft.clientIds?.length?{clientIds:draft.clientIds}:{clientId:draft.clientId})}};
     attempt.current=current;
     try{
       // Persist the exact attempt before sending, so interrupted sends can be reviewed safely.
@@ -89,6 +89,7 @@ export const AdminNotificationCenter=memo(function AdminNotificationCenter({merc
     {uncertain&&<div className="notice-feedback"><p>The pending message is locked while its result is checked. It will never resend automatically.</p>{advanced?<p>Duplicate-send protection is available. Review and retry this same request.</p>:<button onClick={()=>{if(window.confirm('Confirm you checked recent broadcasts. A previous send may have succeeded. Allow a new send?')){attempt.current=null;remove(PENDING);setUncertain(false);setFeedback('Review the audience and message before sending again.');}}}>I checked history — allow a new send</button>}</div>}
     <div className="notice-grid"><div className="notice-panel notice-stack">
       <div><h3>Compose notification</h3><p>Send operational updates to merchant portal inboxes.</p></div>
+      {draft.audience==='SINGLE'&&<fieldset className="notice-selection" disabled={sending||uncertain||!ready}><legend>Select merchants · {count} selected</legend><div className="notice-row"><button type="button" onClick={()=>edit({clientIds:matches.slice(0,1000).map(m=>m.id),clientId:''})}>Select matching merchants</button><button type="button" onClick={()=>edit({clientIds:[],clientId:''})}>Clear selection</button></div><div className="notice-selection-list">{matches.map(m=><label key={m.id}><input type="checkbox" checked={(draft.clientIds || [draft.clientId]).includes(m.id)} onChange={e=>{const ids=draft.clientIds || (draft.clientId?[draft.clientId]:[]);edit({clientId:'',clientIds:e.target.checked?[...ids,m.id]:ids.filter(id=>id!==m.id)});}}/><span><strong>{m.businessName}</strong><small>{m.email}</small></span></label>)}</div><small>Only checked merchants receive this message. Maximum 1,000 per send.</small></fieldset>}
       <div className="notice-row">{notificationTemplates.map(t=><button key={t.name} disabled={sending||uncertain} onClick={()=>{if((draft.title||draft.message)&&!window.confirm('Replace the current message with this template?'))return;edit({title:t.title,message:t.message,severity:t.severity});}}>{t.name}</button>)}</div>
       <label>Audience<select value={draft.audience} disabled={sending||uncertain} onChange={e=>edit({audience:e.target.value as NotificationDraft['audience']})}><option value="SINGLE">One merchant</option><option value="ALL">All active approved merchants ({eligible.length})</option></select></label>
       {draft.audience==='SINGLE'&&<label>Select merchant from the list<select size={Math.min(8,Math.max(3,eligible.length+1))} value={draft.clientId || ''} disabled={sending||uncertain||!ready} onChange={e=>edit({clientId:e.target.value})}><option value="">Choose a merchant</option>{eligible.map(m=><option key={m.id} value={m.id}>{m.businessName} — {m.email}</option>)}</select><small>Click a merchant directly; typing a name is optional. The notification will only appear in the selected merchant’s inbox.</small></label>}
