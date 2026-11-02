@@ -94,7 +94,4 @@ jobs:
         run: npm run client:build
 
       - name: Run Security Audit (Production Dependencies)
-        # Current advisories require major-version upgrades; keep this visible as
-        # a warning until those upgrades are tested and scheduled separately.
-        continue-on-error: true
         run: npm audit --omit=dev --audit-level=high

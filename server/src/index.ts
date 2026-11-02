@@ -81,9 +81,12 @@ app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY, !isLocalRuntime)
 
 // Disable fingerprinting
 app.disable('x-powered-by')
+app.set('query parser', 'simple')
 
 // ─── Security Headers ──────────────────────────────────────────────
 app.use((_req, res, next) => {
+  // Authenticated API responses must never enter browser or proxy caches.
+  res.setHeader('Cache-Control', 'no-store')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('X-Frame-Options', 'SAMEORIGIN')
   res.setHeader('X-XSS-Protection', '0')
