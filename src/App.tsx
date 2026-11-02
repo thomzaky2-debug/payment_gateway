@@ -191,6 +191,7 @@ function App() {
         setCurrentClient(res.client);
         setIsAuthenticated(true);
         showToast('success', 'Welcome back! You are now logged in.');
+        navigateTo('overview');
       } else {
         setIsAuthenticated(false);
         showToast('error', 'The session could not be verified. Please sign in again.');

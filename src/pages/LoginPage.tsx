@@ -37,7 +37,18 @@ export function LoginPage({ onLogin, showToast }: LoginPageProps) {
   const { lang, setLang, t, isRtl } = useLanguage();
   const { isDark, toggleTheme } = useTheme();
 
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(() => /^#\/?signup\/?$/.test(window.location.hash));
+  useEffect(() => {
+    const syncRoute = () => {
+      if (/^#\/?signup\/?$/.test(window.location.hash)) setIsRegister(true);
+      else if (/^#\/?login\/?$/.test(window.location.hash)) setIsRegister(false);
+    };
+    window.addEventListener('hashchange', syncRoute);
+    return () => window.removeEventListener('hashchange', syncRoute);
+  }, []);
+  useEffect(() => {
+    window.history.replaceState(null, '', isRegister ? '#signup/' : '#login/');
+  }, [isRegister]);
   const [businessName, setBusinessName] = useState('');
   const [ipnOption, setIpnOption] = useState<'now' | 'later'>('now');
   const [instapayHandle, setInstapayHandle] = useState('');

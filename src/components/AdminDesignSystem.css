@@ -1,0 +1,48 @@
+/* Shared visual rules for every authenticated admin workspace. */
+.admin-portal-shell {
+  --admin-surface: #ffffff;
+  --admin-canvas: #f3f6fb;
+  --admin-border: #dde4ef;
+  --admin-text: #17243b;
+  --admin-muted: #64748b;
+  --admin-accent: #2563eb;
+}
+.admin-portal-shell[data-admin-theme=dark] {
+  --admin-surface: #111b2c;
+  --admin-canvas: #090f1c;
+  --admin-border: #29374d;
+  --admin-text: #edf3fc;
+  --admin-muted: #a0aec4;
+  --admin-accent: #60a5fa;
+}
+#root .admin-portal-shell { background: var(--admin-canvas) !important; color: var(--admin-text); }
+#root .admin-topbar { background: var(--admin-surface) !important; border-color: var(--admin-border) !important; min-height: 68px !important; padding-inline: clamp(14px,2.5vw,28px) !important; }
+#root .admin-topbar h1 { font-size: clamp(16px,2vw,20px) !important; letter-spacing: -.4px !important; }
+#root .admin-portal-content { background: var(--admin-canvas) !important; padding: clamp(16px,2.5vw,32px) !important; scrollbar-gutter: stable; }
+.admin-portal-content-inner { width: 100%; min-width: 0; }
+#root .admin-page-heading { padding-bottom: 20px; margin-bottom: 24px !important; border-bottom: 1px solid var(--admin-border); }
+.admin-portal-shell :is(h1,h2,h3,h4) { letter-spacing: -.025em; line-height: 1.35; }
+.admin-portal-shell :is(p,label,small) { line-height: 1.6; }
+#root .admin-portal-content :is(.ops-panel,.pricing-panel,.notice-panel,.pricing-stat) { border-radius: 14px !important; border-color: var(--admin-border) !important; background: var(--admin-surface) !important; box-shadow: 0 3px 14px #00000008; }
+#root .admin-portal-content :is(.ops-panel,.pricing-panel,.notice-panel) { padding: 18px !important; }
+#root .admin-portal-content :is(button,input,select,textarea) { font-family: inherit; font-size: 13px; border-radius: 9px; }
+#root .admin-portal-content button { min-height: 36px; transition: border-color .15s,background-color .15s,box-shadow .15s; }
+.admin-portal-shell button:disabled { cursor: not-allowed; opacity: .55; }
+.admin-portal-shell :is(button,a,input,select,textarea):focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
+#root .admin-portal-content :is(input,select,textarea):not([type=checkbox]):not([type=radio]) { min-height: 42px; border: 1px solid var(--admin-border); box-sizing: border-box; }
+.admin-portal-content table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+#root .admin-portal-content th { padding: 14px 16px !important; font-size: 11px !important; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; color: var(--admin-muted); background: var(--admin-canvas); }
+#root .admin-portal-content td { padding: 14px 16px !important; border-color: var(--admin-border) !important; line-height: 1.5; }
+.admin-portal-content tbody tr:hover { background: color-mix(in srgb,var(--admin-accent) 5%,transparent); }
+.admin-portal-content :is(.ops-grid,.pricing-grid) { gap: 16px; }
+.admin-portal-content :is(.ops-badge,.pricing-badge) { font-weight: 650; border-radius: 6px; }
+@media(max-width:640px) {
+  #root .admin-topbar { min-height: 60px !important; padding-inline: 12px !important; }
+  #root .admin-portal-content { padding: 14px !important; }
+  #root .admin-page-heading { margin-bottom: 18px !important; padding-bottom: 14px; }
+  #root .admin-portal-content :is(.ops-panel,.pricing-panel,.notice-panel) { padding: 14px !important; }
+  #root .admin-portal-content :is(button,input,select) { min-height: 42px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .admin-portal-shell *, .admin-portal-shell *::before, .admin-portal-shell *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

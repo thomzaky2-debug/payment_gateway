@@ -1,4 +1,5 @@
 import { AdminPricingWorkspace } from '../components/AdminPricingWorkspace';
+import '../components/AdminDesignSystem.css';
 import { planPromotionUpdate, pricingValidation } from '../utils/adminPricing';
 import { AdminNotificationCenter } from '../components/AdminNotificationCenter';
 import React, { useState, useEffect } from 'react';
@@ -1258,6 +1259,7 @@ export function AdminPortalPage() {
   return (
     <div
       className="admin-portal-shell app-main-layout"
+      data-admin-theme={isDark ? 'dark' : 'light'}
       style={{
         width: '100%',
         height: '100dvh',
