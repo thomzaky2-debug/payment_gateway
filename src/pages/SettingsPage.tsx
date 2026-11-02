@@ -573,7 +573,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
               TAB 1A: MERCHANT PROFILE
              ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'general' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="merchant-profile-workspace" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* ─── Hero Brand Identity Banner ─── */}
               <div style={{
                 ...card({ padding: '26px 28px' }),
@@ -664,7 +664,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                           border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid #86efac',
                         }}>
                           <ShieldCheck size={12} />
-                          {isRtl ? 'هوية تاجر موثقة' : 'Verified Brand Identity'}
+                          {isRtl ? 'هوية متجرك' : 'Your store identity'}
                         </span>
                       </div>
 
@@ -974,7 +974,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                             fontFamily: "'JetBrains Mono', monospace",
                             [isRtl ? 'marginRight' : 'marginLeft']: '6px',
                           }}>
-                            checkout.nilepay.eg
+                            {window.location.host}
                           </span>
                         </div>
                         <span style={{
@@ -985,7 +985,7 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                           backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#dcfce7',
                           color: '#10b981',
                         }}>
-                          {isRtl ? 'معاينة حية' : 'LIVE PREVIEW'}
+                          {isRtl ? 'معاينة التصميم' : 'BRAND PREVIEW'}
                         </span>
                       </div>
 

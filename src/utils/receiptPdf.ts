@@ -3,6 +3,7 @@
  * with pixel-perfect matching dark card design.
  */
 
+import { receiptOrderNumber } from './receiptDetails';
 export interface PrintableReceiptItem {
   name: string;
   quantity: number;
@@ -441,8 +442,8 @@ export function saveReceiptAsPdf(data: PrintableReceiptData, isRtl: boolean = fa
             data.note
               ? `
             <div class="detail-row">
-              <span class="label">${isRtl ? 'ملاحظة الطلب:' : 'Order Note:'}</span>
-              <span class="val-text">${escapeHtml(data.note)}</span>
+              <span class="label">${isRtl ? 'رقم الطلب:' : 'Order No.:'}</span>
+              <span class="val-text">${escapeHtml(receiptOrderNumber(data.note))}</span>
             </div>
           `
               : ''

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { receiptCategory, receiptOrderNumber } from '../utils/receiptDetails';
 import {
   TrendingUp,
   CreditCard,
@@ -528,7 +529,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
       </div>
 
       {/* Stats Cards (2x2 grid on mobile via .overview-stats-grid) */}
-      <div className="overview-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px', marginBottom: '22px' }}>
+      <div className="overview-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 210px))', gap: '10px', marginBottom: '18px' }}>
         <StatCard
           title={isRtl ? 'المؤكد اليوم' : "Today's Confirmed"}
           value={stats?.today?.totalEgp != null ? `${Number(stats.today.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
@@ -1192,7 +1193,7 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
                 <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'تصنيف المعاملة:' : 'Purchase Category:'}</span>
                 <span style={{ fontWeight: 600 }}>
-                  {getPurchaseTypeInfo(selectedTx, isRtl).category}
+                  {receiptCategory(selectedTx)}
                 </span>
               </div>
 
@@ -1210,8 +1211,8 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
 
               {selectedTx.note && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9' }}>
-                  <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'ملاحظة الطلب:' : 'Order Note:'}</span>
-                  <span>{selectedTx.note}</span>
+                  <span style={{ color: isDark ? '#94a3b8' : '#64748b' }}>{isRtl ? 'رقم الطلب:' : 'Order No.:'}</span>
+                  <span style={{ overflowWrap: 'anywhere' }}>{receiptOrderNumber(selectedTx.note)}</span>
                 </div>
               )}
 
@@ -1508,9 +1509,9 @@ function StatCard({
       className="overview-stat-card"
       style={{
         backgroundColor: isDark ? '#111827' : '#ffffff',
-        borderRadius: '20px',
+        borderRadius: '12px',
         border: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
-        padding: '22px',
+        padding: '14px',
         boxShadow: isDark
           ? '0 10px 25px -5px rgba(0,0,0,0.45), 0 8px 10px -6px rgba(0,0,0,0.3)'
           : '0 4px 16px rgba(0,0,0,0.06)',
@@ -1522,12 +1523,12 @@ function StatCard({
         overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <div
           className="overview-stat-icon"
           style={{
-            width: '42px',
-            height: '42px',
+            width: '30px',
+            height: '30px',
             borderRadius: '12px',
             backgroundColor: isDark ? `${color}20` : `${color}15`,
             color: color,
@@ -1556,7 +1557,7 @@ function StatCard({
         )}
       </div>
       <div>
-        <p className="overview-stat-value" style={{ fontSize: '24px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', margin: 0, letterSpacing: '-0.3px' }}>{value}</p>
+        <p className="overview-stat-value" style={{ fontSize: '19px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a', margin: 0, letterSpacing: '-0.3px', overflowWrap: 'anywhere' }}>{value}</p>
         <p className="overview-stat-subtitle" style={{ fontSize: '13px', color: isDark ? '#94a3b8' : '#64748b', margin: '5px 0 0 0', fontWeight: 500 }}>{subtitle}</p>
       </div>
     </div>

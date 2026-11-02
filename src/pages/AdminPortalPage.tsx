@@ -862,6 +862,27 @@ export function AdminPortalPage() {
   const handleSaveSpecialOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingOffer || offerSaving) return;
+    if (!editingOffer.id && editingOffer.clientIds?.length) {
+      const recipients = [...new Set<string>(editingOffer.clientIds)];
+      const error = pricingValidation('offer', { ...editingOffer, clientId: recipients[0] });
+      if (error) { showToast(error, 'error'); return; }
+      if (!window.confirm(`Send this private offer to ${recipients.length} selected merchants?`)) return;
+      setOfferSaving(true);
+      const failed: string[] = [];
+      for (const clientId of recipients) {
+        try {
+          const result = await adminApi.createSpecialOffer({ clientId, title: editingOffer.title, description: editingOffer.description, priceEgp: Number(editingOffer.priceEgp), maxTransactions: Number(editingOffer.maxTransactions), periodDays: Number(editingOffer.periodDays), validDays: Number(editingOffer.validDays) });
+          if (!result.ok) failed.push(clientId);
+        } catch { failed.push(clientId); }
+      }
+      setOfferSaving(false);
+      if (failed.length) {
+        setEditingOffer({ ...editingOffer, clientIds: failed, clientId: failed[0] });
+        showToast(`${recipients.length - failed.length} offers sent; ${failed.length} could not be confirmed. Review offers before retrying.`, 'error');
+      } else { setEditingOffer(null); showToast(`Offer sent to ${recipients.length} merchants.`); }
+      await fetchData();
+      return;
+    }
     const error = pricingValidation('offer', editingOffer);
     if (error) { showToast(error, 'error'); return; }
     const recipient = merchants.find(m => m.id === editingOffer.clientId);
@@ -2316,6 +2337,10 @@ export function AdminPortalPage() {
                 <form role="dialog" aria-modal="true" aria-label="Pricing editor" className="pricing-editor" data-pricing-theme={isDark ? 'dark' : 'light'} onSubmit={handleSaveSpecialOffer} style={{ width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '20px', backgroundColor: surface, border: surfaceBorder, boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}><fieldset disabled={offerSaving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', marginBottom: '20px' }}><div><h3 style={{ margin: 0, color: textPrimary, fontSize: '18px' }}>{editingOffer.id ? 'Edit enterprise offer' : 'Create enterprise offer'}</h3><p style={{ margin: '4px 0 0', color: textSecondary, fontSize: '12px' }}>This proposal will only be visible to the selected merchant.</p></div><button type="button" data-admin-close disabled={offerSaving} onClick={() => setEditingOffer(null)} style={{ border: 0, background: 'transparent', color: textSecondary, fontSize: '20px', cursor: 'pointer' }}>×</button></div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '14px' }}>
+                    {!editingOffer.id && <>
+                      <label>Predefined plan<select value={editingOffer.sourcePlan || ''} onChange={e => { const plan = plans.find(p => p.name === e.target.value); if (plan) setEditingOffer({ ...editingOffer, sourcePlan: plan.name, title: `${plan.name} private offer`, description: plan.description || '', priceEgp: plan.priceEgp, maxTransactions: plan.maxTransactions, periodDays: plan.periodDays }); }}><option value="">Custom package</option>{plans.filter(p => p.isActive && p.priceEgp > 0).map(p => <option key={p.name} value={p.name}>{p.name}</option>)}</select></label>
+                      <fieldset style={{ gridColumn: '1 / -1', border: surfaceBorder, borderRadius: 10, maxHeight: 220, overflowY: 'auto', padding: 12 }}><legend>Select merchants for this offer</legend>{merchants.filter(m => m.approvalStatus === 'APPROVED').map(m => <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 6 }}><input type="checkbox" checked={(editingOffer.clientIds || []).includes(m.id)} onChange={e => { const ids = e.target.checked ? [...(editingOffer.clientIds || []), m.id] : (editingOffer.clientIds || []).filter((id: string) => id !== m.id); setEditingOffer({ ...editingOffer, clientIds: ids, clientId: ids[0] || '' }); }} />{m.businessName} — {m.email}</label>)}</fieldset>
+                    </>}
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Company<select required disabled={Boolean(editingOffer.id)} value={editingOffer.clientId} onChange={(e) => setEditingOffer({ ...editingOffer, clientId: e.target.value })} style={{ width: '100%', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }}><option value="">Select approved merchant</option>{merchants.filter((m) => m.approvalStatus === 'APPROVED').map((m) => <option key={m.id} value={m.id}>{m.businessName} — {m.email}</option>)}</select></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Offer title<input required maxLength={120} value={editingOffer.title} onChange={(e) => setEditingOffer({ ...editingOffer, title: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>
                     <label style={{ color: textSecondary, fontSize: '11px' }}>Custom price (EGP)<input required type="number" min={0.01} step={0.01} max={10000000} value={editingOffer.priceEgp} onChange={(e) => setEditingOffer({ ...editingOffer, priceEgp: e.target.value })} style={{ width: '100%', boxSizing: 'border-box', marginTop: '5px', padding: '10px', borderRadius: '9px', border: surfaceBorder, backgroundColor: isDark ? '#1e293b' : '#fff', color: textPrimary }} /></label>

@@ -2030,3 +2030,19 @@ html.dark .security-refresh-btn:hover:not(:disabled) {
     display: none !important;
   }
 }
+/* Numeric spin boxes size to their value without overflowing narrow cards.
+   Browsers without field-sizing retain a usable bounded fallback width. */
+#root input[type="number"] {
+  box-sizing: border-box;
+  width: 14ch !important;
+  min-width: min(10ch, 100%) !important;
+  max-width: 100% !important;
+  font-variant-numeric: tabular-nums;
+  padding-inline: 10px !important;
+}
+@supports (field-sizing: content) {
+  #root input[type="number"] {
+    field-sizing: content;
+    width: auto !important;
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { receiptCategory, receiptOrderNumber } from '../utils/receiptDetails';
 import {
   CreditCard,
   CheckCircle2,
@@ -1200,7 +1201,7 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: isDark ? '1px solid rgba(51, 65, 85, 0.4)' : '1px solid #e2e8f0' }}>
                 <span style={{ color: textSecondary }}>{isRtl ? 'تصنيف المعاملة:' : 'Purchase Category:'}</span>
                 <span style={{ fontWeight: 700, color: textPrimary }}>
-                  {getPurchaseTypeInfo(selectedTx, isRtl).category}
+                  {receiptCategory(selectedTx)}
                 </span>
               </div>
 
@@ -1219,8 +1220,8 @@ export function TransactionsPage({ showToast, subPath, onSubPathChange }: Transa
               {selectedTx.productCategory && <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}><span style={{ color: textSecondary }}>{isRtl ? 'فئة المنتج:' : 'Product category:'}</span><span style={{ color: textPrimary, overflowWrap: 'anywhere' }}>{selectedTx.productCategory}</span></div>}
               {selectedTx.note && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: textSecondary }}>{isRtl ? 'ملاحظة الطلب:' : 'Order Note:'}</span>
-                  <span style={{ color: textPrimary, fontWeight: 500 }}>{selectedTx.note}</span>
+                  <span style={{ color: textSecondary }}>{isRtl ? 'رقم الطلب:' : 'Order No.:'}</span>
+                  <span style={{ color: textPrimary, fontWeight: 500, overflowWrap: 'anywhere' }}>{receiptOrderNumber(selectedTx.note)}</span>
                 </div>
               )}
 
