@@ -43,6 +43,7 @@ function makeMockClient(overrides: Partial<Client> = {}): Client {
     createdAt: new Date(),
     updatedAt: new Date(),
     deletionRequestedAt: null,
+    suspendedAt: null,
     deletedAt: null,
     ...overrides,
   }

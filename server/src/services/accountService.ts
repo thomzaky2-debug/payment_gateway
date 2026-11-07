@@ -272,30 +272,43 @@ export async function performAccountDataScrub(client: { id: string; email?: stri
       },
     })
 
-    // 8. Sanitize audit log entries mentioning merchant PII
-    const piiTerms = [
-      originalEmail,
-      clientRecord?.businessName,
-      clientRecord?.whatsappNumber,
-      clientRecord?.firstName,
-      clientRecord?.lastName,
-    ].filter((term): term is string => Boolean(term && term.length > 2))
+    // 8. Sanitize audit log entries mentioning merchant PII.
+    // Unique identifiers (email, phone) can be matched anywhere. Free-text names are
+    // merchant-chosen, so they are only replaced in rows that also reference this
+    // merchant by id or email; otherwise a merchant could name itself after a
+    // sensitive audit phrase and rewrite the platform-wide log on deletion.
+    const identifierTerms = [originalEmail, clientRecord?.whatsappNumber]
+      .filter((term): term is string => Boolean(term && term.length > 2))
+    const nameTerms = [clientRecord?.businessName, clientRecord?.firstName, clientRecord?.lastName]
+      .filter((term): term is string => Boolean(term && term.length > 2))
+    const ownRowMarkers = [clientId, originalEmail].filter((term): term is string => Boolean(term))
 
-    if (piiTerms.length > 0) {
+    if (identifierTerms.length > 0 || (nameTerms.length > 0 && ownRowMarkers.length > 0)) {
       const auditRows = await tx.auditLog.findMany({
         where: {
-          OR: piiTerms.map((term) => ({ details: { contains: term } })),
+          OR: [
+            ...identifierTerms.map((term) => ({ details: { contains: term } })),
+            ...ownRowMarkers.map((marker) => ({ details: { contains: marker } })),
+          ],
         },
       })
       for (const row of auditRows) {
+        const referencesMerchant = ownRowMarkers.some((marker) => row.details.includes(marker))
         let sanitized = row.details
-        for (const term of piiTerms) {
+        for (const term of identifierTerms) {
           sanitized = sanitized.replaceAll(term, '[deleted]')
         }
-        await tx.auditLog.update({
-          where: { id: row.id },
-          data: { details: sanitized },
-        })
+        if (referencesMerchant) {
+          for (const term of nameTerms) {
+            sanitized = sanitized.replaceAll(term, '[deleted]')
+          }
+        }
+        if (sanitized !== row.details) {
+          await tx.auditLog.update({
+            where: { id: row.id },
+            data: { details: sanitized },
+          })
+        }
       }
     }
 
@@ -561,11 +574,12 @@ export async function confirmPublicAccountDeletion(params: {
 /**
  * Cancel a pending public deletion request.
  * Called from the login flow when the merchant authenticates within the 72-hour grace window.
- * Clears deletionRequestedAt and restores isActive.
+ * Clears deletionRequestedAt and restores isActive, unless an admin suspended the
+ * account in the meantime: a grace-period login must not undo a suspension.
  */
 export async function cancelPublicDeletionRequest(clientId: string): Promise<void> {
-  await db.client.update({
-    where: { id: clientId },
+  await db.client.updateMany({
+    where: { id: clientId, suspendedAt: null },
     data: {
       deletionRequestedAt: null,
       isActive: true,
@@ -575,14 +589,17 @@ export async function cancelPublicDeletionRequest(clientId: string): Promise<voi
 
 /**
  * Checks whether an account is currently within its 72-hour deletion grace period.
+ * Suspended accounts are excluded so the grace-period login path stays closed to them.
  */
 export function isWithinDeletionGracePeriod(client: {
   isActive?: boolean
   approvalStatus?: string
   deletionRequestedAt: Date | null
   deletedAt: Date | null
+  suspendedAt?: Date | null
 }): boolean {
   if (client.deletedAt !== null) return false
+  if (client.suspendedAt) return false
   if (client.approvalStatus !== 'APPROVED') return false
   if (!client.deletionRequestedAt) return false
   return Date.now() - new Date(client.deletionRequestedAt).getTime() < PUBLIC_DELETION_GRACE_PERIOD_MS

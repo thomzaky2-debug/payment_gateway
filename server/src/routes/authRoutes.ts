@@ -22,7 +22,7 @@ import {
   verifyOtpCode,
 } from '../lib/emailDelivery.js'
 import { createRateLimiterWithKey } from '../lib/rateLimiter.js'
-import { validateMerchantSignupEmail } from '../lib/emailValidation.js'
+import { isValidEmailFormat, validateMerchantSignupEmail } from '../lib/emailValidation.js'
 import { clearMerchantSessionCookie, setMerchantSessionCookie } from '../lib/authCookies.js'
 import { decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
@@ -41,6 +41,9 @@ authRouter.use((_req, res, next) => {
 
 export const OTP_TTL_MS = 10 * 60 * 1000 // 10 minutes
 export const AUTH_PURPOSES = new Set(['MERCHANT_SIGNUP', 'MERCHANT_LOGIN', 'PASSWORD_RESET', 'ACCOUNT_DELETION', 'ACCOUNT_DELETION_PUBLIC'])
+// Deletion codes are issued by the account service after its own checks; the
+// public dispatcher must never mail them to an arbitrary address.
+export const PUBLIC_OTP_PURPOSES = new Set(['MERCHANT_SIGNUP', 'MERCHANT_LOGIN', 'PASSWORD_RESET'])
 
 export function isExplicitDevAuthEnabled(flag: 'AUTH_ALLOW_DEV_BYPASS' | 'AUTH_EXPOSE_DEV_OTP'): boolean {
   return (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') && process.env[flag] === 'true'
@@ -96,12 +99,12 @@ const credentialAttemptLimiter = createRateLimiterWithKey(
 authRouter.post('/email-otp', otpDispatchLimiter, async (req: Request, res: Response) => {
   try {
     const { email, purpose = 'MERCHANT_SIGNUP' } = req.body
-    if (!email || typeof email !== 'string') {
+    if (!email || typeof email !== 'string' || email.length > 254 || !isValidEmailFormat(email)) {
       return res.status(400).json({ ok: false, error: 'Valid email is required' })
     }
 
     const cleanEmail = normalizeEmail(email)
-    if (!AUTH_PURPOSES.has(purpose)) {
+    if (typeof purpose !== 'string' || !PUBLIC_OTP_PURPOSES.has(purpose)) {
       return res.status(400).json({ ok: false, error: 'Invalid verification purpose' })
     }
 
@@ -533,7 +536,12 @@ authRouter.post('/apk-login', credentialAttemptLimiter, async (req: Request, res
     const cleanEmail = normalizeEmail(email)
     const client = await db.client.findUnique({ where: { email: cleanEmail } })
 
-    if (!client || !verifyPassword(password, client.passwordHash)) {
+    if (!client) {
+      // Burn the same hashing cost for unknown accounts so timing does not reveal them.
+      verifyPassword(password, '')
+      return res.status(401).json({ ok: false, error: 'Invalid credentials' })
+    }
+    if (!verifyPassword(password, client.passwordHash)) {
       return res.status(401).json({ ok: false, error: 'Invalid credentials' })
     }
 

@@ -12,7 +12,7 @@ This codebase brings together the refined modular React dashboard UI with a prod
    - Replaced bloated 2,500-line single-file pages with modular, focused components (`pages/`, `components/`, and clean hooks).
 2. **Decoupled Service Layer**:
    - All critical domain logic extracted into dedicated, testable service modules:
-     - `server/src/services/matcherService.ts`: Core InstaPay notification matching algorithm with 3 fallbacks, handle normalization, grace periods, and underpayment/overpayment handling.
+     - `server/src/services/matcherService.ts`: Core InstaPay notification matching algorithm with 3 fallbacks, handle normalization, grace periods, and underpayment/overpayment handling. A fallback only auto-confirms when exactly one checkout can own the payment; anything ambiguous lands in the merchant's review queue instead of being guessed.
      - `server/src/services/webhookService.ts`: HMAC-SHA256 signature generation (`X-Instapay-Signature`, `X-Instapay-Timestamp`, `X-Instapay-Event-Id`) and payload dispatching.
      - `server/src/services/checkoutService.ts`: Hosted checkout session lifecycle and deep-link generation.
      - `server/src/services/notificationService.ts`: Real-time Socket.IO room broadcaster (`checkout:<sessionId>`).

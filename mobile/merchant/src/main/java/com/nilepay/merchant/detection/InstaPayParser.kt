@@ -14,21 +14,13 @@ data class ParsedPayment(
 object InstaPayParser {
     const val INSTAPAY_PACKAGE = "com.egyptianbanks.instapay"
 
-    val SUPPORTED_PACKAGES = setOf(
-        INSTAPAY_PACKAGE,
-        "com.google.android.apps.messaging",
-        "com.samsung.android.messaging",
-        "com.android.mms"
-    )
+    // Only the official InstaPay app is a trusted payment source. SMS and chat
+    // apps deliver attacker-writable text, which would let anyone "confirm" a
+    // checkout by messaging the merchant's phone.
+    val SUPPORTED_PACKAGES = setOf(INSTAPAY_PACKAGE)
 
     fun isSupportedPackage(packageName: String?): Boolean {
-        if (packageName.isNullOrBlank()) return false
-        val pkg = packageName.lowercase()
-        return SUPPORTED_PACKAGES.contains(packageName) ||
-            pkg.contains("instapay") ||
-            pkg.contains("messaging") ||
-            pkg.contains("mms") ||
-            pkg.contains("sms")
+        return packageName == INSTAPAY_PACKAGE
     }
 
     private val englishPattern = Pattern.compile(

@@ -79,6 +79,25 @@ export function extractAmountFromText(text: string): number | null {
 /**
  * Core Matching Algorithm for Incoming InstaPay Notifications
  */
+const IN_FLIGHT_EVENT_WINDOW_MS = 2 * 60 * 1000
+// Statuses a notification may move into UNDERPAID/OVERPAID review.
+const MISMATCH_SOURCE_STATUSES = ['PENDING', 'EXPIRED']
+
+async function recordMismatchedPayment(data: {
+  clientId: string
+  senderHandle: string
+  amountEgp: number
+  amountCents: number
+  reference: string | null
+  status: string
+}) {
+  try {
+    await db.mismatchedPayment.create({ data })
+  } catch (err) {
+    console.error('[matcher] Failed to save mismatched payment:', err)
+  }
+}
+
 export async function processInstaPayNotification(
   input: ProcessNotificationInput
 ): Promise<MatchResult> {
@@ -220,6 +239,21 @@ export async function processInstaPayNotification(
       }
     }
 
+    // A concurrent delivery of the same event is still being matched; letting it
+    // through would let one payment confirm two same-amount checkouts.
+    if (
+      existingEvent?.result === 'PROCESSING' &&
+      Date.now() - new Date(existingEvent.createdAt).getTime() < IN_FLIGHT_EVENT_WINDOW_MS
+    ) {
+      return {
+        ok: true,
+        matched: false,
+        duplicate: true,
+        reason: 'DUPLICATE_IN_FLIGHT',
+        received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+      }
+    }
+
     // If previous attempt was UNMATCHED (e.g. offline detector retry before checkout was created),
     // allow this retry to re-evaluate matching against currently pending checkouts
     incomingEventId = existingEvent?.id || ''
@@ -268,10 +302,13 @@ export async function processInstaPayNotification(
   }
 
   let isMismatchedAmount = false
+  // Set when several checkouts could plausibly own this payment. The matcher
+  // never guesses between them; the merchant resolves it from the review queue.
+  let ambiguousCandidates = false
 
   // 5. Matching Step 3: Match by senderHandle (Check for underpayment/overpayment)
   if (!match) {
-    match = await db.transaction.findFirst({
+    const senderCandidates = await db.transaction.findMany({
       where: {
         clientId: client.id,
         purpose: 'CHECKOUT',
@@ -280,14 +317,19 @@ export async function processInstaPayNotification(
         expiresAt: { gte: graceCutoff },
       },
       orderBy: { createdAt: 'asc' },
+      take: 2,
     })
-    if (match) {
+    if (senderCandidates.length === 1) {
+      match = senderCandidates[0]
       isMismatchedAmount = true
+    } else if (senderCandidates.length > 1) {
+      ambiguousCandidates = true
+      console.warn(`[matcher] Tier 3 ambiguous: ${senderHandle} has several open checkouts with other amounts; routing to review`)
     }
   }
 
   // 6. Matching Step 4: Checkout amount fallback (handles open checkouts and active sessions)
-  if (!match) {
+  if (!match && !ambiguousCandidates) {
     const potentialMatches = await db.transaction.findMany({
       where: {
         clientId: client.id,
@@ -297,7 +339,7 @@ export async function processInstaPayNotification(
         status: { in: ['PENDING', 'EXPIRED'] },
         expiresAt: { gte: graceCutoff },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
     })
 
     // Priority A: Single active PENDING checkout
@@ -312,16 +354,25 @@ export async function processInstaPayNotification(
         console.log(`[matcher] Fallback matched single active pending checkout: ${match.sessionId}`)
       }
     } else if (activePendingMatches.length > 1) {
-      // If multiple active pending checkouts exist for the same amount, check if one matches the sender
+      // Several active checkouts share this amount. Only an unambiguous owner may be
+      // confirmed: the one whose declared payer matches, or the only open (no payer)
+      // checkout. Anything else would hand one customer's payment to another.
       const matchedSender = activePendingMatches.find(
         (m) => normalizeHandle(m.senderHandle) === senderHandle
       )
       const openCandidates = activePendingMatches.filter(
         (m) => m.senderHandle === 'pending@instapay'
       )
-      // Pick matched sender first, then newest open pending checkout
-      match = matchedSender || (openCandidates.length > 0 ? openCandidates[0] : activePendingMatches[0])
-      console.log(`[matcher] Fallback matched candidate among active pending checkouts: ${match.sessionId}`)
+      if (matchedSender) {
+        match = matchedSender
+        console.log(`[matcher] Fallback matched declared payer among active pending checkouts: ${match.sessionId}`)
+      } else if (openCandidates.length === 1) {
+        match = openCandidates[0]
+        console.log(`[matcher] Fallback matched the only open pending checkout: ${match.sessionId}`)
+      } else {
+        ambiguousCandidates = true
+        console.warn(`[matcher] Tier 4 ambiguous: ${activePendingMatches.length} active checkouts for ${receivedAmountRounded} EGP and no unique owner; routing to review`)
+      }
     } else if (potentialMatches.length === 1) {
       const candidate = potentialMatches[0]
       if (candidate.senderHandle === 'pending@instapay' || normalizeHandle(candidate.senderHandle) === senderHandle) {
@@ -330,45 +381,35 @@ export async function processInstaPayNotification(
       } else {
         // Cross-payer protection: Expected a specific sender but received from someone else
         console.warn(`[matcher] Tier 4 mismatch: ${candidate.sessionId} expected ${candidate.senderHandle} but payment received from ${senderHandle}`)
-        try {
-          await db.mismatchedPayment.create({
-            data: {
-              clientId: client.id,
-              senderHandle,
-              amountEgp: receivedAmountRounded,
-              amountCents: receivedAmountCents,
-              reference,
-              status: 'SENDER_MISMATCH',
-            },
-          })
-        } catch {}
-      }
-    }
-  }
-
-  // 7. Unmatched / Orphaned Payment
-  if (!match) {
-    try {
-      await db.mismatchedPayment.create({
-        data: {
+        await recordMismatchedPayment({
           clientId: client.id,
           senderHandle,
           amountEgp: receivedAmountRounded,
           amountCents: receivedAmountCents,
           reference,
-          status: 'UNMATCHED',
-        },
-      })
-    } catch (err) {
-      console.error('[matcher] Failed to save mismatched payment:', err)
+          status: 'SENDER_MISMATCH',
+        })
+      }
     }
+  }
 
-    await finalizeIncomingEvent('UNMATCHED')
+  // 7. Unmatched / Orphaned / Ambiguous Payment
+  if (!match) {
+    await recordMismatchedPayment({
+      clientId: client.id,
+      senderHandle,
+      amountEgp: receivedAmountRounded,
+      amountCents: receivedAmountCents,
+      reference,
+      status: 'UNMATCHED',
+    })
+
+    await finalizeIncomingEvent(ambiguousCandidates ? 'AMBIGUOUS' : 'UNMATCHED')
 
     return {
       ok: true,
       matched: false,
-      reason: 'NO_PENDING_CHECKOUT',
+      reason: ambiguousCandidates ? 'AMBIGUOUS_CANDIDATES' : 'NO_PENDING_CHECKOUT',
       received: { senderHandle, amountEgp: receivedAmountRounded, reference },
     }
   }
@@ -376,6 +417,67 @@ export async function processInstaPayNotification(
   // 8. Handle Amount Discrepancies (Underpayment vs Overpayment with Merchant Tolerance Policy)
   if (isMismatchedAmount) {
     const requestedAmountCents = match.amountCents ?? toEgpCents(match.amountEgp)
+
+    // Moves the checkout into a review status only while it is still open, so a
+    // concurrent confirmation is never overwritten. A lost race keeps this
+    // payment visible in the review queue instead of silently dropping it.
+    const flagForReview = async (reviewStatus: 'UNDERPAID' | 'OVERPAID', webhookEvent: string): Promise<MatchResult> => {
+      const updated = await db.$transaction(async (txDb) => {
+        const changed = await txDb.transaction.updateMany({
+          where: { id: match.id, clientId: client.id, status: { in: MISMATCH_SOURCE_STATUSES } },
+          data: {
+            status: reviewStatus, detectedRef: reference, detectedAt: now,
+            detectedAmountEgp: receivedAmountRounded, detectedAmountCents: receivedAmountCents,
+          },
+        })
+        if (changed.count !== 1) return null
+        const row = await txDb.transaction.findUniqueOrThrow({ where: { id: match.id } })
+        await enqueueWebhookOutbox(txDb, row, client, webhookEvent)
+        return row
+      })
+
+      if (!updated) {
+        await recordMismatchedPayment({
+          clientId: client.id,
+          senderHandle,
+          amountEgp: receivedAmountRounded,
+          amountCents: receivedAmountCents,
+          reference,
+          status: 'UNMATCHED',
+        })
+        await finalizeIncomingEvent('UNMATCHED')
+        return {
+          ok: true,
+          matched: false,
+          reason: 'CHECKOUT_ALREADY_SETTLED',
+          sessionId: match.sessionId,
+          received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+        }
+      }
+
+      emitCheckoutUpdate({
+        sessionId: updated.sessionId,
+        status: reviewStatus,
+        amountEgp: updated.amountEgp,
+        detectedAmountEgp: updated.detectedAmountEgp,
+        senderHandle: updated.senderHandle,
+        detectedRef: updated.detectedRef,
+        detectedAt: updated.detectedAt?.toISOString(),
+      })
+
+      void kickWebhookWorker()
+
+      await finalizeIncomingEvent(reviewStatus, updated.sessionId)
+
+      return {
+        ok: true,
+        matched: false,
+        reason: reviewStatus,
+        sessionId: updated.sessionId,
+        status: updated.status,
+        received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+      }
+    }
 
     // CASE A: Underpayment
     if (receivedAmountCents < requestedAmountCents) {
@@ -392,40 +494,7 @@ export async function processInstaPayNotification(
         // Proceed to Step 9 (auto-confirm transaction with detectedAmountEgp recorded)
       } else {
         // Exceeds tolerance or tolerance disabled -> mark UNDERPAID and route to Manual Review Queue
-        const updated = await db.$transaction(async (txDb) => {
-          const changed = await txDb.transaction.update({
-            where: { id: match.id },
-            data: {
-              status: 'UNDERPAID', detectedRef: reference, detectedAt: now,
-              detectedAmountEgp: receivedAmountRounded, detectedAmountCents: receivedAmountCents,
-            },
-          })
-          await enqueueWebhookOutbox(txDb, changed, client, 'payment.underpaid')
-          return changed
-        })
-
-        emitCheckoutUpdate({
-          sessionId: updated.sessionId,
-          status: 'UNDERPAID',
-          amountEgp: updated.amountEgp,
-          detectedAmountEgp: updated.detectedAmountEgp,
-          senderHandle: updated.senderHandle,
-          detectedRef: updated.detectedRef,
-          detectedAt: updated.detectedAt?.toISOString(),
-        })
-
-        void kickWebhookWorker()
-
-        await finalizeIncomingEvent('UNDERPAID', updated.sessionId)
-
-        return {
-          ok: true,
-          matched: false,
-          reason: 'UNDERPAID',
-          sessionId: updated.sessionId,
-          status: updated.status,
-          received: { senderHandle, amountEgp: receivedAmountRounded, reference },
-        }
+        return flagForReview('UNDERPAID', 'payment.underpaid')
       }
     }
 
@@ -445,40 +514,7 @@ export async function processInstaPayNotification(
         // Proceed to Step 9 (auto-confirm transaction with detectedAmountEgp recorded)
       } else {
         // Flag for manual review as OVERPAID
-        const updated = await db.$transaction(async (txDb) => {
-          const changed = await txDb.transaction.update({
-            where: { id: match.id },
-            data: {
-              status: 'OVERPAID', detectedRef: reference, detectedAt: now,
-              detectedAmountEgp: receivedAmountRounded, detectedAmountCents: receivedAmountCents,
-            },
-          })
-          await enqueueWebhookOutbox(txDb, changed, client, 'payment.overpaid')
-          return changed
-        })
-
-        emitCheckoutUpdate({
-          sessionId: updated.sessionId,
-          status: 'OVERPAID',
-          amountEgp: updated.amountEgp,
-          detectedAmountEgp: updated.detectedAmountEgp,
-          senderHandle: updated.senderHandle,
-          detectedRef: updated.detectedRef,
-          detectedAt: updated.detectedAt?.toISOString(),
-        })
-
-        void kickWebhookWorker()
-
-        await finalizeIncomingEvent('OVERPAID', updated.sessionId)
-
-        return {
-          ok: true,
-          matched: false,
-          reason: 'OVERPAID',
-          sessionId: updated.sessionId,
-          status: updated.status,
-          received: { senderHandle, amountEgp: receivedAmountRounded, reference },
-        }
+        return flagForReview('OVERPAID', 'payment.overpaid')
       }
     }
   }
@@ -497,6 +533,36 @@ export async function processInstaPayNotification(
   })
 
   if (!settlement || !settlement.newlyConfirmed) {
+    const settled = settlement?.transaction
+    // A lost race against the same payment (same bank reference, or same payer and
+    // amount when references are absent) is a duplicate. Anything else is a real
+    // second payment that must stay visible in the review queue.
+    const samePayment =
+      !!settled &&
+      (reference && settled.detectedRef
+        ? settled.detectedRef === reference
+        : normalizeHandle(settled.senderHandle) === senderHandle &&
+          (settled.detectedAmountCents ?? settled.amountCents) === receivedAmountCents)
+    if (!samePayment) {
+      await recordMismatchedPayment({
+        clientId: client.id,
+        senderHandle,
+        amountEgp: receivedAmountRounded,
+        amountCents: receivedAmountCents,
+        reference,
+        status: 'UNMATCHED',
+      })
+      await finalizeIncomingEvent('UNMATCHED')
+      return {
+        ok: true,
+        matched: false,
+        reason: 'CHECKOUT_ALREADY_SETTLED',
+        sessionId: match.sessionId,
+        status: settled?.status ?? match.status,
+        received: { senderHandle, amountEgp: receivedAmountRounded, reference },
+      }
+    }
+
     await finalizeIncomingEvent('DUPLICATE_TRANSACTION', match.sessionId)
     // Already confirmed previously
     return {
@@ -504,7 +570,7 @@ export async function processInstaPayNotification(
       matched: true,
       duplicate: true,
       sessionId: match.sessionId,
-      status: settlement?.transaction.status ?? match.status,
+      status: settled?.status ?? match.status,
       received: { senderHandle, amountEgp: receivedAmountRounded, reference },
     }
   }

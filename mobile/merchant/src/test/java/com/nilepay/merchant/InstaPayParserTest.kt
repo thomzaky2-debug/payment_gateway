@@ -64,11 +64,15 @@ class InstaPayParserTest {
 
     @Test fun identifiesSupportedPackages() {
         assertEquals(true, InstaPayParser.isSupportedPackage("com.egyptianbanks.instapay"))
-        assertEquals(true, InstaPayParser.isSupportedPackage("com.google.android.apps.messaging"))
-        assertEquals(true, InstaPayParser.isSupportedPackage("com.samsung.android.messaging"))
-        assertEquals(true, InstaPayParser.isSupportedPackage("com.android.mms"))
-        assertEquals(true, InstaPayParser.isSupportedPackage("com.xiaomi.mms"))
+        // Messaging apps carry attacker-writable text and must never count as a payment source.
+        assertEquals(false, InstaPayParser.isSupportedPackage("com.google.android.apps.messaging"))
+        assertEquals(false, InstaPayParser.isSupportedPackage("com.samsung.android.messaging"))
+        assertEquals(false, InstaPayParser.isSupportedPackage("com.android.mms"))
+        assertEquals(false, InstaPayParser.isSupportedPackage("com.xiaomi.mms"))
         assertEquals(false, InstaPayParser.isSupportedPackage("com.whatsapp"))
+        assertEquals(false, InstaPayParser.isSupportedPackage("com.evil.instapay"))
+        assertEquals(false, InstaPayParser.isSupportedPackage("COM.EGYPTIANBANKS.INSTAPAY"))
+        assertEquals(false, InstaPayParser.isSupportedPackage(null))
     }
 
     @Test fun ignoresUnrelatedText() {

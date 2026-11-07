@@ -110,7 +110,9 @@ app.use(
       if (isLocalRuntime || allowedOriginSet.has(origin)) {
         return callback(null, true)
       }
-      callback(new Error('Blocked by CORS policy'))
+      const blocked: Error & { status?: number } = new Error('Blocked by CORS policy')
+      blocked.status = 403
+      callback(blocked)
     },
     credentials: true,
   })
@@ -238,8 +240,16 @@ app.use('/api/notifications', generalApiLimiter, notificationRouter)
 // ─── Global Error Handler ──────────────────────────────────────────
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('[Global Error Handler]', err)
-  res.status(err.status || 500).json({
+  const status = Number(err?.status) || 500
+  if (status >= 500) {
+    // body-parser attaches the raw request body to its errors; it can contain
+    // credentials and must never reach the logs.
+    const { body: _body, ...safeErr } = err ?? {}
+    console.error('[Global Error Handler]', err instanceof Error ? err.stack || err.message : safeErr)
+  } else {
+    console.warn('[Global Error Handler]', status, err?.type || err?.message || 'request rejected')
+  }
+  res.status(status).json({
     ok: false,
     error: safeErrorMessage(err, 'Internal server error'),
   })

@@ -62,6 +62,15 @@ const adminAccountLimiter = createRateLimiterWithKey(
   'Too many admin login attempts.',
   (req) => `${getRequestIp(req) || 'unknown'}:platform-owner`
 )
+// Platform-wide cap shared with the mobile admin login (same scope), so a
+// distributed password/TOTP search cannot sidestep the per-IP limits.
+const adminLoginGlobalLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  100,
+  'Too many admin login attempts. Please wait before trying again.',
+  () => 'global',
+  'platform-owner-login'
+)
 const adminSensitiveActionLimiter = createRateLimiterWithKey(
   15 * 60 * 1000,
   5,
@@ -119,7 +128,7 @@ function safeAdminClient(client: any) {
 
 // ─── Admin Login ────────────────────────────────────────────────────
 
-adminRouter.post('/auth', adminAuthLimiter, adminAccountLimiter, async (req: Request, res: Response) => {
+adminRouter.post('/auth', adminAuthLimiter, adminAccountLimiter, adminLoginGlobalLimiter, async (req: Request, res: Response) => {
   const { password, email, totp, tokenTransport } = req.body
   const expectedPassword = process.env.ADMIN_PASSWORD
   if (!expectedPassword || expectedPassword.length < 12) {
@@ -391,7 +400,10 @@ adminRouter.patch('/clients/:id/access', requireAdmin, async (req: Request, res:
       return res.status(409).json({ ok: false, error: 'Only approved merchants can be activated.' })
     }
 
-    const client = await db.client.update({ where: { id }, data: { isActive: req.body.isActive } })
+    const client = await db.client.update({
+      where: { id },
+      data: { isActive: req.body.isActive, suspendedAt: req.body.isActive ? null : new Date() },
+    })
     const revokedSessions = req.body.isActive ? 0 : await revokeAllMerchantSessions(id)
     await db.auditLog.create({
       data: {
@@ -506,6 +518,7 @@ adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res:
       data: {
         approvalStatus: 'APPROVED',
         isActive: true,
+        suspendedAt: null,
         apiKey: encryptCredential(rawApiKey),
         detectToken: encryptCredential(rawDetectToken),
         webhookSecret: encryptCredential(rawWebhookSecret),

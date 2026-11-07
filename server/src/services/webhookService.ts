@@ -88,6 +88,11 @@ export function generateWebhookSignature(
  * Dispatches an event to the merchant's configured webhook URL,
  * creates an audit record in WebhookLog, and schedules retry if failed.
  */
+// One merchant endpoint must not be able to stall the shared delivery worker
+// with a trickled or oversized response.
+export const WEBHOOK_TOTAL_DEADLINE_MS = 15_000
+export const WEBHOOK_MAX_RESPONSE_BYTES = 64 * 1024
+
 export const STANDARD_BACKOFF_DELAYS_MS = [
   60 * 1000,        // 1 min
   5 * 60 * 1000,    // 5 min
@@ -323,7 +328,10 @@ export async function forwardToClientWebhook(
 
     const res = await axios.post(webhookUrl, bodyStr, {
       headers,
-      timeout: 10000, // 10 second timeout
+      timeout: 10000, // idle-socket timeout
+      signal: AbortSignal.timeout(WEBHOOK_TOTAL_DEADLINE_MS), // hard deadline for slow-trickle responses
+      maxContentLength: WEBHOOK_MAX_RESPONSE_BYTES, // only 2 KB of the reply is ever kept
+      decompress: false, // never inflate a merchant-controlled body
       maxRedirects: 0, // Strict SSRF defense: never follow redirects
       validateStatus: () => true, // capture all status codes
       httpAgent,

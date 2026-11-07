@@ -31,9 +31,10 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
 
     if (secondsRemaining === 0 && currentStatus === 'PENDING') {
       currentStatus = 'EXPIRED'
+      // Status-conditional so a confirmation landing in the same second is never overwritten.
       void db.transaction
-        .update({
-          where: { id: tx.id },
+        .updateMany({
+          where: { id: tx.id, status: 'PENDING' },
           data: { status: 'EXPIRED' },
         })
         .catch(() => {})
@@ -101,6 +102,7 @@ checkoutRouter.get('/:sessionId', async (req: Request, res: Response) => {
         businessName: tx.client.businessName,
         profileImageData: (tx.client as any)?.profileImageData ?? null,
         merchantWebsiteUrl,
+        returnUrl: tx.returnUrl ?? null,
         recipientHandle: tx.recipientHandle,
         senderHandle: tx.senderHandle,
         amountEgp: tx.amountEgp,

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { db } from '../db.js'
 import { generateMerchantKeys, hashToken, MERCHANT_SESSION_COOKIE_NAME } from '../services/authService.js'
 import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.js'
+import { parseInstaPayPaymentLink } from '../lib/instapayPaymentLink.js'
 import { requireMerchant } from '../middleware/requireMerchant.js'
 import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
@@ -277,16 +278,20 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
       }
     }
 
-    const cleanPaymentUrl = instapayPaymentUrl !== undefined ? instapayPaymentUrl?.trim() || null : undefined
+    // Same strict rule as registration: only a genuine InstaPay share link may become
+    // the destination of every customer's "Open InstaPay" button.
+    let cleanPaymentUrl: string | null | undefined = instapayPaymentUrl !== undefined ? instapayPaymentUrl?.trim() || null : undefined
     let derivedHandle: string | undefined = undefined
     if (cleanPaymentUrl) {
-      if (!cleanPaymentUrl.startsWith('https://') && !cleanPaymentUrl.startsWith('http://')) {
-        return res.status(400).json({ ok: false, error: 'InstaPay payment URL must start with https://' })
+      const paymentLink = parseInstaPayPaymentLink(cleanPaymentUrl)
+      if (!paymentLink) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Enter a valid payment link in the format https://ipn.eg/S/platform/instapay/TOKEN',
+        })
       }
-      const match = cleanPaymentUrl.match(/ipn\.eg\/S\/([^\/\s?#]+)/i) || cleanPaymentUrl.match(/\/S\/([^\/\?#]+)/i)
-      if (match && match[1]) {
-        derivedHandle = `${match[1].toLowerCase()}@instapay`
-      }
+      cleanPaymentUrl = paymentLink.paymentUrl
+      derivedHandle = paymentLink.handle
     }
 
     let cleanHandle: string | undefined = undefined

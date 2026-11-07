@@ -96,6 +96,9 @@ model Client {
   deletionRequestedAt DateTime?
   deletedAt           DateTime?
 
+  // Set by admin suspension; a deletion-grace login must not clear it.
+  suspendedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -261,6 +264,8 @@ model Transaction {
 
   deepLinkUrl   String
   deepLinkToken String
+  // Validated at creation; the hosted checkout only navigates to this value.
+  returnUrl     String?
 
   detectedRef         String?
   detectedAt          DateTime?

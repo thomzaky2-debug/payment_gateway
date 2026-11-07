@@ -76,12 +76,15 @@ export function createRateLimiterWithKey(
   windowMs: number,
   max: number,
   message = 'Too many requests, please try again later.',
-  keyGenerator: RateLimitKeyGenerator = (req) => getRequestIp(req) || 'unknown'
+  keyGenerator: RateLimitKeyGenerator = (req) => getRequestIp(req) || 'unknown',
+  // Namespaces the counters so limiters guarding different routes never share a
+  // bucket for the same IP or email. Explicit scopes let two call sites share one.
+  scope = `${windowMs}:${max}:${message}`
 ) {
   return (req: Request, res: Response, next: NextFunction) => {
     void (async () => {
       const ip = getRequestIp(req) || 'unknown'
-      const key = keyGenerator(req).slice(0, 512)
+      const key = `${scope}|${keyGenerator(req).slice(0, 512)}`
       const now = Date.now()
       const localBypass = isLocalRuntime() && isLocalhost(ip)
       const effectiveMax = process.env.NODE_ENV === 'development' && localBypass ? Math.max(max * 20, 500) : max
@@ -96,6 +99,11 @@ export function createRateLimiterWithKey(
 
       const result = await getHostedLimiter(windowMs, max).limit(hashIdentifier(key))
       void result.pending.catch((err) => console.warn('[rate-limit] Upstash background task failed:', err))
+      if (result.reason === 'timeout') {
+        // The library allows the request when Redis does not answer in time;
+        // production must fail closed instead.
+        throw new Error('Upstash rate-limit lookup timed out')
+      }
       if (result.success) return next()
 
       const retryAfter = Math.max(1, Math.ceil((result.reset - now) / 1000))

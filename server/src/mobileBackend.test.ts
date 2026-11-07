@@ -1404,6 +1404,15 @@ test('public account deletion: stores single-use ACCOUNT_DELETION_PUBLIC code wi
       }
       return null
     },
+    // Grace-period cancellation is conditional on the account not being suspended.
+    updateMany: async ({ where, data }: any) => {
+      const suspendedMatches = !('suspendedAt' in where) || (clientRecord.suspendedAt ?? null) === where.suspendedAt
+      if (where.id === clientRecord.id && suspendedMatches) {
+        clientRecord = { ...clientRecord, ...data }
+        return { count: 1 }
+      }
+      return { count: 0 }
+    },
   }
 
   ;(db as any).emailVerification = {

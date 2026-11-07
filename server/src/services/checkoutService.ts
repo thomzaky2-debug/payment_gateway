@@ -217,6 +217,7 @@ export async function createCheckoutSession(
         note,
         deepLinkUrl,
         deepLinkToken,
+        returnUrl: validReturnUrl,
         expiresAt,
       },
     })
@@ -269,9 +270,9 @@ export async function createCheckoutSession(
     : await createTransaction(db, client, new Date())
 
   const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173'
-  const checkoutUrl = validReturnUrl
-    ? `${clientUrl}/pay/${transaction.sessionId}?returnUrl=${encodeURIComponent(validReturnUrl)}`
-    : `${clientUrl}/pay/${transaction.sessionId}`
+  // The return URL is stored on the session and served by the public checkout
+  // endpoint; carrying it in the query string let anyone rewrite it.
+  const checkoutUrl = `${clientUrl}/pay/${transaction.sessionId}`
 
   return {
     sessionId: transaction.sessionId,

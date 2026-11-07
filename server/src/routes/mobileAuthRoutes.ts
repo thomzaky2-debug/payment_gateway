@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import { db } from '../db.js'
 import {
   verifyPassword,
@@ -29,16 +29,39 @@ mobileAuthRouter.use((_req, res, next) => {
   next()
 })
 
-// Rate limiter for mobile login attempts: 10 attempts per 15 min per IP/email
+// Owner attempts: explicit appType, or the legacy fallback of the configured owner email.
+function isAdminLoginAttempt(req: Request): boolean {
+  if (req.body?.appType === 'admin') return true
+  if (req.body?.appType === 'merchant') return false
+  const expected = process.env.ADMIN_EMAIL ? normalizeEmail(process.env.ADMIN_EMAIL) : null
+  return Boolean(expected) && typeof req.body?.email === 'string' && normalizeEmail(req.body.email) === expected
+}
+
+// Rate limiter for mobile login attempts: 10 attempts per 15 min per IP/email.
+// Admin attempts are keyed by IP only; the email is attacker-chosen there and
+// would otherwise give unlimited password/TOTP guesses from one address.
 const mobileLoginLimiter = createRateLimiterWithKey(
   15 * 60 * 1000,
   10,
   'Too many login attempts. Please wait before trying again.',
   (req) => {
+    if (isAdminLoginAttempt(req)) return `mobile-login:${getRequestIp(req)}:platform-owner`
     const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email).slice(0, 320) : 'missing'
     return `mobile-login:${getRequestIp(req)}:${email}`
   }
 )
+
+// Shared with the web admin login: caps owner login attempts platform-wide so a
+// distributed TOTP search cannot sidestep the per-IP limit.
+const adminLoginGlobalLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  100,
+  'Too many admin login attempts. Please wait before trying again.',
+  () => 'global',
+  'platform-owner-login'
+)
+const adminLoginOnly = (req: Request, res: Response, next: NextFunction) =>
+  isAdminLoginAttempt(req) ? adminLoginGlobalLimiter(req, res, next) : next()
 
 // Rate limiter for token refresh: 60 per 15 min per device & IP
 const mobileRefreshLimiter = createRateLimiterWithKey(
@@ -56,7 +79,7 @@ const mobileRefreshLimiter = createRateLimiterWithKey(
  * High-security bearer login for Merchant/Detector and Admin mobile apps.
  * Returns accessToken (short-lived) + refreshToken (rotating). Does NOT return detectToken.
  */
-mobileAuthRouter.post('/login', mobileLoginLimiter, async (req: Request, res: Response) => {
+mobileAuthRouter.post('/login', mobileLoginLimiter, adminLoginOnly, async (req: Request, res: Response) => {
   try {
     const { email, password, verificationId, otp, totp, skipOtp, deviceId, appType } = req.body
 
@@ -85,6 +108,9 @@ mobileAuthRouter.post('/login', mobileLoginLimiter, async (req: Request, res: Re
       const isLocalTest = process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development'
       const isDevBypass = isExplicitDevAuthEnabled('AUTH_ALLOW_DEV_BYPASS') && skipOtp === true
 
+      // Same rule as the web admin login: outside local runtimes the configured
+      // owner email is part of the credential.
+      const emailMatches = isLocalTest && !expectedAdminEmail ? true : Boolean(expectedAdminEmail) && cleanEmail === expectedAdminEmail
       const passwordMatches = timingSafeCompare(password, adminPassword)
       const totpCandidate = totp || otp
       const totpMatches =
@@ -92,7 +118,7 @@ mobileAuthRouter.post('/login', mobileLoginLimiter, async (req: Request, res: Re
         (isLocalTest && !totpSecret) ||
         (Boolean(totpSecret) && typeof totpCandidate === 'string' && verifyTotp(totpCandidate, totpSecret!))
 
-      if (!passwordMatches || !totpMatches) {
+      if (!passwordMatches || !totpMatches || !emailMatches) {
         return res.status(401).json({ ok: false, error: 'Invalid admin credentials or TOTP code' })
       }
 
@@ -120,7 +146,12 @@ mobileAuthRouter.post('/login', mobileLoginLimiter, async (req: Request, res: Re
     }
 
     const client = await db.client.findUnique({ where: { email: cleanEmail } })
-    if (!client || !verifyPassword(password, client.passwordHash)) {
+    if (!client) {
+      // Burn the same hashing cost for unknown accounts so timing does not reveal them.
+      verifyPassword(password, '')
+      return res.status(401).json({ ok: false, error: 'Invalid credentials' })
+    }
+    if (!verifyPassword(password, client.passwordHash)) {
       return res.status(401).json({ ok: false, error: 'Invalid credentials' })
     }
 

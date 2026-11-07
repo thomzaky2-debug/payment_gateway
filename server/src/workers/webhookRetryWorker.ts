@@ -7,6 +7,8 @@ import {
   resolveWebhookSigningSecret,
   STANDARD_BACKOFF_DELAYS_MS,
   DECRYPT_FAILURE_BACKOFF_DELAYS_MS,
+  WEBHOOK_TOTAL_DEADLINE_MS,
+  WEBHOOK_MAX_RESPONSE_BYTES,
 } from '../services/webhookService.js'
 import { validateWebhookUrlDns, createPinnedDnsLookup } from '../lib/urlValidator.js'
 
@@ -96,7 +98,10 @@ async function retrySingleWebhook(log: {
 
       const res = await axios.post(log.url, log.payload, {
         headers,
-        timeout: 10000,
+        timeout: 10000, // idle-socket timeout
+        signal: AbortSignal.timeout(WEBHOOK_TOTAL_DEADLINE_MS), // hard deadline for slow-trickle responses
+        maxContentLength: WEBHOOK_MAX_RESPONSE_BYTES, // only 2 KB of the reply is ever kept
+        decompress: false, // never inflate a merchant-controlled body
         maxRedirects: 0,
         validateStatus: () => true,
         httpAgent,

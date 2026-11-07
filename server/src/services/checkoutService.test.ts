@@ -89,6 +89,7 @@ function merchant(overrides: Partial<Client> = {}): Client {
     createdAt: new Date(),
     updatedAt: new Date(),
     deletionRequestedAt: null,
+    suspendedAt: null,
     deletedAt: null,
     ...overrides,
   }
@@ -202,8 +203,9 @@ test('subscription checkout creation remains outside ordinary checkout quota res
   assert.equal(checkout.recipientHandle, client.instapayHandle)
 })
 
-test('createCheckoutSession appends valid returnUrl to checkoutUrl and returns it in checkout object', async (t) => {
+test('createCheckoutSession persists a valid returnUrl on the session instead of the checkout URL', async (t) => {
   const freshClient = merchant()
+  let createdData: any = null
   const transactionDb = {
     client: {
       findUnique: async () => freshClient,
@@ -211,15 +213,18 @@ test('createCheckoutSession appends valid returnUrl to checkoutUrl and returns i
     },
     transaction: {
       count: async () => 0,
-      create: async ({ data }: any) => ({
-        ...data,
-        id: 'tx_return_url_test',
-        createdAt: new Date(),
-        detectedRef: null,
-        detectedAt: null,
-        detectedAmountEgp: null,
-        detectedAmountCents: null,
-      }),
+      create: async ({ data }: any) => {
+        createdData = data
+        return {
+          ...data,
+          id: 'tx_return_url_test',
+          createdAt: new Date(),
+          detectedRef: null,
+          detectedAt: null,
+          detectedAmountEgp: null,
+          detectedAmountCents: null,
+        }
+      },
     },
   }
 
@@ -234,7 +239,10 @@ test('createCheckoutSession appends valid returnUrl to checkoutUrl and returns i
   })
 
   assert.equal(checkout.returnUrl, 'https://store.example.com/checkout/complete')
-  assert.match(checkout.checkoutUrl, /returnUrl=https%3A%2F%2Fstore\.example\.com%2Fcheckout%2Fcomplete/)
+  assert.equal(createdData.returnUrl, 'https://store.example.com/checkout/complete')
+  // A query-string return URL could be rewritten by anyone holding the link.
+  assert.doesNotMatch(checkout.checkoutUrl, /returnUrl=/)
+  assert.match(checkout.checkoutUrl, /\/pay\/cmt_[a-f0-9]{24}$/)
 })
 
 test('checkout idempotency replays an existing session before reserving more quota', async t => {

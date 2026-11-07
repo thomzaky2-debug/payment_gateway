@@ -163,26 +163,11 @@ export function CheckoutPayPage() {
   const [senderSaveError, setSenderSaveError] = useState<string | null>(null);
   const [returnedNotice, setReturnedNotice] = useState<boolean>(false);
 
-  // Capture return URL and store referrer for returning back after confirmation
+  // Store the external referrer for returning back after confirmation. The
+  // return URL itself comes only from the server-validated checkout session,
+  // never from the query string, which anyone holding the link could rewrite.
   useEffect(() => {
     if (!effectiveSessionId) return;
-
-    // Check query params: returnUrl, redirectUrl, storeUrl, callbackUrl, backUrl
-    const searchParams = new URLSearchParams(window.location.search);
-    const qReturn =
-      searchParams.get('returnUrl') ||
-      searchParams.get('redirectUrl') ||
-      searchParams.get('storeUrl') ||
-      searchParams.get('callbackUrl') ||
-      searchParams.get('backUrl') ||
-      searchParams.get('return_url') ||
-      searchParams.get('redirect_url');
-
-    if (qReturn) {
-      try {
-        sessionStorage.setItem(`np_return_${effectiveSessionId}`, qReturn);
-      } catch {}
-    }
 
     // Capture referrer if external
     if (document.referrer) {
@@ -195,6 +180,19 @@ export function CheckoutPayPage() {
     }
   }, [effectiveSessionId]);
 
+  // Only http(s) URLs or same-origin absolute paths; blocks javascript:, data:,
+  // protocol-relative (//host) and backslash tricks.
+  const isSafeReturnTarget = (url: string): boolean => {
+    if (/[\\\u0000-\u001f\u007f]/.test(url)) return false;
+    if (url.startsWith('/')) return !url.startsWith('//');
+    try {
+      const parsed = new URL(url);
+      return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && !parsed.username && !parsed.password;
+    } catch {
+      return false;
+    }
+  };
+
   const handleCloseAndReturn = () => {
     // 1. Subscription return to platform billing dashboard
     if (checkout?.purpose === 'SUBSCRIPTION') {
@@ -206,34 +204,12 @@ export function CheckoutPayPage() {
     // 2. Resolve destination URL to return back to merchant's website or store
     let targetUrl: string | null = null;
 
-    // A. Query parameter returnUrl / redirectUrl
-    const searchParams = new URLSearchParams(window.location.search);
-    const qReturn =
-      searchParams.get('returnUrl') ||
-      searchParams.get('redirectUrl') ||
-      searchParams.get('storeUrl') ||
-      searchParams.get('callbackUrl') ||
-      searchParams.get('backUrl') ||
-      searchParams.get('return_url') ||
-      searchParams.get('redirect_url');
-
-    if (qReturn) {
-      targetUrl = qReturn;
-    }
-
-    // B. Cached returnUrl in sessionStorage
-    if (!targetUrl && effectiveSessionId) {
-      try {
-        targetUrl = sessionStorage.getItem(`np_return_${effectiveSessionId}`);
-      } catch {}
-    }
-
-    // C. Checkout session object returnUrl or storeUrl
-    if (!targetUrl && checkout?.returnUrl) {
+    // A. Checkout session returnUrl (validated and stored by the API at creation)
+    if (checkout?.returnUrl) {
       targetUrl = checkout.returnUrl;
     }
 
-    // D. Cached external document.referrer in sessionStorage or current document.referrer
+    // B. Cached external document.referrer in sessionStorage or current document.referrer
     if (!targetUrl && effectiveSessionId) {
       try {
         const cachedRef = sessionStorage.getItem(`np_referrer_${effectiveSessionId}`);
@@ -249,9 +225,13 @@ export function CheckoutPayPage() {
       } catch {}
     }
 
-    // E. Merchant store website derived from webhookUrl
+    // C. Merchant store website derived from webhookUrl
     if (!targetUrl && checkout?.merchantWebsiteUrl) {
       targetUrl = checkout.merchantWebsiteUrl;
+    }
+
+    if (targetUrl && !isSafeReturnTarget(targetUrl)) {
+      targetUrl = null;
     }
 
     // Execution:
@@ -270,10 +250,8 @@ export function CheckoutPayPage() {
 
     // If targetUrl is found, navigate back to merchant's store/website
     if (targetUrl) {
-      if (/^https?:\/\//i.test(targetUrl) || targetUrl.startsWith('/')) {
-        window.location.href = targetUrl;
-        return;
-      }
+      window.location.href = targetUrl;
+      return;
     }
 
     // If history length > 1 (customer came from store in the same tab)
