@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer'
 import crypto from 'crypto'
 import { getOwnerSecret } from '../services/authService.js'
 import { otpEmailSubject, renderOtpHtml, renderOtpText } from '../views/otpEmail.js'
+import { escapeHtml } from '../services/publicSiteSettings.js'
 
 export interface SendOtpEmailInput {
   to: string
@@ -290,14 +291,14 @@ export async function sendMerchantApprovalEmail(input: SendApprovalEmailInput): 
         <h1 style="margin:0 0 12px;font-size:20px;line-height:28px;font-weight:700;color:#0f172a;">Your merchant account is ready</h1>
         <p style="margin:0 0 12px;font-size:16px;line-height:26px;color:#334155;">Hello,</p>
         <p style="margin:0 0 16px;font-size:16px;line-height:26px;color:#334155;">
-          Your merchant gateway account for <strong>${input.businessName}</strong> has been reviewed and approved. Your integration credentials have been generated:
+          Your merchant gateway account for <strong>${escapeHtml(input.businessName)}</strong> has been reviewed and approved. Your integration credentials have been generated:
         </p>
         <ul style="font-size:14px;color:#334155;padding-left:20px;margin:0 0 18px;line-height:22px;">
           <li><strong>Live API Key:</strong> Ready for checkout session creation</li>
           <li><strong>Companion Token:</strong> Ready for the NilePay Merchant Android app</li>
           <li><strong>Webhook Secret:</strong> Ready for HMAC-SHA256 signature verification</li>
         </ul>
-        ${input.apiKeyPrefix ? `<p style="margin:0 0 18px;font-size:13px;color:#475569;font-family:monospace;">Key prefix: ${input.apiKeyPrefix}</p>` : ''}
+        ${input.apiKeyPrefix ? `<p style="margin:0 0 18px;font-size:13px;color:#475569;font-family:monospace;">Key prefix: ${escapeHtml(input.apiKeyPrefix)}</p>` : ''}
         <p style="margin:0 0 20px;font-size:14px;line-height:22px;color:#475569;">
           Sign in to your merchant dashboard to view your API credentials in the Developer Portal.
         </p>

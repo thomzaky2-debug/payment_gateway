@@ -32,11 +32,18 @@ function bearerValue(header: string | string[] | undefined): string | null {
 }
 
 export function initSocketIO(server: HTTPServer, allowedOrigins: string[]): SocketIOServer {
+  const allowedOriginSet = new Set(allowedOrigins)
   ioInstance = new SocketIOServer(server, {
     cors: {
       origin: allowedOrigins,
       methods: ['GET', 'POST'],
       credentials: true,
+    },
+    // Socket.IO CORS only covers the polling transport; enforce the same origin
+    // list on the WebSocket upgrade. Native apps send no Origin and stay allowed.
+    allowRequest: (req, callback) => {
+      const origin = req.headers.origin
+      callback(null, !origin || allowedOriginSet.has(origin))
     },
   })
 
@@ -62,16 +69,20 @@ export function initSocketIO(server: HTTPServer, allowedOrigins: string[]): Sock
     }
 
     const checkoutRooms = new Set<string>()
+    // Each join costs a database lookup; an anonymous socket gets a small budget.
+    let joinAttempts = 0
 
     // Join room for a specific checkout session
     socket.on('checkout:join', async (sessionId: string) => {
       if (typeof sessionId !== 'string' || sessionId.length > 128 || checkoutRooms.size >= 5) return
+      if (++joinAttempts > 20) return
+      const room = `checkout:${sessionId}`
+      if (checkoutRooms.has(room)) return
       const checkout = await db.transaction.findUnique({
         where: { sessionId },
         select: { sessionId: true },
       }).catch(() => null)
       if (!checkout) return
-      const room = `checkout:${checkout.sessionId}`
       checkoutRooms.add(room)
       await socket.join(room)
     })

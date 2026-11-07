@@ -10,6 +10,7 @@ import {
   isApprovedActiveMerchant,
   canMerchantAccessPortal,
   MERCHANT_SESSION_COOKIE_NAME,
+  markSessionSteppedUp,
   revokeAllMerchantSessions,
   revokeSessionToken,
   validatePasswordPolicy,
@@ -30,6 +31,8 @@ import { getRequestAuthToken, getRequestIp } from '../middleware/authToken.js'
 import { normalizeEgyptianMobileNumber } from '../lib/phoneValidation.js'
 import { parseInstaPayPaymentLink } from '../lib/instapayPaymentLink.js'
 import { isWithinDeletionGracePeriod, cancelPublicDeletionRequest } from '../services/accountService.js'
+import { requireMerchant } from '../middleware/requireMerchant.js'
+import type { Client } from '@prisma/client'
 
 export const authRouter = Router()
 
@@ -522,6 +525,33 @@ authRouter.post('/logout', async (req: Request, res: Response) => {
   await revokeSessionToken(credential?.token, 'MERCHANT').catch(() => false)
   clearMerchantSessionCookie(res)
   return res.json({ ok: true, message: 'Logged out successfully' })
+})
+
+// ─── Step-up (password re-entry for sensitive settings) ─────────────
+
+const stepUpLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  10,
+  'Too many password attempts. Try again in 15 minutes.',
+  (req) => `merchant-step-up:${getRequestIp(req) || 'unknown'}:${(req as any).client?.id || 'unknown'}`
+)
+
+authRouter.post('/step-up', requireMerchant, stepUpLimiter, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: Client }).client
+    const { password } = req.body
+    if (typeof password !== 'string' || !password || Buffer.byteLength(password, 'utf8') > 128 || !verifyPassword(password, client.passwordHash)) {
+      return res.status(401).json({ ok: false, error: 'Incorrect password.' })
+    }
+    const credential = getRequestAuthToken(req, MERCHANT_SESSION_COOKIE_NAME)
+    const expiresAt = await markSessionSteppedUp(credential?.token, 'MERCHANT')
+    if (!expiresAt) {
+      return res.status(401).json({ ok: false, error: 'Sign in again to continue.' })
+    }
+    return res.json({ ok: true, stepUpExpiresAt: expiresAt.toISOString() })
+  } catch (err: unknown) {
+    return sendInternalError(res, err)
+  }
 })
 
 // ─── Android Detector APK Login (with OTP support) ───────────────────

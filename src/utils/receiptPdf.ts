@@ -177,8 +177,8 @@ export function saveReceiptAsPdf(data: PrintableReceiptData, isRtl: boolean = fa
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0; text-align: ${isRtl ? 'left' : 'right'};">
-                  <span style="padding: 2px 7px; border-radius: 5px; background-color: rgba(56, 189, 248, 0.12); color: #38bdf8; font-size: 11px; font-weight: 700; font-family: monospace;">×${it.quantity}</span>
-                  <span style="font-family: monospace; color: #10b981; font-weight: 800; font-size: 12.5px;">${(it.totalPrice ?? it.quantity * it.unitPrice).toFixed(2)} EGP</span>
+                  <span style="padding: 2px 7px; border-radius: 5px; background-color: rgba(56, 189, 248, 0.12); color: #38bdf8; font-size: 11px; font-weight: 700; font-family: monospace;">×${Number(it.quantity) || 0}</span>
+                  <span style="font-family: monospace; color: #10b981; font-weight: 800; font-size: 12.5px;">${(Number(it.totalPrice ?? Number(it.quantity) * Number(it.unitPrice)) || 0).toFixed(2)} EGP</span>
                 </div>
               </div>
             `

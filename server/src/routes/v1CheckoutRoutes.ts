@@ -14,7 +14,13 @@ async function requireApiKey(req: Request, res: Response, next: () => void) {
     return res.status(401).json({ ok: false, error: 'Missing Authorization header with API key' })
   }
 
-  const client = await authenticateByApiKey(bearerMatch[1])
+  let client: Awaited<ReturnType<typeof authenticateByApiKey>>
+  try {
+    client = await authenticateByApiKey(bearerMatch[1])
+  } catch (err: unknown) {
+    // Express 4 does not catch async rejections; a database error must not crash the API.
+    return sendInternalError(res, err, 'Authentication is temporarily unavailable')
+  }
   if (!client) {
     return res.status(401).json({ ok: false, error: 'Invalid or deactivated API key' })
   }

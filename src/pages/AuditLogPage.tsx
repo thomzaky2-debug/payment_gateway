@@ -358,22 +358,29 @@ export function AuditLogPage({ showToast }: AuditLogPageProps) {
 
   /* ──────────────── Export to CSV ──────────────── */
   const handleExport = () => {
+    // Quote every cell and neutralize spreadsheet formula prefixes: payer handles
+    // and details are customer-supplied text.
+    const cell = (value: unknown) => {
+      let s = String(value ?? '');
+      if (/^[\s]*[=+\-@]/.test(s)) s = `'${s}`;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const headers = ['ID', 'Action', 'Category', 'Status', 'User', 'IP', 'Timestamp', 'Unix Timestamp', 'Details', 'Session ID', 'Event ID'];
     const rows = filteredLogs.map((log) => [
-      `"${log.id}"`,
-      `"${log.action}"`,
-      `"${log.category}"`,
-      `"${log.status}"`,
-      `"${log.user}"`,
-      `"${log.ip}"`,
-      `"${log.timestamp}"`,
-      `"${Math.floor(new Date(log.timestamp).getTime() / 1000)}"`,
-      `"${log.details.replace(/"/g, '""')}"`,
-      `"${log.sessionId || ''}"`,
-      `"${log.eventId || ''}"`,
-    ]);
+      log.id,
+      log.action,
+      log.category,
+      log.status,
+      log.user,
+      log.ip,
+      log.timestamp,
+      Math.floor(new Date(log.timestamp).getTime() / 1000),
+      log.details,
+      log.sessionId || '',
+      log.eventId || '',
+    ].map(cell));
 
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csvContent = '\uFEFF' + [headers.map(cell).join(','), ...rows.map(r => r.join(','))].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

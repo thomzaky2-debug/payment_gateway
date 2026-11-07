@@ -4,6 +4,8 @@ import {
   createOwnerSessionToken,
   generateMerchantKeys,
   hashToken,
+  isSessionSteppedUp,
+  markSessionSteppedUp,
   OWNER_SESSION_COOKIE_NAME,
   revokeAllMerchantSessions,
   revokeSessionToken,
@@ -35,7 +37,7 @@ adminRouter.get('/public-site-settings', requireAdmin, async (_req, res) => {
   catch (err) { sendInternalError(res, err, 'Unable to load website settings') }
 })
 
-adminRouter.put('/public-site-settings', requireAdmin, createRateLimiter(60 * 1000, 10, 'Too many website settings updates.'), async (req, res) => {
+adminRouter.put('/public-site-settings', requireAdmin, requireAdminStepUp, createRateLimiter(60 * 1000, 10, 'Too many website settings updates.'), async (req, res) => {
   res.setHeader('Cache-Control', 'no-store')
   let settings
   try { settings = validateSiteSettings(req.body) }
@@ -91,14 +93,48 @@ function adminAuditActor(req: Request): string {
   return `${process.env.ADMIN_EMAIL || 'platform-owner'} (session ${sessionFingerprint}) from ${getRequestIp(req) || 'unknown-ip'}`
 }
 
-function requireAdminStepUp(req: Request, res: Response, next: NextFunction) {
-  const code = req.body?.totp || req.get('x-admin-totp')
+function verifyAdminTotpCode(code: unknown): boolean {
   const secret = process.env.ADMIN_TOTP_SECRET
   const isLocalWithoutTotp = (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') && !secret
-  if (typeof code !== 'string' || !/^\d{6}$/.test(code) || (!isLocalWithoutTotp && (!secret || !verifyTotp(code, secret)))) {
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return false
+  if (isLocalWithoutTotp) return true
+  return Boolean(secret) && verifyTotp(code, secret!)
+}
+
+/** Reveal-type actions always need a code entered right now, never a prior step-up. */
+function requireFreshAdminTotp(req: Request, res: Response, next: NextFunction) {
+  const code = req.body?.totp || req.get('x-admin-totp')
+  if (!verifyAdminTotpCode(code)) {
     return res.status(401).json({ ok: false, error: 'A fresh 6-digit authenticator code is required for this action.' })
   }
   next()
+}
+
+/**
+ * State-changing admin actions need either a code in this request or a recent
+ * step-up on the session (POST /api/admin/step-up). A stolen 12-hour session
+ * alone cannot approve, suspend, confirm payments or rotate credentials.
+ */
+async function requireAdminStepUp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const code = req.body?.totp || req.get('x-admin-totp')
+    if (code !== undefined && code !== null && code !== '') {
+      if (!verifyAdminTotpCode(code)) {
+        return res.status(401).json({ ok: false, error: 'Invalid authenticator code.' })
+      }
+      return next()
+    }
+    const session = getRequestAuthToken(req, OWNER_SESSION_COOKIE_NAME)
+    if (await isSessionSteppedUp(session?.token, 'OWNER')) return next()
+    return res.status(403).json({
+      ok: false,
+      code: 'STEP_UP_REQUIRED',
+      method: 'totp',
+      error: 'Enter a fresh 6-digit authenticator code to confirm this action.',
+    })
+  } catch (err) {
+    next(err)
+  }
 }
 
 function maskCredentialValue(val: string | null | undefined): string | null {
@@ -108,6 +144,13 @@ function maskCredentialValue(val: string | null | undefined): string | null {
   if (clear.length <= 4) return '••••'
   return `••••••••${clear.slice(-4)}`
 }
+
+// Device rows carry a peppered credential hash and the last client IP; neither
+// belongs in list responses.
+const SAFE_DEVICE_SELECT = {
+  id: true, deviceId: true, name: true, appVersion: true, androidVersion: true,
+  lastSeenAt: true, revokedAt: true, createdAt: true,
+} as const
 
 function safeAdminClient(client: any) {
   if (!client) return client
@@ -129,6 +172,15 @@ function safeAdminClient(client: any) {
 // ─── Admin Login ────────────────────────────────────────────────────
 
 adminRouter.post('/auth', adminAuthLimiter, adminAccountLimiter, adminLoginGlobalLimiter, async (req: Request, res: Response) => {
+  try {
+    await handleAdminLogin(req, res)
+  } catch (err: unknown) {
+    // Express 4 does not catch async rejections; a database hiccup here must not crash the API.
+    return sendInternalError(res, err)
+  }
+})
+
+async function handleAdminLogin(req: Request, res: Response) {
   const { password, email, totp, tokenTransport } = req.body
   const expectedPassword = process.env.ADMIN_PASSWORD
   if (!expectedPassword || expectedPassword.length < 12) {
@@ -168,6 +220,31 @@ adminRouter.post('/auth', adminAuthLimiter, adminAccountLimiter, adminLoginGloba
   // to browser JavaScript.
   const nativeBearerRequested = tokenTransport === 'bearer'
   return res.json({ ok: true, ...(nativeBearerRequested ? { token } : {}) })
+}
+
+// ─── Admin Step-up (re-authentication for sensitive actions) ────────
+
+const adminStepUpLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  10,
+  'Too many authenticator attempts. Please wait before trying again.',
+  (req) => `admin-step-up:${getRequestIp(req) || 'unknown'}`
+)
+
+adminRouter.post('/step-up', adminStepUpLimiter, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    if (!verifyAdminTotpCode(req.body?.totp)) {
+      return res.status(401).json({ ok: false, error: 'Invalid authenticator code.' })
+    }
+    const session = getRequestAuthToken(req, OWNER_SESSION_COOKIE_NAME)
+    const expiresAt = await markSessionSteppedUp(session?.token, 'OWNER')
+    if (!expiresAt) {
+      return res.status(401).json({ ok: false, error: 'Sign in again to continue.' })
+    }
+    return res.json({ ok: true, stepUpExpiresAt: expiresAt.toISOString() })
+  } catch (err: unknown) {
+    return sendInternalError(res, err)
+  }
 })
 
 // ─── Admin Logout ───────────────────────────────────────────────────
@@ -307,7 +384,7 @@ adminRouter.get('/clients', requireAdmin, async (_req: Request, res: Response) =
         txCount: true,
         createdAt: true,
         updatedAt: true,
-        detectorDevices: { orderBy: { lastSeenAt: 'desc' }, take: 1 },
+        detectorDevices: { orderBy: { lastSeenAt: 'desc' }, take: 1, select: SAFE_DEVICE_SELECT },
         _count: {
           select: { transactions: true },
         },
@@ -336,7 +413,7 @@ adminRouter.get('/clients/:id/overview', requireAdmin, async (req: Request, res:
         detectTokenLastUsedAt: true,
         subscriptionEndsAt: true,
         checkoutTtlMin: true,
-        detectorDevices: { orderBy: { lastSeenAt: 'desc' } },
+        detectorDevices: { orderBy: { lastSeenAt: 'desc' }, select: SAFE_DEVICE_SELECT },
       },
     })
     if (!client) return res.status(404).json({ ok: false, error: 'Merchant not found.' })
@@ -388,7 +465,7 @@ adminRouter.get('/clients/:id/overview', requireAdmin, async (req: Request, res:
   }
 })
 
-adminRouter.patch('/clients/:id/access', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.patch('/clients/:id/access', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     if (typeof req.body?.isActive !== 'boolean') {
@@ -417,7 +494,7 @@ adminRouter.patch('/clients/:id/access', requireAdmin, async (req: Request, res:
   }
 })
 
-adminRouter.post('/clients/:id/revoke-sessions', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/clients/:id/revoke-sessions', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const client = await db.client.findUnique({ where: { id }, select: { businessName: true } })
@@ -432,7 +509,7 @@ adminRouter.post('/clients/:id/revoke-sessions', requireAdmin, async (req: Reque
   }
 })
 
-adminRouter.post('/clients/:id/rotate-keys', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/clients/:id/rotate-keys', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const existing = await db.client.findUnique({ where: { id } })
@@ -464,7 +541,7 @@ adminRouter.post('/clients/:id/rotate-keys', requireAdmin, async (req: Request, 
 })
 
 // Dedicated audit-logged action to reveal plaintext merchant credentials.
-adminRouter.post('/clients/:id/reveal-credentials', adminSensitiveActionLimiter, requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
+adminRouter.post('/clients/:id/reveal-credentials', adminSensitiveActionLimiter, requireAdmin, requireFreshAdminTotp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const client = await db.client.findUnique({
@@ -500,7 +577,7 @@ adminRouter.post('/clients/:id/reveal-credentials', adminSensitiveActionLimiter,
 })
 
 // Approve a new or previously rejected merchant.
-adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/clients/:id/approve', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const existing = await db.client.findUnique({ where: { id } })
@@ -561,7 +638,7 @@ adminRouter.post('/clients/:id/approve', requireAdmin, async (req: Request, res:
 
 // ─── Reject Merchant ────────────────────────────────────────────────
 
-adminRouter.post('/clients/:id/reject', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/clients/:id/reject', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const client = await db.client.update({
@@ -588,7 +665,7 @@ adminRouter.post('/clients/:id/reject', requireAdmin, async (req: Request, res: 
 
 // ─── Force Confirm Transaction ──────────────────────────────────────
 
-adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/transactions/:sessionId/confirm', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId)
     const settlement = await confirmTransactionAsOwner(sessionId)
@@ -661,7 +738,7 @@ adminRouter.get('/webhooks', requireAdmin, async (_req: Request, res: Response) 
 })
 
 // Manual resend action for failed or exhausted webhook deliveries.
-adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const log = await db.webhookLog.findUnique({
@@ -747,7 +824,7 @@ adminRouter.post('/webhooks/:id/resend', adminWebhookResendLimiter, requireAdmin
 
 // Release an unknown-outcome delivery after an administrator has verified the
 // merchant-side result. It remains unscheduled and can be manually resent.
-adminRouter.post('/webhooks/:id/release-review', adminSensitiveActionLimiter, requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
+adminRouter.post('/webhooks/:id/release-review', adminSensitiveActionLimiter, requireAdmin, requireFreshAdminTotp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const updated = await db.webhookLog.updateMany({
@@ -782,7 +859,7 @@ adminRouter.get('/plans', requireAdmin, async (_req: Request, res: Response) => 
   }
 })
 
-adminRouter.patch('/plans', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.patch('/plans', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const { name, priceEgp, maxTransactions, periodDays, description, isActive, offerPriceEgp, offerLabel, offerValidDays, clearOffer } = req.body
     if (!name) {
@@ -878,7 +955,7 @@ adminRouter.get('/trial', requireAdmin, async (_req: Request, res: Response) => 
   }
 })
 
-adminRouter.patch('/trial', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.patch('/trial', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const { periodDays, maxTransactions, isActive, description } = req.body
     const data: Record<string, any> = {}
@@ -932,7 +1009,7 @@ adminRouter.patch('/trial', requireAdmin, async (req: Request, res: Response) =>
 
 // ─── Manual Merchant Plan Assignment ────────────────────────────────
 
-adminRouter.post('/clients/:id/plan', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/clients/:id/plan', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const { planName, customTxLimit, extendDays } = req.body
@@ -1008,7 +1085,7 @@ adminRouter.get('/special-offers', requireAdmin, async (_req: Request, res: Resp
   }
 })
 
-adminRouter.post('/special-offers', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/special-offers', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const clientId = String(req.body?.clientId || '')
     const title = String(req.body?.title || '').trim()
@@ -1040,7 +1117,7 @@ adminRouter.post('/special-offers', requireAdmin, async (req: Request, res: Resp
   }
 })
 
-adminRouter.patch('/special-offers/:id', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.patch('/special-offers/:id', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const existing = await db.specialOffer.findUnique({ where: { id }, include: { client: { select: { businessName: true } } } })
@@ -1104,7 +1181,7 @@ adminRouter.get('/bundles', requireAdmin, async (_req: Request, res: Response) =
   }
 })
 
-adminRouter.post('/bundles', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.post('/bundles', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const name = String(req.body?.name || '').trim().toUpperCase()
     const displayName = String(req.body?.displayName || '').trim()
@@ -1130,7 +1207,7 @@ adminRouter.post('/bundles', requireAdmin, async (req: Request, res: Response) =
   }
 })
 
-adminRouter.patch('/bundles/:id', requireAdmin, async (req: Request, res: Response) => {
+adminRouter.patch('/bundles/:id', requireAdmin, requireAdminStepUp, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id)
     const existing = await db.topUpBundle.findUnique({ where: { id } })
@@ -1179,7 +1256,7 @@ adminRouter.get('/notifications', requireAdmin, async (_req: Request, res: Respo
   } catch (err) { return sendInternalError(res, err, 'Could not load notification history') }
 })
 
-adminRouter.post('/notifications', requireAdmin, createRateLimiter(60 * 1000, 10, 'Please wait before sending another notification.'), async (req: Request, res: Response) => {
+adminRouter.post('/notifications', requireAdmin, requireAdminStepUp, createRateLimiter(60 * 1000, 10, 'Please wait before sending another notification.'), async (req: Request, res: Response) => {
   try {
     const result = await sendAdminNotification(req.body)
     res.json({ok:true, count:result.sentCount, sentCount:result.sentCount, replayed:result.replayed})

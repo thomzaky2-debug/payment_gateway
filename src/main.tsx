@@ -8,6 +8,7 @@ import { AdminPortalPage } from "./pages/AdminPortalPage.tsx";
 import { ApiDocsPage } from "./pages/ApiDocsPage.tsx";
 import { LanguageProvider } from "./context/LanguageContext.tsx";
 import { ThemeProvider } from "./context/ThemeContext.tsx";
+import { StepUpDialog } from "./components/StepUpDialog.tsx";
 
 // MonsterASP's static SPA builder does not reliably pass Vite environment
 // variables. Keep the temporary, isolated staging admin host on the admin
@@ -58,6 +59,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               </>
             )}
           </Routes>
+          <StepUpDialog />
         </BrowserRouter>
       </LanguageProvider>
     </ThemeProvider>

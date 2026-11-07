@@ -3,6 +3,7 @@ import { db } from '../db.js'
 import {
   MERCHANT_SESSION_COOKIE_NAME,
   canMerchantAccessPortal,
+  isSessionSteppedUp,
   verifySessionToken,
 } from '../services/authService.js'
 import { getRequestAuthToken } from './authToken.js'
@@ -63,4 +64,32 @@ export async function requireMerchant(req: Request, res: Response, next: NextFun
  */
 export function getMerchant(req: Request) {
   return (req as any).client
+}
+
+/**
+ * Whether the merchant session behind this request re-entered its password
+ * recently (see POST /api/auth/step-up). Use after `requireMerchant`.
+ */
+export async function hasMerchantStepUp(req: Request): Promise<boolean> {
+  const credential = getRequestAuthToken(req, MERCHANT_SESSION_COOKIE_NAME)
+  return isSessionSteppedUp(credential?.token, 'MERCHANT')
+}
+
+export function sendMerchantStepUpRequired(res: Response) {
+  return res.status(403).json({
+    ok: false,
+    code: 'STEP_UP_REQUIRED',
+    method: 'password',
+    error: 'Please re-enter your password to confirm this change.',
+  })
+}
+
+/** Blocks the route until the merchant has recently re-entered their password. */
+export async function requireMerchantStepUp(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!(await hasMerchantStepUp(req))) return sendMerchantStepUpRequired(res)
+    next()
+  } catch (err) {
+    next(err)
+  }
 }

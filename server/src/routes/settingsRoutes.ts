@@ -3,7 +3,7 @@ import { db } from '../db.js'
 import { generateMerchantKeys, hashToken, MERCHANT_SESSION_COOKIE_NAME } from '../services/authService.js'
 import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.js'
 import { parseInstaPayPaymentLink } from '../lib/instapayPaymentLink.js'
-import { requireMerchant } from '../middleware/requireMerchant.js'
+import { requireMerchant, hasMerchantStepUp, sendMerchantStepUpRequired } from '../middleware/requireMerchant.js'
 import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
@@ -49,6 +49,20 @@ export function safeMerchantSettings(client: any) {
 
 const MAX_PROFILE_IMAGE_BYTES = 750 * 1024
 
+// The merchant sees their own devices (including the last IP of their phone)
+// but never the peppered device credential hash.
+const MERCHANT_DEVICE_SELECT = {
+  id: true, deviceId: true, name: true, appVersion: true, androidVersion: true,
+  lastSeenAt: true, lastIp: true, revokedAt: true, createdAt: true, updatedAt: true,
+} as const
+
+// Positive, finite, bounded number or null; anything else is rejected rather than coerced.
+function boundedNumber(value: unknown, max: number): number | null {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
+  if (!Number.isFinite(n) || n < 0 || n > max) return null
+  return n
+}
+
 function validateProfileImageData(value: unknown): { value?: string; error?: string } {
   if (value === null || value === '') return { value: undefined }
   if (typeof value !== 'string' || value.length > 1_100_000) return { error: 'Profile image must be smaller than 750 KB.' }
@@ -74,6 +88,7 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
     const devices = await db.detectorDevice.findMany({
       where: { clientId: client.id },
       orderBy: { lastSeenAt: 'desc' },
+      select: MERCHANT_DEVICE_SELECT,
     })
 
     return res.json({
@@ -331,30 +346,42 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
       }
     }
 
+    // Changing where customer money goes, where webhooks are sent, or the
+    // business identity needs a fresh password, not just a live session.
+    const normalizedWebhookUrl = cleanWebhookUrl === undefined ? undefined : cleanWebhookUrl
+    const changesPayoutOrWebhook =
+      (cleanPaymentUrl !== undefined && (cleanPaymentUrl || null) !== (client.instapayPaymentUrl || null)) ||
+      (cleanHandle !== undefined && cleanHandle !== client.instapayHandle) ||
+      (normalizedWebhookUrl !== undefined && (normalizedWebhookUrl || null) !== (client.webhookUrl || null))
+    if (changesPayoutOrWebhook && !(await hasMerchantStepUp(req))) {
+      return sendMerchantStepUpRequired(res)
+    }
+
+    const ttl = checkoutTtlMin !== undefined && checkoutTtlMin !== null && checkoutTtlMin !== '' ? boundedNumber(checkoutTtlMin, 60) : undefined
+    if (ttl === null) return res.status(400).json({ ok: false, error: 'checkoutTtlMin must be a number between 1 and 60.' })
+    const overpaidLimit = overpaidMaxExcessEgp === undefined || overpaidMaxExcessEgp === null ? overpaidMaxExcessEgp : boundedNumber(overpaidMaxExcessEgp, 1_000_000)
+    if (overpaidLimit === null && overpaidMaxExcessEgp !== null) return res.status(400).json({ ok: false, error: 'overpaidMaxExcessEgp must be a finite amount up to 1,000,000 EGP.' })
+    const underpaidTolerance = underpaidToleranceEgp === undefined ? undefined : boundedNumber(underpaidToleranceEgp, 1000)
+    if (underpaidTolerance === null) return res.status(400).json({ ok: false, error: 'underpaidToleranceEgp must be a finite amount up to 1,000 EGP.' })
+
     const updated = await db.client.update({
       where: { id: client.id },
       data: {
         instapayPaymentUrl: cleanPaymentUrl,
         instapayHandle: cleanHandle !== undefined ? cleanHandle : undefined,
         webhookUrl: cleanWebhookUrl,
-        checkoutTtlMin: checkoutTtlMin ? Math.max(1, Math.min(60, Number(checkoutTtlMin))) : undefined,
+        checkoutTtlMin: ttl !== undefined ? Math.max(1, Math.round(ttl)) : undefined,
         businessName: businessName?.trim() || undefined,
         autoAcceptOverpaid: autoAcceptOverpaid !== undefined ? Boolean(autoAcceptOverpaid) : undefined,
-        overpaidMaxExcessEgp:
-          overpaidMaxExcessEgp !== undefined
-            ? overpaidMaxExcessEgp === null
-              ? null
-              : Math.max(0, Number(overpaidMaxExcessEgp))
-            : undefined,
+        overpaidMaxExcessEgp: overpaidLimit,
         underpaidToleranceEnabled:
           underpaidToleranceEnabled !== undefined ? Boolean(underpaidToleranceEnabled) : undefined,
-        underpaidToleranceEgp:
-          underpaidToleranceEgp !== undefined ? Math.max(0, Number(underpaidToleranceEgp)) : undefined,
+        underpaidToleranceEgp: underpaidTolerance,
       },
     })
 
-    if (checkoutTtlMin) {
-      const ttlMin = Math.max(1, Math.min(60, Number(checkoutTtlMin)))
+    if (ttl !== undefined) {
+      const ttlMin = Math.max(1, Math.round(ttl))
       const newExpiresAt = new Date(Date.now() + ttlMin * 60 * 1000)
       await db.transaction
         .updateMany({
@@ -387,6 +414,8 @@ settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: R
         error: 'Integration keys can only be generated or rotated once your merchant account is approved by an admin.',
       })
     }
+    // Rotation invalidates the live API key, detector token and webhook secret.
+    if (!(await hasMerchantStepUp(req))) return sendMerchantStepUpRequired(res)
     const keys = generateMerchantKeys()
 
     const updated = await db.client.update({
@@ -448,6 +477,7 @@ settingsRouter.get('/audit-logs', requireMerchant, async (req: Request, res: Res
     const devices = await db.detectorDevice.findMany({
       where: { clientId: client.id },
       orderBy: { lastSeenAt: 'desc' },
+      select: MERCHANT_DEVICE_SELECT,
     })
 
     return res.json({

@@ -8,6 +8,8 @@ import { isCredentialEncrypted, decryptCredential } from '../lib/credentialCrypt
 
 export interface WebhookPayload {
   event: string
+  // Also sent as X-Instapay-Event-Id; carried in the body so the signature covers it.
+  eventId?: string
   clientId: string
   businessName: string
   transaction: {
@@ -181,9 +183,9 @@ export async function forwardToClientWebhook(
 ): Promise<WebhookForwardResult> {
   // Manual resend reuses the original event ID so merchant deduplication works
   // and the original delivery record remains the single source of truth.
-  const eventId = existingEventId || `evt_${crypto.randomBytes(16).toString('hex')}`
+  const eventId = existingEventId || payload.eventId || `evt_${crypto.randomBytes(16).toString('hex')}`
   const timestamp = Math.floor(Date.now() / 1000)
-  const bodyStr = JSON.stringify(payload)
+  const bodyStr = JSON.stringify({ ...payload, eventId })
 
   if (!webhookUrl) {
     const nextAttemptAt =

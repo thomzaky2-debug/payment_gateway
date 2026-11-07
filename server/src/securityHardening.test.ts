@@ -4,12 +4,15 @@ import test from 'node:test'
 import express from 'express'
 import type { Client } from '@prisma/client'
 import { db } from './db.js'
-import { hashToken } from './services/authService.js'
+import { hashPassword, hashToken, ownerCredentialFingerprint } from './services/authService.js'
 import { processInstaPayNotification } from './services/matcherService.js'
 import { cancelPublicDeletionRequest, isWithinDeletionGracePeriod, performAccountDataScrub } from './services/accountService.js'
 import { authRouter } from './routes/authRoutes.js'
 import { mobileAuthRouter } from './routes/mobileAuthRoutes.js'
 import { settingsRouter } from './routes/settingsRoutes.js'
+import { adminRouter } from './routes/adminRoutes.js'
+import { isPrivateIp, validateWebhookUrl } from './lib/urlValidator.js'
+import { enqueueWebhookOutbox } from './services/settlementService.js'
 
 process.env.NODE_ENV = 'test'
 process.env.TOKEN_PEPPER ||= 'security-hardening-test-pepper-at-least-32-chars'
@@ -314,8 +317,9 @@ test('merchant settings only accept a genuine InstaPay share link as the payment
   const token = 'ims_hardening-session'
   const stored = merchant()
   let lastUpdate: any = null
+  // Session already stepped up: this test covers link validation, not re-authentication.
   ;(db as any).authSession = {
-    findUnique: async () => ({ id: 's', kind: 'MERCHANT', clientId: stored.id, expiresAt: new Date(Date.now() + 60_000), revokedAt: null, lastSeenAt: new Date(), tokenHash: hashToken(token) }),
+    findUnique: async () => ({ id: 's', kind: 'MERCHANT', clientId: stored.id, expiresAt: new Date(Date.now() + 60_000), revokedAt: null, lastSeenAt: new Date(), tokenHash: hashToken(token), stepUpExpiresAt: new Date(Date.now() + 60_000) }),
     updateMany: async () => ({ count: 1 }),
   }
   ;(db as any).client = {
@@ -403,4 +407,148 @@ test('account deletion scrubs only audit rows that reference the merchant, never
   assert.equal(auditRows[1].details, 'Superadmin revealed plaintext integration credentials for merchant [deleted] (client_scrub)')
   assert.equal(auditRows[2].details, 'Superadmin revealed plaintext integration credentials for merchant Revealed Credentials Rival (client_other)')
   assert.equal(auditRows[3].details, 'Revealed Credentials for merchant Someone Else (client_third)')
+})
+
+// ─── Step-up re-authentication ───────────────────────────────────────
+
+function fakeSessionStore(row: Record<string, any>) {
+  return {
+    findUnique: async ({ where }: any) => (where.tokenHash === row.tokenHash ? row : null),
+    updateMany: async ({ where, data }: any) => {
+      const live = where.tokenHash === row.tokenHash && (!where.kind || where.kind === row.kind) && !row.revokedAt
+      if (!live) return { count: 0 }
+      Object.assign(row, data)
+      return { count: 1 }
+    },
+  }
+}
+
+test('merchant payout, webhook and key changes need a fresh password; harmless settings do not', async (t) => {
+  const saved = { session: (db as any).authSession, client: (db as any).client, transaction: (db as any).transaction }
+  t.after(() => Object.assign(db as any, saved))
+  const token = 'ims_step-up-session'
+  const stored = merchant({ passwordHash: hashPassword('Correct-Horse-Battery-9!'), webhookUrl: null, instapayPaymentUrl: null })
+  const session = { id: 's', kind: 'MERCHANT', clientId: stored.id, expiresAt: new Date(Date.now() + 60_000), revokedAt: null, lastSeenAt: new Date(), tokenHash: hashToken(token), stepUpExpiresAt: null as Date | null }
+  const updates: any[] = []
+  ;(db as any).authSession = fakeSessionStore(session)
+  ;(db as any).client = {
+    findUnique: async () => stored,
+    findFirst: async () => null,
+    update: async ({ data }: any) => { updates.push(data); return { ...stored, ...data } },
+  }
+  ;(db as any).transaction = { updateMany: async () => ({ count: 0 }) }
+
+  const app = express()
+  app.use(express.json())
+  app.use('/auth', authRouter)
+  app.use('/settings', settingsRouter)
+  const server = app.listen(0, '127.0.0.1')
+  t.after(() => server.close())
+  await once(server, 'listening')
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  const call = (method: string, path: string, body?: unknown) => fetch(`${base}${path}`, {
+    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+  // Harmless settings never prompt.
+  assert.equal((await call('PUT', '/settings', { checkoutTtlMin: 15 })).status, 200)
+
+  // Payout / webhook / keys are gated until the password is re-entered.
+  for (const [method, path, body] of [
+    ['PUT', '/settings', { instapayPaymentUrl: 'https://ipn.eg/S/attacker/instapay/TOK' }],
+    ['PUT', '/settings', { webhookUrl: 'https://example.com/hook' }],
+    ['POST', '/settings/rotate-keys', undefined],
+  ] as const) {
+    const res = await call(method, path, body)
+    assert.equal(res.status, 403, `${method} ${path}`)
+    const json = (await res.json()) as any
+    assert.equal(json.code, 'STEP_UP_REQUIRED')
+    assert.equal(json.method, 'password')
+  }
+  assert.equal(updates.length, 1, 'no gated write may have happened')
+
+  // Wrong password is rejected; right password elevates the session.
+  assert.equal((await call('POST', '/auth/step-up', { password: 'wrong' })).status, 401)
+  assert.equal(session.stepUpExpiresAt, null)
+  const ok = await call('POST', '/auth/step-up', { password: 'Correct-Horse-Battery-9!' })
+  assert.equal(ok.status, 200)
+  assert.ok(session.stepUpExpiresAt && session.stepUpExpiresAt.getTime() > Date.now())
+
+  const changed = await call('PUT', '/settings', { webhookUrl: 'https://example.com/hooks/nilepay' })
+  assert.equal(changed.status, 200)
+  assert.equal(updates[updates.length - 1].webhookUrl, 'https://example.com/hooks/nilepay')
+
+  // Non-finite or oversized policy numbers are rejected instead of coerced.
+  for (const body of [{ checkoutTtlMin: 'abc' }, { underpaidToleranceEgp: 1e999 }, { underpaidToleranceEgp: 5000 }, { overpaidMaxExcessEgp: -1 }]) {
+    assert.equal((await call('PUT', '/settings', body)).status, 400, JSON.stringify(body))
+  }
+})
+
+test('admin state changes need a step-up; reveal still needs a code entered right now', async (t) => {
+  const saved = { session: (db as any).authSession, client: (db as any).client, auditLog: (db as any).auditLog }
+  t.after(() => Object.assign(db as any, saved))
+  // Local runtime without a TOTP secret accepts any well-formed code, which keeps
+  // this test independent of clock-based code generation.
+  const totpSecret = process.env.ADMIN_TOTP_SECRET
+  delete process.env.ADMIN_TOTP_SECRET
+  t.after(() => { process.env.ADMIN_TOTP_SECRET = totpSecret })
+
+  const token = 'ios_owner-session'
+  const session = { id: 'o', kind: 'OWNER', clientId: null, expiresAt: new Date(Date.now() + 60_000), revokedAt: null, lastSeenAt: new Date(), tokenHash: hashToken(token), credentialFingerprint: ownerCredentialFingerprint(process.env.ADMIN_PASSWORD!), stepUpExpiresAt: null as Date | null }
+  ;(db as any).authSession = fakeSessionStore(session)
+  let suspended = false
+  ;(db as any).client = {
+    findUnique: async () => merchant(),
+    update: async ({ data }: any) => { if (data.isActive === false) suspended = true; return merchant(data) },
+  }
+  ;(db as any).auditLog = { create: async () => ({}) }
+
+  const app = express()
+  app.use(express.json())
+  app.use('/admin', adminRouter)
+  const server = app.listen(0, '127.0.0.1')
+  t.after(() => server.close())
+  await once(server, 'listening')
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`
+  const call = (method: string, path: string, body?: unknown) => fetch(`${base}${path}`, {
+    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+  const blocked = await call('PATCH', '/admin/clients/merchant_hardening/access', { isActive: false })
+  assert.equal(blocked.status, 403)
+  assert.equal(((await blocked.json()) as any).code, 'STEP_UP_REQUIRED')
+  assert.equal(suspended, false)
+
+  assert.equal((await call('POST', '/admin/step-up', { totp: '12' })).status, 401)
+  assert.equal((await call('POST', '/admin/step-up', { totp: '123456' })).status, 200)
+  assert.ok(session.stepUpExpiresAt)
+
+  assert.equal((await call('PATCH', '/admin/clients/merchant_hardening/access', { isActive: false })).status, 200)
+  assert.equal(suspended, true)
+
+  // Reveal ignores the step-up window and insists on a code in the request.
+  assert.equal((await call('POST', '/admin/clients/merchant_hardening/reveal-credentials', {})).status, 401)
+
+  // An expired step-up closes the door again.
+  session.stepUpExpiresAt = new Date(Date.now() - 1000)
+  assert.equal((await call('PATCH', '/admin/clients/merchant_hardening/access', { isActive: true })).status, 403)
+})
+
+test('SSRF guard recognises IPv6 encodings of private IPv4 space and reserved prefixes', () => {
+  for (const ip of ['::ffff:127.0.0.1', '::ffff:7f00:1', '0:0:0:0:0:ffff:7f00:1', '::7f00:1', '::127.0.0.1', '64:ff9b::7f00:1', '64:ff9b::10.0.0.1', '64:ff9b:1::1', '2002:7f00:1::', '2002:a00:1::1', '2001::1', '100::1', 'fec0::1', 'fe80::1%eth0', 'fd12::1', 'ff02::1', '2001:db8::1', '[::1]', '192.0.0.192', '168.63.129.16']) {
+    assert.equal(isPrivateIp(ip), true, ip)
+  }
+  for (const ip of ['2606:4700::1111', '2a00:1450:4001::8a', '64:ff9b::808:808', '2002:808:808::', '8.8.8.8']) {
+    assert.equal(isPrivateIp(ip), false, ip)
+  }
+  assert.equal(validateWebhookUrl('https://[64:ff9b::7f00:1]/x').valid, false)
+  assert.equal(validateWebhookUrl('https://[::7f00:1]/x').valid, false)
+})
+
+test('webhook outbox puts the event id inside the signed body', async () => {
+  let created: any = null
+  const txDb = { webhookLog: { create: async (args: any) => { created = args.data; return created } } }
+  await enqueueWebhookOutbox(txDb, { sessionId: 's', purpose: 'CHECKOUT', createdAt: new Date(), amountEgp: 1, currency: 'EGP', status: 'CONFIRMED' }, { id: 'c', businessName: 'B', webhookUrl: 'https://store.example/hook' })
+  assert.match(created.eventId, /^evt_[a-f0-9]{32}$/)
+  assert.equal(JSON.parse(created.payload).eventId, created.eventId)
 })
