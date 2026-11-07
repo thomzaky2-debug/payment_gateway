@@ -70,7 +70,7 @@ transactionRouter.get('/stats', requireMerchant, async (req: Request, res: Respo
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-    const [todayTxs, sevenDaysTxs, pendingTxs] = await Promise.all([
+    const [todayTxs, sevenDaysTxs, pendingTxs, allTimeConfirmed, totalCheckoutsCount, reviewCasesCount] = await Promise.all([
       db.transaction.findMany({
         where: {
           clientId: client.id,
@@ -88,10 +88,40 @@ transactionRouter.get('/stats', requireMerchant, async (req: Request, res: Respo
       db.transaction.count({
         where: { clientId: client.id, status: 'PENDING', expiresAt: { gt: now } },
       }),
+      db.transaction.aggregate({
+        where: { clientId: client.id, status: 'CONFIRMED' },
+        _sum: { amountEgp: true },
+        _count: { _all: true },
+      }),
+      db.transaction.count({
+        where: { clientId: client.id, purpose: 'CHECKOUT' },
+      }),
+      db.transaction.count({
+        where: {
+          clientId: client.id,
+          purpose: 'CHECKOUT',
+          subscriptionPlanName: null,
+          status: {
+            in: [
+              'UNDERPAID',
+              'OVERPAID',
+              'EXPIRED_PAID',
+              'LATE_PAYMENT',
+              'HANDLE_MISMATCH',
+              'DUPLICATE_SUSPECT',
+              'HIGH_VALUE_REVIEW',
+              'REVIEW',
+            ],
+          },
+        },
+      }),
     ])
 
     const todayTotal = todayTxs.reduce((sum, tx) => sum + tx.amountEgp, 0)
     const sevenDaysTotal = sevenDaysTxs.reduce((sum, tx) => sum + tx.amountEgp, 0)
+    const allTimeConfirmedCount = allTimeConfirmed._count._all || 0
+    const allTimeConfirmedTotal = allTimeConfirmed._sum.amountEgp || 0
+    const conversionRate = totalCheckoutsCount > 0 ? (allTimeConfirmedCount / totalCheckoutsCount) * 100 : 100
 
     return res.json({
       ok: true,
@@ -100,6 +130,9 @@ transactionRouter.get('/stats', requireMerchant, async (req: Request, res: Respo
         sevenDays: { count: sevenDaysTxs.length, totalEgp: sevenDaysTotal },
         pending: { count: pendingTxs },
         quota: { count: client.txCount, limit: client.txLimit, plan: client.subscriptionPlan },
+        allTime: { count: allTimeConfirmedCount, totalEgp: allTimeConfirmedTotal },
+        conversion: { rate: Math.round(conversionRate * 10) / 10, totalSessions: totalCheckoutsCount },
+        reviewQueue: { count: reviewCasesCount },
       },
     })
   } catch (err: unknown) {

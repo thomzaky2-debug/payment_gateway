@@ -23,6 +23,8 @@ import {
   ExternalLink,
   ShoppingBag,
   Receipt,
+  Scale,
+  Award,
 } from 'lucide-react';
 import { transactionsApi, settingsApi } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -528,8 +530,8 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
         </div>
       </div>
 
-      {/* Stats Cards (2x2 grid on mobile via .overview-stats-grid) */}
-      <div className="overview-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 210px))', gap: '10px', marginBottom: '18px' }}>
+      {/* Stats Cards Row (7 cards in grid: 4 primary + 3 conversion & review health cards) */}
+      <div className="overview-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '10px', marginBottom: '18px' }}>
         <StatCard
           title={isRtl ? 'المؤكد اليوم' : "Today's Confirmed"}
           value={stats?.today?.totalEgp != null ? `${Number(stats.today.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
@@ -563,6 +565,32 @@ export function OverviewPage({ showToast, onNavigate }: OverviewPageProps) {
           icon={<Smartphone size={18} />}
           color="#06b6d4"
           isOnline={isDetectorOnline}
+          isDark={isDark}
+        />
+        <StatCard
+          title={isRtl ? 'إجمالي المحصل تاريخياً' : 'All-Time Volume'}
+          value={stats?.allTime?.totalEgp != null ? `${Number(stats.allTime.totalEgp).toFixed(2)} EGP` : '0.00 EGP'}
+          subtitle={stats?.allTime?.count != null ? (isRtl ? `${stats.allTime.count} مدفوعة ومؤكدة` : `${stats.allTime.count} confirmed total`) : 'Loading...'}
+          icon={<Award size={18} />}
+          color="#8b5cf6"
+          isDark={isDark}
+        />
+        <StatCard
+          title={isRtl ? 'معدل النجاح' : 'Success Rate'}
+          value={stats?.conversion?.rate != null ? `${stats.conversion.rate}%` : '100%'}
+          subtitle={stats?.conversion?.totalSessions != null ? (isRtl ? `من أصل ${stats.conversion.totalSessions} جلسة` : `from ${stats.conversion.totalSessions} sessions`) : (isRtl ? 'نسبة التحويل' : 'Conversion')}
+          trend={stats?.conversion?.rate != null && stats.conversion.rate >= 90 ? 'High' : undefined}
+          trendUp={true}
+          icon={<CheckCircle2 size={18} />}
+          color="#10b981"
+          isDark={isDark}
+        />
+        <StatCard
+          title={isRtl ? 'حالات المراجعة' : 'Review Queue'}
+          value={stats?.reviewQueue?.count != null ? `${stats.reviewQueue.count}` : '0'}
+          subtitle={stats?.reviewQueue?.count && stats.reviewQueue.count > 0 ? (isRtl ? 'تحتاج اتخاذ قرار' : 'Action required') : (isRtl ? 'لا توجد فروقات' : 'All clear')}
+          icon={<Scale size={18} />}
+          color={stats?.reviewQueue?.count && stats.reviewQueue.count > 0 ? '#ef4444' : '#64748b'}
           isDark={isDark}
         />
       </div>
