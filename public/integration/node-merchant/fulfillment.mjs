@@ -9,6 +9,11 @@ export function openStore(filename='merchant.sqlite') {
     );
     CREATE TABLE IF NOT EXISTS webhook_events (id TEXT PRIMARY KEY, body_hash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS digital_licenses (order_id TEXT PRIMARY KEY REFERENCES orders(id), license TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS outbox_jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL REFERENCES orders(id),
+      destination TEXT NOT NULL, event_type TEXT NOT NULL, payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING', UNIQUE(order_id, destination, event_type)
+    );
   `);
   return db;
 }
@@ -48,11 +53,26 @@ export function applyPayment(db,{event,eventId,bodyHash}) {
       // This database-backed digital license is the demo's actual fulfillment.
       // UNIQUE(order_id) makes webhook retries, new event IDs and status polling safe.
       db.prepare('INSERT INTO digital_licenses(order_id,license) VALUES (?,?) ON CONFLICT(order_id) DO NOTHING').run(order.id,crypto.randomUUID());
+      // Central Event Router fan-out: enqueue durable, idempotent jobs for downstream services (notifications, CRM/accounting).
+      const enqueue=db.prepare('INSERT INTO outbox_jobs(order_id,destination,event_type,payload_json) VALUES (?,?,?,?) ON CONFLICT(order_id,destination,event_type) DO NOTHING');
+      const summary=JSON.stringify({orderId:order.id,sessionId:tx.sessionId,amountEgp:tx.amountEgp,currency:tx.currency,detectedRef:tx.detectedRef??null});
+      for(const dest of ['notifications','crm_accounting'])enqueue.run(order.id,dest,'payment.confirmed',summary);
     }else if(order.status!=='PAID'&&['UNDERPAID','OVERPAID','EXPIRED'].includes(tx.status)){
       db.prepare('UPDATE orders SET status=? WHERE id=?').run(tx.status,order.id);
     }
     if(eventId)db.prepare('INSERT INTO webhook_events VALUES (?,?)').run(eventId,bodyHash);
     db.exec('COMMIT');return {received:true};
   }catch(error){db.exec('ROLLBACK');throw error;}
+}
+export async function dispatchOutbox(db,handlers={}){
+  const jobs=db.prepare("SELECT id,order_id AS orderId,destination,event_type AS eventType,payload_json AS payloadJson FROM outbox_jobs WHERE status='PENDING' ORDER BY id ASC").all();
+  let dispatched=0;
+  for(const job of jobs){
+    const handler=handlers[job.destination];
+    if(typeof handler==='function')await handler(JSON.parse(job.payloadJson),job);
+    db.prepare("UPDATE outbox_jobs SET status='SENT' WHERE id=?").run(job.id);
+    dispatched+=1;
+  }
+  return {dispatched};
 }
 export function publicOrder(db,id){return db.prepare('SELECT o.id,o.status,o.session_id AS sessionId,o.checkout_url AS checkoutUrl,l.license FROM orders o LEFT JOIN digital_licenses l ON l.order_id=o.id WHERE o.id=?').get(id);}

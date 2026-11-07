@@ -46,7 +46,16 @@ In merchant **Settings → Webhooks**, configure your public HTTPS URL ending `/
 
 Event ID and delivery timestamp are headers; do not assume `event_id` or `timestamp` exists in the JSON. Payloads have `event`, merchant details and `transaction` (including `sessionId`, expected `amountEgp`, `currency`, `status`, and detection fields). Use `detectedAt`, not a guaranteed `confirmedAt` field. Underpaid/overpaid/expired events inform your reconciliation workflow and never independently authorize fulfillment; fulfill only an authenticated `CONFIRMED` transaction mapped to an order with matching expected amount/currency. Auto-accepted overpayments and configured tolerances may be represented by a confirmed transaction, so the expected order amount and authenticated final status are authoritative.
 
-`fulfillment.mjs` commits the event ledger, PAID order and unique digital license in one SQLite transaction. Return 2xx only after committing. If a webhook arrives before session mapping is stored, return 503 so it can be retried. Repeated events and different events for an already paid session cannot grant a second license. Polling uses the same fulfillment function and cannot duplicate a license. For shipping/email/other external side effects, replace the license insert with a durable outbox job keyed by order ID and make the downstream operation idempotent; a database transaction cannot make an arbitrary external HTTP operation exactly-once.
+`fulfillment.mjs` commits the event ledger, PAID order, unique digital license, and durable `outbox_jobs` entries in one SQLite transaction. Return 2xx only after committing. If a webhook arrives before session mapping is stored, return 503 so it can be retried. Repeated events and different events for an already paid session cannot grant a second license or duplicate outbox jobs. Polling uses the same fulfillment function and cannot duplicate a license.
+
+### Multi-service routing: One Webhook as a Central Event Router
+
+Rather than registering multiple webhook URLs in the payment gateway (which requires managing multiple secrets, signatures, and partial-failure retries across independent endpoints), configure **one primary webhook endpoint** (`/webhooks/nilepay`) on your backend and fan out internally after your atomic database commit:
+
+1. **Verify once**: Check the HMAC-SHA256 signature and 300-second timestamp window at your single receiver endpoint.
+2. **Commit & deduplicate atomically**: Save `X-Instapay-Event-Id`, mark the order `PAID`, and insert downstream jobs into `outbox_jobs` (`notifications`, `crm_accounting`, etc.) inside one database transaction.
+3. **Acknowledge immediately**: Return `HTTP 200 OK` within milliseconds so gateway delivery completes cleanly.
+4. **Fan out asynchronously**: Call `dispatchOutbox(db, { notifications, crm_accounting })` (or a background worker queue) to notify Email/WhatsApp/SMS services, ERP/CRM, and accounting systems without risking duplicate fulfillment or webhook timeouts.
 
 Gateway delivery retries use backoff of 1 minute, 5 minutes, 15 minutes, 1 hour and 6 hours for ordinary delivery failures. An uncertain delivery result may pause for manual review rather than retry automatically. Review delivery logs, keep event deduplication durable, and reconcile through the authenticated status endpoint.
 

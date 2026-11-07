@@ -1472,6 +1472,42 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
                 : 'Your endpoint must acknowledge with an HTTP 2xx status within 10 seconds. Any other code or timeout triggers the automatic retry worker.'}
             </div>
           </div>
+
+          {/* Central Event Router & Multi-Service Fan-Out Architecture */}
+          <div style={{ ...cardStyle({ padding: '24px' }) }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 700, color: textPrimary, marginBottom: '8px' }}>
+              {isRtl
+                ? 'المعمارية الموصى بها لربط عدة أنظمة: نقطة ويب هوك واحدة كموجّه مركزي (Central Event Router)'
+                : 'Recommended Multi-Service Architecture: One Webhook Endpoint as a Central Event Router'}
+            </h4>
+            <p style={{ fontSize: '12.5px', color: textSecondary, lineHeight: 1.6, margin: '0 0 14px 0' }}>
+              {isRtl
+                ? 'لإشعار قاعدة بيانات متجرك وخدمة رسائل واتساب/البريد ونظام المحاسبة أو CRM معاً دون تعدد المفاتيح أو تضارب الحالات، استقبل الويب هوك على نقطة واحدة، احفظ التأكيد ومنع التكرار ذرياً، أعد 200 OK فوراً، ثم وزّع المهام داخلياً عبر جدول مهام (Durable Outbox):'
+                : 'To notify your storefront database, WhatsApp/SMS/Email receipts, and CRM/accounting services without managing multiple secrets or partial-failure retries, point NilePay to one backend endpoint, commit the order and event ID atomically, return 200 OK immediately, and fan out via an internal outbox:'}
+            </p>
+            <pre
+              dir="ltr"
+              style={{
+                ...codeBox({ padding: '14px 16px' }),
+                fontSize: '11.5px',
+                color: '#e2e8f0',
+                fontFamily: "'JetBrains Mono', monospace",
+                margin: 0,
+                lineHeight: 1.55,
+                overflowX: 'auto',
+              }}
+            >
+              {`NilePay Gateway ──(1 signed POST)──▶ Merchant Backend: POST /webhooks/nilepay
+                                           │ 1. Verify HMAC-SHA256 & 300s timestamp
+                                           │ 2. Commit order PAID + Event-Id + outbox jobs (atomic DB tx)
+                                           │ 3. Return HTTP 200 OK immediately (< 200ms)
+                                           ▼
+                                  Internal Fan-Out / Outbox
+                                  ├── Store Database (Fulfill order & grant license)
+                                  ├── Notifications  (Send WhatsApp / SMS / Email receipt)
+                                  └── CRM / ERP      (Sync accounting & analytics)`}
+            </pre>
+          </div>
         </div>
       )}
 

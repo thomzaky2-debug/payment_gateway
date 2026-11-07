@@ -28,3 +28,26 @@ export function verifyWebhook({ rawBody, eventId, timestamp, signature, secret, 
   const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.`).update(rawBody).digest('hex');
   return received.length === expected.length && crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expected));
 }
+
+export function createWebhookRouter({ secret, deduplicateAndCommit, destinations = {} }) {
+  if (!secret) throw new Error('secret is required');
+  return async function handleWebhook({ rawBody, headers }) {
+    const eventId = headers['x-instapay-event-id'];
+    const timestamp = headers['x-instapay-timestamp'];
+    const signature = headers['x-instapay-signature'];
+    if (!verifyWebhook({ rawBody, eventId, timestamp, signature, secret })) {
+      throw Object.assign(new Error('Invalid webhook signature or timestamp'), { status: 401 });
+    }
+    const payload = JSON.parse(Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody));
+    const commitResult = deduplicateAndCommit ? await deduplicateAndCommit({ eventId, payload, rawBody }) : { duplicate: false };
+    if (commitResult?.duplicate) return { received: true, duplicate: true, dispatched: [] };
+    const dispatched = [];
+    for (const [name, handler] of Object.entries(destinations)) {
+      if (typeof handler === 'function') {
+        await handler(payload, { eventId, destination: name });
+        dispatched.push(name);
+      }
+    }
+    return { received: true, duplicate: false, dispatched };
+  };
+}

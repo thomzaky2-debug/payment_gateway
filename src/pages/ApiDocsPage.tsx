@@ -1979,6 +1979,52 @@ curl -X POST "http://localhost:8080/webhooks/nilepay" \\
                 </li>
               </ol>
             </div>
+
+            {/* Central Event Router & Multi-Service Fan-Out Architecture */}
+            <div
+              style={{
+                backgroundColor: bgCard,
+                borderRadius: '12px',
+                border: `1px solid ${borderCard}`,
+                padding: '20px',
+                marginBottom: '24px',
+              }}
+            >
+              <div style={{ fontWeight: 800, fontSize: '15px', color: accentEmerald, marginBottom: '8px' }}>
+                {isRtl
+                  ? 'المعمارية الموصى بها لربط عدة أنظمة: نقطة ويب هوك واحدة كموجّه مركزي (Central Event Router)'
+                  : 'Recommended Multi-Service Architecture: One Webhook Endpoint as a Central Event Router'}
+              </div>
+              <p style={{ fontSize: '13.5px', lineHeight: 1.65, color: textSecondary, margin: '0 0 14px 0' }}>
+                {isRtl
+                  ? 'لربط متجرك ونظام الإشعارات (واتساب/بريد/رسائل) ونظام المحاسبة أو CRM معاً بأعلى موثوقية وأقل تعقيد، وجّه إشعارات نايل باي إلى نقطة استقبال واحدة على خادمك تتحقق من التوقيع مرة واحدة وتحفظ الحدث ذرياً ثم توزعه داخلياً:'
+                  : 'To connect your storefront database, customer notifications (WhatsApp/SMS/Email), and CRM/ERP systems reliably without managing multiple webhook secrets or partial delivery failures, point NilePay to a single backend endpoint that verifies once, commits atomically, and fans out internally:'}
+              </p>
+              <pre
+                dir="ltr"
+                style={{
+                  margin: 0,
+                  padding: '14px 16px',
+                  borderRadius: '10px',
+                  backgroundColor: codeBg,
+                  color: codeText,
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  lineHeight: 1.55,
+                  overflowX: 'auto',
+                }}
+              >
+                {`NilePay Gateway ──(1 signed POST)──▶ Merchant Backend: POST /webhooks/nilepay
+                                           │ 1. Verify HMAC-SHA256 & 300s timestamp
+                                           │ 2. Commit order PAID + Event-Id + outbox jobs (atomic DB tx)
+                                           │ 3. Return HTTP 200 OK immediately (< 200ms)
+                                           ▼
+                                  Internal Fan-Out / Outbox
+                                  ├── Store Database (Fulfill order & grant license)
+                                  ├── Notifications  (Send WhatsApp / SMS / Email receipt)
+                                  └── CRM / ERP      (Sync accounting & analytics)`}
+              </pre>
+            </div>
           </section>
 
           {/* ──────────────── SECTION 5: EVENT CATALOG ──────────────── */}

@@ -1743,6 +1743,25 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                           : 'Verify the x-instapay-signature HTTP header to prevent spoofing or replay attacks.'}
                       </span>
                     </div>
+
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        backgroundColor: isDark ? 'rgba(56,189,248,0.08)' : '#f0f9ff',
+                        border: isDark ? '1px solid rgba(56,189,248,0.2)' : '1px solid #bae6fd',
+                        fontSize: '11.5px',
+                        lineHeight: 1.55,
+                        color: textSecondary,
+                      }}
+                    >
+                      <strong style={{ color: isDark ? '#7dd3fc' : '#0369a1', display: 'block', marginBottom: '3px' }}>
+                        {isRtl ? '💡 ربط عدة أنظمة (الموجّه المركزي Central Event Router):' : '💡 Connecting Multiple Systems (Central Event Router):'}
+                      </strong>
+                      {isRtl
+                        ? 'لإشعار متجرك وخدمة رسائل واتساب/البريد ونظام المحاسبة معاً، استخدم رابط ويب هوك واحد على خادمك يتحقق من التوقيع ويحفظ تأكيد الطلب ذرياً ويرد بـ 200 OK فوراً، ثم يوزع الحدث داخلياً على بقية خدماتك.'
+                        : 'Need to notify your store DB, WhatsApp/Email receipts, and CRM/ERP? Point this single webhook URL to your backend router: verify HMAC once, commit the order atomically, return 200 OK immediately, and fan out internally.'}
+                    </div>
                   </div>
                 </div>
 
