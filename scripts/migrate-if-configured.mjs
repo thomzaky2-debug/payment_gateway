@@ -10,3 +10,4 @@ if (!process.env.DATABASE_URL) {
 
 console.log('[migrate] Applying pending Prisma migrations...')
 execSync('npx prisma migrate deploy', { stdio: 'inherit' })
+
