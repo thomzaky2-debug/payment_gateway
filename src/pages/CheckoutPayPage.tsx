@@ -1859,6 +1859,7 @@ export function CheckoutPayPage() {
                 </div>
 
                 {/* Primary Action Button: Open in InstaPay App */}
+                {/^https:\/\/ipn\.eg\//i.test(checkout.deepLinkUrl || '') && (
                 <a
                   href={checkout.deepLinkUrl}
                   target="_blank"
@@ -1891,6 +1892,7 @@ export function CheckoutPayPage() {
                   </span>
                   <ExternalLink size={15} />
                 </a>
+                )}
               </div>
 
               {/* ─── Column 2: Instant QR Code Scanner Station ─── */}

@@ -176,6 +176,8 @@ model AuthSession {
   lastSeenAt            DateTime  @default(now())
   expiresAt             DateTime
   revokedAt             DateTime?
+  // Recent re-authentication (password or TOTP) unlocks sensitive actions until this time.
+  stepUpExpiresAt       DateTime?
 
   // Mobile refresh token rotation
   refreshTokenHash      String?   @unique

@@ -8,6 +8,7 @@ import { authRouter } from './authRoutes.js'
 import { settingsRouter } from './settingsRoutes.js'
 
 process.env.TOKEN_PEPPER = 'test-registration-credentials-pepper-32-chars'
+process.env.OWNER_SECRET ||= 'test-registration-credentials-owner-secret-32-chars'
 process.env.CREDENTIAL_ENCRYPTION_KEY = 'test-key-01234567890123456789012345678901'
 process.env.AUTH_ALLOW_DEV_BYPASS = 'true'
 process.env.AUTH_EXPOSE_DEV_OTP = 'true'

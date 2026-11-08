@@ -110,6 +110,10 @@ export function isPrivateIp(rawIp: string): boolean {
     if (b0 === 203 && b1 === 0 && parts[2] === 113) return true
     // Benchmark testing (RFC 2544): 198.18.0.0/15
     if (b0 === 198 && (b1 === 18 || b1 === 19)) return true
+    // IETF protocol assignments (RFC 6890): 192.0.0.0/24
+    if (b0 === 192 && b1 === 0 && parts[2] === 0) return true
+    // Azure wire server / instance metadata
+    if (ip === '168.63.129.16') return true
     // Broadcast & Multicast: 224.0.0.0/4 and 255.255.255.255
     if (b0 >= 224) return true
 
@@ -118,37 +122,64 @@ export function isPrivateIp(rawIp: string): boolean {
 
   // ─── IPv6 private/internal/reserved ranges ─────────────────────────
   if (net.isIPv6(ip)) {
-    const normalized = ip.toLowerCase()
+    const words = expandIpv6(ip)
+    if (!words) return true // unparseable → fail closed
 
-    // Unspecified / Loopback: :: or ::1
-    if (normalized === '::' || normalized === '::1' || normalized === '0:0:0:0:0:0:0:1' || normalized === '0:0:0:0:0:0:0:0') {
-      return true
-    }
+    const [w0, w1, w2, w3, w4, w5, w6, w7] = words
+    const embeddedIpv4 = `${w6 >> 8}.${w6 & 0xff}.${w7 >> 8}.${w7 & 0xff}`
 
-    // Unique Local Addresses (ULA): fc00::/7 (starts with fc or fd)
-    if (normalized.startsWith('fc') || normalized.startsWith('fd')) {
-      return true
+    // Unspecified (::) and loopback (::1)
+    if (words.slice(0, 7).every((w) => w === 0) && (w7 === 0 || w7 === 1)) return true
+    // IPv4-mapped ::ffff:a.b.c.d and the deprecated IPv4-compatible ::a.b.c.d
+    if (w0 === 0 && w1 === 0 && w2 === 0 && w3 === 0 && w4 === 0 && (w5 === 0xffff || w5 === 0)) {
+      return isPrivateIp(embeddedIpv4)
     }
-
-    // Link-Local Unicast: fe80::/10 (starts with fe8, fe9, fea, feb)
-    if (/^fe[89ab]/i.test(normalized)) {
-      return true
+    // NAT64 well-known prefix 64:ff9b::/96 and local-use 64:ff9b:1::/48 (RFC 6052 / 8215)
+    if (w0 === 0x64 && w1 === 0xff9b) {
+      if (w2 === 1) return true
+      if (w2 === 0 && w3 === 0 && w4 === 0 && w5 === 0) return isPrivateIp(embeddedIpv4)
     }
-
-    // Discard prefix / Documentation (RFC 3849): 2001:db8::/32
-    if (normalized.startsWith('2001:db8') || normalized.startsWith('2001:0db8')) {
-      return true
-    }
-
-    // Multicast: ff00::/8
-    if (normalized.startsWith('ff')) {
-      return true
-    }
+    // 6to4 2002:a.b.c.d::/48 embeds the IPv4 in the second and third words
+    if (w0 === 0x2002) return isPrivateIp(`${w1 >> 8}.${w1 & 0xff}.${w2 >> 8}.${w2 & 0xff}`)
+    // Teredo 2001::/32 carries an obfuscated IPv4; never a legitimate webhook host
+    if (w0 === 0x2001 && w1 === 0) return true
+    // Discard-only 100::/64
+    if (w0 === 0x100 && w1 === 0 && w2 === 0 && w3 === 0) return true
+    // Unique local fc00::/7
+    if ((w0 & 0xfe00) === 0xfc00) return true
+    // Link-local fe80::/10 and deprecated site-local fec0::/10
+    if ((w0 & 0xffc0) === 0xfe80 || (w0 & 0xffc0) === 0xfec0) return true
+    // Documentation 2001:db8::/32
+    if (w0 === 0x2001 && w1 === 0xdb8) return true
+    // Multicast ff00::/8
+    if ((w0 & 0xff00) === 0xff00) return true
 
     return false
   }
 
   return false
+}
+
+/** Expands any textual IPv6 form (::, zone ids, embedded IPv4) into eight 16-bit words. */
+export function expandIpv6(rawIp: string): number[] | null {
+  let ip = cleanIpString(rawIp).toLowerCase().split('%')[0]
+  // Rewrite a trailing dotted IPv4 (::ffff:1.2.3.4) as two hex words
+  const dotted = ip.match(/^(.*:)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (dotted) {
+    const octets = dotted.slice(2, 6).map(Number)
+    if (octets.some((o) => o > 255)) return null
+    ip = `${dotted[1]}${((octets[0] << 8) | octets[1]).toString(16)}:${((octets[2] << 8) | octets[3]).toString(16)}`
+  }
+  const halves = ip.split('::')
+  if (halves.length > 2) return null
+  const head = halves[0] ? halves[0].split(':') : []
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : []
+  const missing = 8 - head.length - tail.length
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return null
+  const parts = [...head, ...Array(halves.length === 2 ? missing : 0).fill('0'), ...tail]
+  if (parts.length !== 8) return null
+  const words = parts.map((p) => (/^[0-9a-f]{1,4}$/.test(p) ? parseInt(p, 16) : NaN))
+  return words.some(Number.isNaN) ? null : words
 }
 
 /**

@@ -67,7 +67,8 @@ test('admin duration edits never restart merchant trials and reassigning a used 
   const previousPassword = process.env.ADMIN_PASSWORD
   process.env.ADMIN_PASSWORD = 'test-admin-billing-password'
   t.after(() => { if (previousPassword === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previousPassword })
-  mockMethod(t, db.authSession, 'findUnique', async () => ({ id: 'owner', kind: 'OWNER', expiresAt: new Date(Date.now() + 60000), lastSeenAt: new Date(), revokedAt: null, credentialFingerprint: ownerCredentialFingerprint(process.env.ADMIN_PASSWORD!) }))
+  // Plan edits are sensitive: the owner session must have stepped up recently.
+  mockMethod(t, db.authSession, 'findUnique', async () => ({ id: 'owner', kind: 'OWNER', expiresAt: new Date(Date.now() + 60000), lastSeenAt: new Date(), revokedAt: null, credentialFingerprint: ownerCredentialFingerprint(process.env.ADMIN_PASSWORD!), stepUpExpiresAt: new Date(Date.now() + 60000) }))
   const trialPlan = { name: 'FREE_TRIAL', priceEgp: 0, periodDays: 14, maxTransactions: 20, isActive: true }
   mockMethod(t, db.plan, 'findUnique', async () => trialPlan)
   mockMethod(t, db.plan, 'update', async ({ data }: any) => ({ ...trialPlan, ...data }))

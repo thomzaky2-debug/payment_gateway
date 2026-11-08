@@ -21,16 +21,25 @@ export class NilePayClient {
 }
 
 export function verifyWebhook({ rawBody, eventId, timestamp, signature, secret, now = Date.now() }) {
-  if (!eventId || !timestamp || !signature || !secret) return false;
+  if (!eventId || !timestamp || typeof signature !== 'string' || !secret || (typeof rawBody !== 'string' && !Buffer.isBuffer(rawBody))) return false;
   const seconds = Number(timestamp);
   if (!Number.isSafeInteger(seconds) || Math.abs(now - seconds * 1000) > 300_000) return false;
   const received = signature.replace(/^v1=/, '');
-  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.`).update(rawBody).digest('hex');
-  return received.length === expected.length && crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expected));
+  if (!/^[0-9a-f]{64}$/i.test(received)) return false;
+  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.`).update(rawBody).digest();
+  if (!crypto.timingSafeEqual(Buffer.from(received, 'hex'), expected)) return false;
+  try {
+    const parsed = JSON.parse(Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : rawBody);
+    if (parsed && typeof parsed.eventId === 'string' && parsed.eventId !== eventId) return false;
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 export function createWebhookRouter({ secret, deduplicateAndCommit, destinations = {} }) {
   if (!secret) throw new Error('secret is required');
+  const seenEventIds = new Set();
   return async function handleWebhook({ rawBody, headers }) {
     const eventId = headers['x-instapay-event-id'];
     const timestamp = headers['x-instapay-timestamp'];
@@ -39,14 +48,27 @@ export function createWebhookRouter({ secret, deduplicateAndCommit, destinations
       throw Object.assign(new Error('Invalid webhook signature or timestamp'), { status: 401 });
     }
     const payload = JSON.parse(Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody));
-    const commitResult = deduplicateAndCommit ? await deduplicateAndCommit({ eventId, payload, rawBody }) : { duplicate: false };
+    const effectiveEventId = payload?.eventId || eventId;
+    if (!deduplicateAndCommit && seenEventIds.has(effectiveEventId)) {
+      return { received: true, duplicate: true, dispatched: [] };
+    }
+    const commitResult = deduplicateAndCommit ? await deduplicateAndCommit({ eventId: effectiveEventId, payload, rawBody }) : { duplicate: false };
     if (commitResult?.duplicate) return { received: true, duplicate: true, dispatched: [] };
     const dispatched = [];
-    for (const [name, handler] of Object.entries(destinations)) {
-      if (typeof handler === 'function') {
-        await handler(payload, { eventId, destination: name });
-        dispatched.push(name);
+    try {
+      for (const [name, handler] of Object.entries(destinations)) {
+        if (typeof handler === 'function') {
+          await handler(payload, { eventId: effectiveEventId, destination: name });
+          dispatched.push(name);
+        }
       }
+      if (!deduplicateAndCommit && effectiveEventId) {
+        if (seenEventIds.size >= 10_000) seenEventIds.clear();
+        seenEventIds.add(effectiveEventId);
+      }
+    } catch (err) {
+      if (typeof commitResult?.rollback === 'function') await commitResult.rollback();
+      throw err;
     }
     return { received: true, duplicate: false, dispatched };
   };

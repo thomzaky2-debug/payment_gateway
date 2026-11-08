@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { db } from '../db.js'
 import { toEgpCents } from '../lib/money.js'
+import { parseInstaPayPaymentLink } from '../lib/instapayPaymentLink.js'
 import { normalizeHandle } from './matcherService.js'
 import { Prisma, type Client } from '@prisma/client'
 import { expirePendingTransactions } from './transactionExpiryService.js'
@@ -174,6 +175,9 @@ export async function createCheckoutSession(
   }
 
   const cleanAmountEgp = Math.round(amountEgp * 100) / 100
+  if (cleanAmountEgp <= 0) {
+    throw new CheckoutValidationError('amountEgp must be at least 0.01 EGP')
+  }
 
   const sender = input.senderHandle?.trim()
     ? normalizeHandle(input.senderHandle)
@@ -195,9 +199,13 @@ export async function createCheckoutSession(
     const expiresAt = new Date(now.getTime() + ttlMin * 60 * 1000)
     const sessionId = `cmt_${crypto.randomBytes(12).toString('hex')}`
     const deepLinkToken = crypto.randomBytes(8).toString('hex')
+    const parsedClientLink = effectiveClient.instapayPaymentUrl
+      ? parseInstaPayPaymentLink(effectiveClient.instapayPaymentUrl)
+      : null
+    const safeHandleLocal = encodeURIComponent(effectiveClient.instapayHandle.replace(/@instapay$/i, ''))
     const deepLinkUrl =
-      effectiveClient.instapayPaymentUrl?.trim() ||
-      `https://ipn.eg/S/${effectiveClient.instapayHandle.replace(/@instapay$/i, '')}/instapay/${deepLinkToken}`
+      parsedClientLink?.paymentUrl ||
+      `https://ipn.eg/S/${safeHandleLocal}/instapay/${deepLinkToken}`
 
     return transactionDb.transaction.create({
       data: {

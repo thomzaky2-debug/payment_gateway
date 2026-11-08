@@ -232,13 +232,55 @@ export async function verifySessionToken(token: string | null | undefined): Prom
   }
 
   if (Date.now() - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
-    void db.authSession.updateMany({
+    // Prisma queries are lazy; without .catch() (which attaches a handler) the
+    // update would never be sent.
+    db.authSession.updateMany({
       where: { id: session.id, revokedAt: null },
       data: { lastSeenAt: new Date() },
-    })
+    }).catch(() => {})
   }
 
   return session.clientId
+}
+
+// ─── Step-up (re-authentication) for sensitive actions ─────────────
+
+export const STEP_UP_TTL_MS = 10 * 60 * 1000
+
+/**
+ * Records a successful re-authentication on the live session so sensitive
+ * actions are unlocked for a short window. Returns false when the token does
+ * not belong to a live session of the expected kind.
+ */
+export async function markSessionSteppedUp(
+  token: string | null | undefined,
+  kind: 'MERCHANT' | 'OWNER'
+): Promise<Date | null> {
+  if (!token || token.length > 4096) return null
+  const stepUpExpiresAt = new Date(Date.now() + STEP_UP_TTL_MS)
+  const result = await db.authSession.updateMany({
+    where: { tokenHash: hashToken(token), kind, revokedAt: null, expiresAt: { gt: new Date() } },
+    data: { stepUpExpiresAt },
+  })
+  return result.count === 1 ? stepUpExpiresAt : null
+}
+
+export async function isSessionSteppedUp(
+  token: string | null | undefined,
+  kind: 'MERCHANT' | 'OWNER'
+): Promise<boolean> {
+  if (!token || token.length > 4096) return false
+  const session = await db.authSession.findUnique({
+    where: { tokenHash: hashToken(token) },
+    select: { kind: true, revokedAt: true, stepUpExpiresAt: true },
+  })
+  return (
+    !!session &&
+    session.kind === kind &&
+    !session.revokedAt &&
+    !!session.stepUpExpiresAt &&
+    session.stepUpExpiresAt.getTime() > Date.now()
+  )
 }
 
 export async function createOwnerSessionToken(metadata?: SessionMetadata): Promise<string> {
@@ -325,10 +367,10 @@ export async function verifyOwnerSessionToken(token: string | null | undefined):
   }
 
   if (Date.now() - session.lastSeenAt.getTime() > 5 * 60 * 1000) {
-    void db.authSession.updateMany({
+    db.authSession.updateMany({
       where: { id: session.id, revokedAt: null },
       data: { lastSeenAt: new Date() },
-    })
+    }).catch(() => {})
   }
 
   return true

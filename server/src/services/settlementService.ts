@@ -26,8 +26,12 @@ export interface OrdinaryCheckoutSettlement {
 export async function enqueueWebhookOutbox(txDb: any, transaction: any, client: any, event?: string) {
   if (!client?.webhookUrl) return
   const webhookEvent = event || (transaction.purpose === 'SUBSCRIPTION' ? 'subscription.payment_confirmed' : 'payment.confirmed')
+  // The event ID lives inside the signed body as well as in the header, so a
+  // captured delivery cannot be replayed under a fresh ID to defeat deduplication.
+  const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`
   const payload = {
     event: webhookEvent,
+    eventId,
     clientId: client.id,
     businessName: client.businessName,
     transaction: {
@@ -51,7 +55,7 @@ export async function enqueueWebhookOutbox(txDb: any, transaction: any, client: 
       clientId: client.id,
       url: client.webhookUrl,
       event: webhookEvent,
-      eventId: `evt_${crypto.randomBytes(16).toString('hex')}`,
+      eventId,
       payload: JSON.stringify(payload),
       isSuccess: false,
       attempt: 0,

@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import time
 import requests
 
@@ -18,9 +19,25 @@ class NilePayClient:
         return response.json()
 
 def verify_webhook(raw_body, event_id, timestamp, signature, secret, now=None):
-    if not all((event_id, timestamp, signature, secret)): return False
+    if not all((event_id, timestamp, signature, secret)) or not isinstance(signature, str): return False
+    if isinstance(raw_body, str): raw_bytes = raw_body.encode("utf-8")
+    elif isinstance(raw_body, (bytes, bytearray)): raw_bytes = bytes(raw_body)
+    else: return False
     try: timestamp_value = int(timestamp)
     except (ValueError, TypeError): return False
     if abs((now or time.time()) - timestamp_value) > 300: return False
-    expected = hmac.new(secret.encode(), str(timestamp).encode() + b"." + raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(signature.removeprefix("v1="), expected)
+    received = signature.removeprefix("v1=")
+    try:
+        received_bytes = bytes.fromhex(received)
+    except ValueError:
+        return False
+    if len(received_bytes) != 32: return False
+    expected = hmac.new(secret.encode("utf-8"), str(timestamp).encode("utf-8") + b"." + raw_bytes, hashlib.sha256).digest()
+    if not hmac.compare_digest(received_bytes, expected): return False
+    try:
+        parsed = json.loads(raw_bytes.decode("utf-8"))
+        if isinstance(parsed, dict) and isinstance(parsed.get("eventId"), str) and parsed["eventId"] != event_id:
+            return False
+    except Exception:
+        return False
+    return True

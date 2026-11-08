@@ -309,6 +309,24 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
     }
   };
 
+  const ensureWebhookSecretRevealed = async (): Promise<string | null> => {
+    if (!webhookSecret) return null;
+    if (!webhookSecret.includes('•')) return webhookSecret;
+    try {
+      const res = await settingsApi.revealCredentials();
+      const plain = res?.credentials?.webhookSecret || '';
+      if (plain) {
+        setWebhookSecret(plain);
+        return plain;
+      }
+    } catch {
+      if (showToast) {
+        showToast('error', isRtl ? 'تعذر إظهار المفتاح السري' : 'Could not reveal webhook secret');
+      }
+    }
+    return null;
+  };
+
   const handleCopy = (text: string, key: string) => {
     if (navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(text).catch(() => {});
@@ -1685,7 +1703,13 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                         </label>
                         <button
                           type="button"
-                          onClick={() => setShowSecret(!showSecret)}
+                          onClick={async () => {
+                            if (!showSecret) {
+                              const plain = await ensureWebhookSecretRevealed();
+                              if (!plain) return;
+                            }
+                            setShowSecret(!showSecret);
+                          }}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -1719,7 +1743,10 @@ export function SettingsPage({ showToast, subPath, onSubPathChange, onProfileIma
                         {webhookSecret && (
                           <button
                             type="button"
-                            onClick={() => handleCopy(webhookSecret, 'secret')}
+                            onClick={async () => {
+                              const plain = await ensureWebhookSecretRevealed();
+                              if (plain) handleCopy(plain, 'secret');
+                            }}
                             style={{
                               position: 'absolute',
                               [isRtl ? 'left' : 'right']: '10px',

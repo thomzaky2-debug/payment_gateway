@@ -3,7 +3,7 @@ import { db } from '../db.js'
 import { generateMerchantKeys, hashToken, MERCHANT_SESSION_COOKIE_NAME } from '../services/authService.js'
 import { validateWebhookUrl, validateWebhookUrlDns } from '../lib/urlValidator.js'
 import { parseInstaPayPaymentLink } from '../lib/instapayPaymentLink.js'
-import { requireMerchant } from '../middleware/requireMerchant.js'
+import { requireMerchant, hasMerchantStepUp, sendMerchantStepUpRequired } from '../middleware/requireMerchant.js'
 import { encryptCredential, decryptCredential } from '../lib/credentialCrypto.js'
 import { sendInternalError } from '../lib/safeError.js'
 import { forwardToClientWebhook } from '../services/webhookService.js'
@@ -20,6 +20,24 @@ const merchantWebhookResendLimiter = createRateLimiterWithKey(
   (req) => `merchant-webhook-resend:${(req as any).client?.id || getRequestIp(req) || 'unknown'}`
 )
 
+const merchantRevealLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  15,
+  'Too many credential reveal attempts. Please wait before trying again.',
+  (req) => `merchant-reveal-creds:${(req as any).client?.id || getRequestIp(req) || 'unknown'}`
+)
+
+export function maskMerchantCredential(val: string | null | undefined): string | null {
+  if (!val) return null
+  const clear = decryptCredential(val)
+  if (!clear) return null
+  const prefixMatch = clear.match(/^(egp_live_|egp_test_|det_|whsec_)/)
+  const prefix = prefixMatch ? prefixMatch[1] : ''
+  const rest = clear.slice(prefix.length)
+  if (rest.length <= 4) return `${prefix}••••`
+  return `${prefix}••••••••${rest.slice(-4)}`
+}
+
 export function safeMerchantSettings(client: any) {
   if (!client) return null
   const isApproved = client.approvalStatus === 'APPROVED'
@@ -31,14 +49,14 @@ export function safeMerchantSettings(client: any) {
     instapayHandle: client.instapayHandle,
     instapayPaymentUrl: client.instapayPaymentUrl,
     webhookUrl: client.webhookUrl,
-    webhookSecret: isApproved ? decryptCredential(client.webhookSecret) : null,
+    webhookSecret: isApproved ? maskMerchantCredential(client.webhookSecret) : null,
     checkoutTtlMin: client.checkoutTtlMin,
     autoAcceptOverpaid: client.autoAcceptOverpaid ?? true,
     overpaidMaxExcessEgp: client.overpaidMaxExcessEgp ?? 100.0,
     underpaidToleranceEnabled: client.underpaidToleranceEnabled ?? false,
     underpaidToleranceEgp: client.underpaidToleranceEgp ?? 5.0,
-    apiKey: isApproved ? decryptCredential(client.apiKey) : null,
-    detectToken: isApproved ? decryptCredential(client.detectToken) : null,
+    apiKey: isApproved ? maskMerchantCredential(client.apiKey) : null,
+    detectToken: isApproved ? maskMerchantCredential(client.detectToken) : null,
     subscriptionPlan: client.subscriptionPlan,
     isFreeTrial: client.isFreeTrial,
     txLimit: client.txLimit,
@@ -48,6 +66,20 @@ export function safeMerchantSettings(client: any) {
 }
 
 const MAX_PROFILE_IMAGE_BYTES = 750 * 1024
+
+// The merchant sees their own devices (including the last IP of their phone)
+// but never the peppered device credential hash.
+const MERCHANT_DEVICE_SELECT = {
+  id: true, deviceId: true, name: true, appVersion: true, androidVersion: true,
+  lastSeenAt: true, lastIp: true, revokedAt: true, createdAt: true, updatedAt: true,
+} as const
+
+// Positive, finite, bounded number or null; anything else is rejected rather than coerced.
+function boundedNumber(value: unknown, max: number): number | null {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN
+  if (!Number.isFinite(n) || n < 0 || n > max) return null
+  return n
+}
 
 function validateProfileImageData(value: unknown): { value?: string; error?: string } {
   if (value === null || value === '') return { value: undefined }
@@ -74,6 +106,7 @@ settingsRouter.get('/', requireMerchant, async (req: Request, res: Response) => 
     const devices = await db.detectorDevice.findMany({
       where: { clientId: client.id },
       orderBy: { lastSeenAt: 'desc' },
+      select: MERCHANT_DEVICE_SELECT,
     })
 
     return res.json({
@@ -331,30 +364,42 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
       }
     }
 
+    // Changing where customer money goes, where webhooks are sent, or the
+    // business identity needs a fresh password, not just a live session.
+    const normalizedWebhookUrl = cleanWebhookUrl === undefined ? undefined : cleanWebhookUrl
+    const changesPayoutOrWebhook =
+      (cleanPaymentUrl !== undefined && (cleanPaymentUrl || null) !== (client.instapayPaymentUrl || null)) ||
+      (cleanHandle !== undefined && cleanHandle !== client.instapayHandle) ||
+      (normalizedWebhookUrl !== undefined && (normalizedWebhookUrl || null) !== (client.webhookUrl || null))
+    if (changesPayoutOrWebhook && !(await hasMerchantStepUp(req))) {
+      return sendMerchantStepUpRequired(res)
+    }
+
+    const ttl = checkoutTtlMin !== undefined && checkoutTtlMin !== null && checkoutTtlMin !== '' ? boundedNumber(checkoutTtlMin, 60) : undefined
+    if (ttl === null) return res.status(400).json({ ok: false, error: 'checkoutTtlMin must be a number between 1 and 60.' })
+    const overpaidLimit = overpaidMaxExcessEgp === undefined || overpaidMaxExcessEgp === null ? overpaidMaxExcessEgp : boundedNumber(overpaidMaxExcessEgp, 1_000_000)
+    if (overpaidLimit === null && overpaidMaxExcessEgp !== null) return res.status(400).json({ ok: false, error: 'overpaidMaxExcessEgp must be a finite amount up to 1,000,000 EGP.' })
+    const underpaidTolerance = underpaidToleranceEgp === undefined ? undefined : boundedNumber(underpaidToleranceEgp, 1000)
+    if (underpaidTolerance === null) return res.status(400).json({ ok: false, error: 'underpaidToleranceEgp must be a finite amount up to 1,000 EGP.' })
+
     const updated = await db.client.update({
       where: { id: client.id },
       data: {
         instapayPaymentUrl: cleanPaymentUrl,
         instapayHandle: cleanHandle !== undefined ? cleanHandle : undefined,
         webhookUrl: cleanWebhookUrl,
-        checkoutTtlMin: checkoutTtlMin ? Math.max(1, Math.min(60, Number(checkoutTtlMin))) : undefined,
+        checkoutTtlMin: ttl !== undefined ? Math.max(1, Math.round(ttl)) : undefined,
         businessName: businessName?.trim() || undefined,
         autoAcceptOverpaid: autoAcceptOverpaid !== undefined ? Boolean(autoAcceptOverpaid) : undefined,
-        overpaidMaxExcessEgp:
-          overpaidMaxExcessEgp !== undefined
-            ? overpaidMaxExcessEgp === null
-              ? null
-              : Math.max(0, Number(overpaidMaxExcessEgp))
-            : undefined,
+        overpaidMaxExcessEgp: overpaidLimit,
         underpaidToleranceEnabled:
           underpaidToleranceEnabled !== undefined ? Boolean(underpaidToleranceEnabled) : undefined,
-        underpaidToleranceEgp:
-          underpaidToleranceEgp !== undefined ? Math.max(0, Number(underpaidToleranceEgp)) : undefined,
+        underpaidToleranceEgp: underpaidTolerance,
       },
     })
 
-    if (checkoutTtlMin) {
-      const ttlMin = Math.max(1, Math.min(60, Number(checkoutTtlMin)))
+    if (ttl !== undefined) {
+      const ttlMin = Math.max(1, Math.round(ttl))
       const newExpiresAt = new Date(Date.now() + ttlMin * 60 * 1000)
       await db.transaction
         .updateMany({
@@ -376,6 +421,41 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
   }
 })
 
+// ─── Reveal Integration Keys (Step-Up Required) ─────────────────────
+
+settingsRouter.post('/reveal-credentials', requireMerchant, merchantRevealLimiter, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    if (client.approvalStatus !== 'APPROVED') {
+      return res.status(403).json({
+        ok: false,
+        error: 'Integration keys are only available once your merchant account is approved by an admin.',
+      })
+    }
+    if (!(await hasMerchantStepUp(req))) return sendMerchantStepUpRequired(res)
+
+    await db.auditLog
+      .create({
+        data: {
+          action: 'MERCHANT_REVEALED_CREDENTIALS',
+          details: `Merchant ${client.businessName} (${client.id}) revealed integration credentials`,
+        },
+      })
+      ?.catch(() => {})
+
+    return res.json({
+      ok: true,
+      credentials: {
+        apiKey: decryptCredential(client.apiKey),
+        detectToken: decryptCredential(client.detectToken),
+        webhookSecret: decryptCredential(client.webhookSecret),
+      },
+    })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to reveal credentials')
+  }
+})
+
 // ─── Rotate Integration Keys ────────────────────────────────────────
 
 settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: Response) => {
@@ -387,9 +467,11 @@ settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: R
         error: 'Integration keys can only be generated or rotated once your merchant account is approved by an admin.',
       })
     }
+    // Rotation invalidates the live API key, detector token and webhook secret.
+    if (!(await hasMerchantStepUp(req))) return sendMerchantStepUpRequired(res)
     const keys = generateMerchantKeys()
 
-    const updated = await db.client.update({
+    await db.client.update({
       where: { id: client.id },
       data: {
         apiKey: encryptCredential(keys.apiKey),
@@ -400,6 +482,15 @@ settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: R
         webhookSecretHash: keys.webhookSecretHash,
       },
     })
+
+    await db.auditLog
+      .create({
+        data: {
+          action: 'MERCHANT_ROTATED_CREDENTIALS',
+          details: `Merchant ${client.businessName} (${client.id}) rotated integration credentials`,
+        },
+      })
+      ?.catch(() => {})
 
     return res.json({
       ok: true,
@@ -448,6 +539,7 @@ settingsRouter.get('/audit-logs', requireMerchant, async (req: Request, res: Res
     const devices = await db.detectorDevice.findMany({
       where: { clientId: client.id },
       orderBy: { lastSeenAt: 'desc' },
+      select: MERCHANT_DEVICE_SELECT,
     })
 
     return res.json({

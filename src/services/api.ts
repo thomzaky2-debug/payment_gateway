@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { requestStepUp } from '../utils/stepUp'
 
 export interface PublicSiteContent {
   operatorName: string
@@ -76,6 +77,40 @@ try {
   localStorage.removeItem('instapay_merchant_token')
   localStorage.removeItem('instapay_admin_token')
 } catch {}
+
+// ─── Step-up (re-authentication) ─────────────────────────────────────
+// Sensitive routes answer 403 { code: 'STEP_UP_REQUIRED', method } until the
+// session has recently re-authenticated. Prompt once, elevate, then replay
+// the original request. A cancelled prompt rejects with the original error.
+
+function installStepUpInterceptor(client: ReturnType<typeof axios.create>, elevatePath: string, field: 'password' | 'totp') {
+  client.interceptors.response.use(undefined, async (error: any) => {
+    const config = error?.config
+    const data = error?.response?.data
+    if (!config || config._stepUpRetried || error?.response?.status !== 403 || data?.code !== 'STEP_UP_REQUIRED') {
+      throw error
+    }
+    let lastError: string | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const credential = await requestStepUp(field, lastError)
+      if (credential === null) throw error
+      try {
+        await client.post(elevatePath, { [field]: credential })
+        return client.request({ ...config, _stepUpRetried: true })
+      } catch (elevateError: any) {
+        if (elevateError?.response?.status === 401) {
+          lastError = elevateError.response.data?.error || 'Incorrect code.'
+          continue
+        }
+        throw elevateError
+      }
+    }
+    throw error
+  })
+}
+
+installStepUpInterceptor(api, '/auth/step-up', 'password')
+installStepUpInterceptor(adminHttp, '/admin/step-up', 'totp')
 
 // ─── Auth API ───────────────────────────────────────────────────────
 
@@ -183,6 +218,10 @@ export const settingsApi = {
   },
   async rotateKeys() {
     const res = await api.post('/settings/rotate-keys')
+    return res.data
+  },
+  async revealCredentials() {
+    const res = await api.post('/settings/reveal-credentials')
     return res.data
   },
   async getAuditLogs() {
