@@ -4,7 +4,7 @@
 import { execSync } from 'node:child_process'
 
 if (!process.env.DATABASE_URL) {
-  console.log('[migrate] DATABASE_URL not set; skipping prisma migrate deploy (frontend-only build).')
+  console.log('[migrate] DATABASE_URL not set; skipping build-time migrations. For an API release, apply migrations separately before publishing.')
   process.exit(0)
 }
 
