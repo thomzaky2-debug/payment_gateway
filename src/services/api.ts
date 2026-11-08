@@ -23,8 +23,8 @@ export async function getPublicSiteContent(): Promise<PublicSiteContent> {
  * changing the production custom-domain configuration.
  */
 const monsterAspStagingApiOrigins: Record<string, string> = {
-  'nilepay.runasp.net': 'https://nilepay-api.runasp.net',
-  'nilepay-admin.runasp.net': 'https://nilepay-api.runasp.net',
+  'nilepay.runasp.net': 'https://nilepay-api-v2.runasp.net',
+  'nilepay-admin.runasp.net': 'https://nilepay-api-v2.runasp.net',
 }
 
 const configuredApiOrigin = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '')
