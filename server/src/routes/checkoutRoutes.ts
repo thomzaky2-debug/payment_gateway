@@ -167,6 +167,9 @@ checkoutRouter.patch('/:sessionId/sender', async (req: Request, res: Response) =
     if (tx.status !== 'PENDING') {
       return res.status(400).json({ ok: false, error: `Cannot update handle for session in ${tx.status} status` })
     }
+    if (new Date(tx.expiresAt).getTime() <= Date.now()) {
+      return res.status(400).json({ ok: false, error: 'Checkout session has expired' })
+    }
 
     const clean = senderHandle.trim().toLowerCase().replace(/^@/, '')
     const local = clean.split('@')[0]
@@ -177,6 +180,42 @@ checkoutRouter.patch('/:sessionId/sender', async (req: Request, res: Response) =
       })
     }
     const normalized = normalizeHandle(local)
+
+    // Prevent an attacker from claiming a payer handle that is already bound to
+    // another active pending checkout for the same merchant.
+    if (typeof (db.transaction as any).findFirst === 'function') {
+      const conflictingPending = await db.transaction.findFirst({
+        where: {
+          clientId: tx.clientId,
+          status: 'PENDING',
+          senderHandle: normalized,
+          id: { not: tx.id },
+          expiresAt: { gt: new Date() },
+        },
+        select: { id: true },
+      })
+      if (conflictingPending) {
+        return res.status(409).json({
+          ok: false,
+          error: 'Another active checkout session is already awaiting payment from this InstaPay handle.',
+        })
+      }
+    }
+
+    if (typeof (db.transaction as any).updateMany === 'function') {
+      const result = await db.transaction.updateMany({
+        where: { id: tx.id, status: 'PENDING' },
+        data: { senderHandle: normalized },
+      })
+      if (result.count === 0) {
+        return res.status(409).json({ ok: false, error: 'Cannot update handle for a session that is no longer pending' })
+      }
+      return res.json({
+        ok: true,
+        senderHandle: normalized,
+        message: 'InstaPay account username updated successfully',
+      })
+    }
 
     const updated = await db.transaction.update({
       where: { sessionId },

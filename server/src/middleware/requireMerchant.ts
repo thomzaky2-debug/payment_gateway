@@ -40,7 +40,7 @@ export async function requireMerchant(req: Request, res: Response, next: NextFun
 
     if (client.subscriptionPlan === 'FREE_TRIAL' || client.isFreeTrial) {
       const trialPlan = await (db.plan as any).findUnique({ where: { name: 'FREE_TRIAL' } })
-      if (trialPlan && trialPlan.maxTransactions && client.txLimit !== trialPlan.maxTransactions) {
+      if (trialPlan && trialPlan.maxTransactions && client.txLimit < trialPlan.maxTransactions) {
         client.txLimit = trialPlan.maxTransactions
         db.client.update({ where: { id: client.id }, data: { txLimit: trialPlan.maxTransactions } }).catch(() => {})
       }

@@ -559,6 +559,9 @@ export function AdminPortalPage() {
           return result.status === 'rejected' && [401, 403].includes(result.reason?.response?.status);
         });
         if (hasAuthFailure) {
+          setRevealedCreds({});
+          setSelectedMerchant(null);
+          setMerchantOverview(null);
           showToast('Your admin session has expired. Sign in again to refresh records.', 'error');
         } else {
           const required = failedSources.filter(source => !source.optional);
@@ -614,6 +617,9 @@ export function AdminPortalPage() {
     } catch (err) {
       console.warn('Admin logout backend error, clearing local state:', err);
     } finally {
+      setRevealedCreds({});
+      setSelectedMerchant(null);
+      setMerchantOverview(null);
       setIsAdminAuthenticated(false);
       window.location.hash = '';
       showToast('Admin session logged out');

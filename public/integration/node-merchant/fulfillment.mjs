@@ -30,6 +30,7 @@ export function verifyWebhook(raw,headers,secret,now=Math.floor(Date.now()/1000)
   const supplied=Buffer.from(signature.slice(3),'hex');
   if(!crypto.timingSafeEqual(expected,supplied))fail('Invalid signature',401);
   let event;try{event=JSON.parse(raw.toString('utf8'));}catch{fail('Invalid JSON');}
+  if(event&&typeof event.eventId==='string'&&event.eventId!==eventId)fail('Signed event ID mismatch',401);
   return {event,eventId,bodyHash:crypto.createHash('sha256').update(raw).digest('hex')};
 }
 export function applyPayment(db,{event,eventId,bodyHash}) {

@@ -193,18 +193,22 @@ async function handleAdminLogin(req: Request, res: Response) {
   const emailIsValid = isLocalRuntime && !email
     ? true
     : typeof email === 'string' && Boolean(expectedEmail) && normalizeEmail(email) === normalizeEmail(expectedEmail!)
-  const totpIsValid = isLocalRuntime && !totpSecret
-    ? true
-    : Boolean(totpSecret) && verifyTotp(totp, totpSecret!)
+  const passwordIsValid =
+    Boolean(password) &&
+    typeof password === 'string' &&
+    Buffer.byteLength(password, 'utf8') <= 128 &&
+    timingSafeCompare(password, expectedPassword)
 
-  if (
-    !password ||
-    typeof password !== 'string' ||
-    Buffer.byteLength(password, 'utf8') > 128 ||
-    !timingSafeCompare(password, expectedPassword) ||
-    !emailIsValid ||
-    !totpIsValid
-  ) {
+  // Verify password and email before consuming the single-use TOTP window so a
+  // mistyped password does not burn the current authenticator code.
+  const totpIsValid =
+    passwordIsValid &&
+    emailIsValid &&
+    (isLocalRuntime && !totpSecret
+      ? true
+      : Boolean(totpSecret) && verifyTotp(totp, totpSecret!))
+
+  if (!passwordIsValid || !emailIsValid || !totpIsValid) {
     return res.status(401).json({ ok: false, error: 'Invalid admin credentials' })
   }
 
@@ -959,10 +963,22 @@ adminRouter.patch('/trial', requireAdmin, requireAdminStepUp, async (req: Reques
   try {
     const { periodDays, maxTransactions, isActive, description } = req.body
     const data: Record<string, any> = {}
-    if (periodDays !== undefined) data.periodDays = Math.max(1, Number(periodDays))
-    if (maxTransactions !== undefined) data.maxTransactions = Math.max(1, Number(maxTransactions))
+    if (periodDays !== undefined) {
+      const parsedPeriod = Number(periodDays)
+      if (!Number.isInteger(parsedPeriod) || parsedPeriod < 1 || parsedPeriod > 3650) {
+        return res.status(400).json({ ok: false, error: 'Trial duration must be an integer between 1 and 3,650 days.' })
+      }
+      data.periodDays = parsedPeriod
+    }
+    if (maxTransactions !== undefined) {
+      const parsedLimit = Number(maxTransactions)
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100_000_000) {
+        return res.status(400).json({ ok: false, error: 'Trial transaction limit must be an integer between 1 and 100,000,000.' })
+      }
+      data.maxTransactions = parsedLimit
+    }
     if (isActive !== undefined) data.isActive = Boolean(isActive)
-    if (description !== undefined) data.description = String(description)
+    if (description !== undefined) data.description = String(description).slice(0, 500)
 
     const updated = await (db.plan as any).upsert({
       where: { name: 'FREE_TRIAL' },

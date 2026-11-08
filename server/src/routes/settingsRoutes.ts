@@ -20,6 +20,24 @@ const merchantWebhookResendLimiter = createRateLimiterWithKey(
   (req) => `merchant-webhook-resend:${(req as any).client?.id || getRequestIp(req) || 'unknown'}`
 )
 
+const merchantRevealLimiter = createRateLimiterWithKey(
+  15 * 60 * 1000,
+  15,
+  'Too many credential reveal attempts. Please wait before trying again.',
+  (req) => `merchant-reveal-creds:${(req as any).client?.id || getRequestIp(req) || 'unknown'}`
+)
+
+export function maskMerchantCredential(val: string | null | undefined): string | null {
+  if (!val) return null
+  const clear = decryptCredential(val)
+  if (!clear) return null
+  const prefixMatch = clear.match(/^(egp_live_|egp_test_|det_|whsec_)/)
+  const prefix = prefixMatch ? prefixMatch[1] : ''
+  const rest = clear.slice(prefix.length)
+  if (rest.length <= 4) return `${prefix}••••`
+  return `${prefix}••••••••${rest.slice(-4)}`
+}
+
 export function safeMerchantSettings(client: any) {
   if (!client) return null
   const isApproved = client.approvalStatus === 'APPROVED'
@@ -31,14 +49,14 @@ export function safeMerchantSettings(client: any) {
     instapayHandle: client.instapayHandle,
     instapayPaymentUrl: client.instapayPaymentUrl,
     webhookUrl: client.webhookUrl,
-    webhookSecret: isApproved ? decryptCredential(client.webhookSecret) : null,
+    webhookSecret: isApproved ? maskMerchantCredential(client.webhookSecret) : null,
     checkoutTtlMin: client.checkoutTtlMin,
     autoAcceptOverpaid: client.autoAcceptOverpaid ?? true,
     overpaidMaxExcessEgp: client.overpaidMaxExcessEgp ?? 100.0,
     underpaidToleranceEnabled: client.underpaidToleranceEnabled ?? false,
     underpaidToleranceEgp: client.underpaidToleranceEgp ?? 5.0,
-    apiKey: isApproved ? decryptCredential(client.apiKey) : null,
-    detectToken: isApproved ? decryptCredential(client.detectToken) : null,
+    apiKey: isApproved ? maskMerchantCredential(client.apiKey) : null,
+    detectToken: isApproved ? maskMerchantCredential(client.detectToken) : null,
     subscriptionPlan: client.subscriptionPlan,
     isFreeTrial: client.isFreeTrial,
     txLimit: client.txLimit,
@@ -403,6 +421,41 @@ settingsRouter.put('/', requireMerchant, async (req: Request, res: Response) => 
   }
 })
 
+// ─── Reveal Integration Keys (Step-Up Required) ─────────────────────
+
+settingsRouter.post('/reveal-credentials', requireMerchant, merchantRevealLimiter, async (req: Request, res: Response) => {
+  try {
+    const client = (req as unknown as { client: any }).client
+    if (client.approvalStatus !== 'APPROVED') {
+      return res.status(403).json({
+        ok: false,
+        error: 'Integration keys are only available once your merchant account is approved by an admin.',
+      })
+    }
+    if (!(await hasMerchantStepUp(req))) return sendMerchantStepUpRequired(res)
+
+    await db.auditLog
+      .create({
+        data: {
+          action: 'MERCHANT_REVEALED_CREDENTIALS',
+          details: `Merchant ${client.businessName} (${client.id}) revealed integration credentials`,
+        },
+      })
+      ?.catch(() => {})
+
+    return res.json({
+      ok: true,
+      credentials: {
+        apiKey: decryptCredential(client.apiKey),
+        detectToken: decryptCredential(client.detectToken),
+        webhookSecret: decryptCredential(client.webhookSecret),
+      },
+    })
+  } catch (err: unknown) {
+    return sendInternalError(res, err, 'Failed to reveal credentials')
+  }
+})
+
 // ─── Rotate Integration Keys ────────────────────────────────────────
 
 settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: Response) => {
@@ -418,7 +471,7 @@ settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: R
     if (!(await hasMerchantStepUp(req))) return sendMerchantStepUpRequired(res)
     const keys = generateMerchantKeys()
 
-    const updated = await db.client.update({
+    await db.client.update({
       where: { id: client.id },
       data: {
         apiKey: encryptCredential(keys.apiKey),
@@ -429,6 +482,15 @@ settingsRouter.post('/rotate-keys', requireMerchant, async (req: Request, res: R
         webhookSecretHash: keys.webhookSecretHash,
       },
     })
+
+    await db.auditLog
+      .create({
+        data: {
+          action: 'MERCHANT_ROTATED_CREDENTIALS',
+          details: `Merchant ${client.businessName} (${client.id}) rotated integration credentials`,
+        },
+      })
+      ?.catch(() => {})
 
     return res.json({
       ok: true,

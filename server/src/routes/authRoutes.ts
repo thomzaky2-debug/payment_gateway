@@ -164,7 +164,7 @@ authRouter.post('/email-otp', otpDispatchLimiter, async (req: Request, res: Resp
         // Do not disclose whether a merchant account exists.
         return res.json({
           ok: true,
-          verificationId: `pending_${crypto.randomBytes(16).toString('hex')}`,
+          verificationId: `c${crypto.randomBytes(12).toString('hex')}`,
           message: 'If an eligible account exists, a verification code has been sent.',
           expiresInSeconds: OTP_TTL_MS / 1000,
         })
@@ -176,7 +176,10 @@ authRouter.post('/email-otp', otpDispatchLimiter, async (req: Request, res: Resp
     return res.json({
       ok: true,
       verificationId: verification.id,
-      message: `Verification code sent to ${cleanEmail}.`,
+      message:
+        purpose === 'MERCHANT_LOGIN' || purpose === 'PASSWORD_RESET'
+          ? 'If an eligible account exists, a verification code has been sent.'
+          : `Verification code sent to ${cleanEmail}.`,
       expiresInSeconds: OTP_TTL_MS / 1000,
       ...(isExplicitDevAuthEnabled('AUTH_EXPOSE_DEV_OTP') ? { devOtp: otp } : {}),
     })
@@ -497,7 +500,7 @@ authRouter.get('/session', async (req: Request, res: Response) => {
         let needsUpdate = false
         const updateData: Record<string, any> = {}
 
-        if (trialPlan.maxTransactions && client.txLimit !== trialPlan.maxTransactions) {
+        if (trialPlan.maxTransactions && client.txLimit < trialPlan.maxTransactions) {
           client.txLimit = trialPlan.maxTransactions
           updateData.txLimit = trialPlan.maxTransactions
           needsUpdate = true
@@ -649,7 +652,12 @@ authRouter.post('/password-reset/request', otpDispatchLimiter, async (req: Reque
     const client = await db.client.findUnique({ where: { email: cleanEmail } })
     if (!client) {
       // Security: Don't leak whether email exists
-      return res.json({ ok: true, message: 'If an account exists, a reset code has been sent.' })
+      return res.json({
+        ok: true,
+        verificationId: `c${crypto.randomBytes(12).toString('hex')}`,
+        message: 'If an account exists, a reset code has been sent.',
+        expiresInSeconds: OTP_TTL_MS / 1000,
+      })
     }
 
     const { otp, verification } = await issueOtpVerification(cleanEmail, 'PASSWORD_RESET')
@@ -657,7 +665,7 @@ authRouter.post('/password-reset/request', otpDispatchLimiter, async (req: Reque
     return res.json({
       ok: true,
       verificationId: verification.id,
-      message: 'Reset verification code sent.',
+      message: 'If an account exists, a reset code has been sent.',
       expiresInSeconds: OTP_TTL_MS / 1000,
       ...(isExplicitDevAuthEnabled('AUTH_EXPOSE_DEV_OTP') ? { devOtp: otp } : {}),
     })

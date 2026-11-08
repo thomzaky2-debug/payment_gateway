@@ -14,12 +14,13 @@ import { apiOrigin, apiUrl } from '../services/api';
 interface DocumentationSectionProps {
   apiKey?: string;
   webhookSecret?: string;
+  onRequireRealKeys?: () => Promise<boolean>;
   showToast?: (type: 'success' | 'error' | 'warning' | 'info', message: string) => void;
 }
 
 type TabType = 'quickstart' | 'endpoints' | 'webhook' | 'tester' | 'code' | 'events' | 'errors';
 
-export function DocumentationSection({ apiKey, webhookSecret, showToast }: DocumentationSectionProps) {
+export function DocumentationSection({ apiKey, webhookSecret, onRequireRealKeys, showToast }: DocumentationSectionProps) {
   const { isDark } = useTheme();
   const { lang, isRtl } = useLanguage();
 
@@ -34,7 +35,7 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
   // Interactive Webhook Signature Tester State
   const [testPayload, setTestPayload] = useState('{\n  "event": "payment.confirmed",\n  "transaction": {\n    "sessionId": "cmt_8f1b2c3d4e5f6a7b",\n    "amountEgp": 150.00,\n    "status": "PAID"\n  }\n}');
   const [testTimestamp, setTestTimestamp] = useState(Math.floor(Date.now() / 1000).toString());
-  const [testSecret, setTestSecret] = useState(webhookSecret || 'whsec_EXAMPLE_SECRET');
+  const [testSecret, setTestSecret] = useState('whsec_EXAMPLE_SECRET');
   const [calculatedBaseString, setCalculatedBaseString] = useState('');
   const [calculatedSignature, setCalculatedSignature] = useState('');
   const [verifyInputSig, setVerifyInputSig] = useState('');
@@ -45,20 +46,22 @@ export function DocumentationSection({ apiKey, webhookSecret, showToast }: Docum
   const textMuted = isDark ? '#64748b' : '#94a3b8';
   const borderColor = isDark ? 'rgba(51, 65, 85, 0.4)' : '#e2e8f0';
 
-  // Secure credential display: only show real keys if they match expected live prefixes
-  const isValidApiKey = typeof apiKey === 'string' && apiKey.startsWith('egp_');
-  const isValidWebhookSecret = typeof webhookSecret === 'string' && webhookSecret.startsWith('whsec_');
+  // Secure credential display: only show real keys if they match expected live prefixes and are unmasked
+  const isValidApiKey = typeof apiKey === 'string' && apiKey.startsWith('egp_') && !apiKey.includes('•');
+  const isValidWebhookSecret = typeof webhookSecret === 'string' && webhookSecret.startsWith('whsec_') && !webhookSecret.includes('•');
 
   const displayApiKey = useRealKeys && isValidApiKey ? apiKey : 'egp_live_EXAMPLE_KEY';
   const displayWebhookSecret = useRealKeys && isValidWebhookSecret ? webhookSecret : 'whsec_EXAMPLE_SECRET';
   const baseUrl = apiOrigin || (typeof window !== 'undefined' ? window.location.origin : '');
 
-  // Update tester secret when real secret is received
+  // Update tester secret only when real keys are explicitly toggled on
   useEffect(() => {
-    if (isValidWebhookSecret && webhookSecret) {
+    if (useRealKeys && isValidWebhookSecret && webhookSecret) {
       setTestSecret(webhookSecret);
+    } else if (!useRealKeys) {
+      setTestSecret('whsec_EXAMPLE_SECRET');
     }
-  }, [isValidWebhookSecret, webhookSecret]);
+  }, [useRealKeys, isValidWebhookSecret, webhookSecret]);
 
   // Compute live HMAC-SHA256 signature in browser using hybrid Web Crypto API + Pure JS Fallback
   const calculateTestSignature = async () => {
@@ -710,7 +713,13 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
           {/* Quick toggle to show real keys in documentation examples */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
-              onClick={() => setUseRealKeys(!useRealKeys)}
+              onClick={async () => {
+                if (!useRealKeys && !isValidApiKey && onRequireRealKeys) {
+                  const ok = await onRequireRealKeys();
+                  if (!ok) return;
+                }
+                setUseRealKeys(!useRealKeys);
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1542,7 +1551,7 @@ curl -X POST "${baseUrl}/api/v1/checkout/create" \\
                     {isRtl ? 'مفتاح الويب هوك السري (Webhook Secret)' : 'Webhook Secret'}
                   </label>
                   <input
-                    type="text"
+                    type={useRealKeys ? 'password' : 'text'}
                     value={testSecret}
                     onChange={(e) => setTestSecret(e.target.value)}
                     style={{

@@ -26,7 +26,7 @@ test('canMerchantAccessPortal helper grants access to pending and active approve
   assert.equal(canMerchantAccessPortal({ approvalStatus: 'DELETED', isActive: false }), false)
 })
 
-test('safeMerchantSettings returns null tokens when approvalStatus is PENDING, and decrypted tokens when APPROVED', () => {
+test('safeMerchantSettings returns null tokens when approvalStatus is PENDING, and masked tokens when APPROVED', () => {
   const apiKeyPlain = 'egp_live_test123456'
   const detectPlain = 'det_test123456'
   const webhookPlain = 'whsec_test123456'
@@ -58,9 +58,9 @@ test('safeMerchantSettings returns null tokens when approvalStatus is PENDING, a
 
   const approvedSettings = safeMerchantSettings(approvedClient)
   assert.equal(approvedSettings?.approvalStatus, 'APPROVED')
-  assert.equal(approvedSettings?.apiKey, apiKeyPlain)
-  assert.equal(approvedSettings?.detectToken, detectPlain)
-  assert.equal(approvedSettings?.webhookSecret, webhookPlain)
+  assert.equal(approvedSettings?.apiKey, 'egp_live_••••••••3456')
+  assert.equal(approvedSettings?.detectToken, 'det_••••••••3456')
+  assert.equal(approvedSettings?.webhookSecret, 'whsec_••••••••3456')
 })
 
 test('merchant browsing without admin approval: login succeeds, portal APIs accessible, tokens hidden, rotation blocked', async () => {

@@ -114,9 +114,11 @@ mobileAuthRouter.post('/login', mobileLoginLimiter, adminLoginOnly, async (req: 
       const passwordMatches = timingSafeCompare(password, adminPassword)
       const totpCandidate = totp || otp
       const totpMatches =
-        isDevBypass ||
-        (isLocalTest && !totpSecret) ||
-        (Boolean(totpSecret) && typeof totpCandidate === 'string' && verifyTotp(totpCandidate, totpSecret!))
+        passwordMatches &&
+        emailMatches &&
+        (isDevBypass ||
+          (isLocalTest && !totpSecret) ||
+          (Boolean(totpSecret) && typeof totpCandidate === 'string' && verifyTotp(totpCandidate, totpSecret!)))
 
       if (!passwordMatches || !totpMatches || !emailMatches) {
         return res.status(401).json({ ok: false, error: 'Invalid admin credentials or TOTP code' })

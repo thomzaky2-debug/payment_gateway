@@ -105,6 +105,37 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
   }, [fetchSettings]);
 
   /* ──────────────── Handlers ──────────────── */
+  const ensureRevealedCredentials = async (): Promise<{ apiKey?: string | null; detectToken?: string | null; webhookSecret?: string | null } | null> => {
+    if (!settings?.apiKey && !settings?.webhookSecret) return null;
+    const isMasked =
+      (typeof settings?.apiKey === 'string' && settings.apiKey.includes('•')) ||
+      (typeof settings?.webhookSecret === 'string' && settings.webhookSecret.includes('•'));
+    if (!isMasked) {
+      return {
+        apiKey: settings?.apiKey,
+        detectToken: settings?.detectToken,
+        webhookSecret: settings?.webhookSecret,
+      };
+    }
+    try {
+      const res = await settingsApi.revealCredentials();
+      if (res?.ok && res.credentials) {
+        setSettings((prev: any) => ({
+          ...prev,
+          apiKey: res.credentials.apiKey,
+          detectToken: res.credentials.detectToken,
+          webhookSecret: res.credentials.webhookSecret,
+        }));
+        return res.credentials;
+      }
+    } catch {
+      if (showToast) {
+        showToast('error', isRtl ? 'تعذر إظهار مفاتيح الربط' : 'Could not reveal integration keys');
+      }
+    }
+    return null;
+  };
+
   const handleCopy = (text: string, type: 'key' | 'secret' | 'snippet') => {
     navigator.clipboard.writeText(text);
     if (type === 'key') { setCopiedKey(true); setTimeout(() => setCopiedKey(false), 2000); }
@@ -174,6 +205,13 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
     setSimLoading(true);
     setSimResult(null);
 
+    const revealed = await ensureRevealedCredentials();
+    const liveApiKey = revealed?.apiKey;
+    if (!liveApiKey || liveApiKey.includes('•')) {
+      setSimLoading(false);
+      return;
+    }
+
     const payload: any = {
       amountEgp: numAmount,
       senderHandle: testSender,
@@ -189,7 +227,7 @@ export function DevelopersPage({ showToast, showConfirm }: DevelopersPageProps) 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${settings.apiKey}`,
+          Authorization: `Bearer ${liveApiKey}`,
           'Idempotency-Key': attempt.key,
         },
         body: requestBody,
@@ -526,9 +564,21 @@ curl -X POST ${developerApiOrigin}/api/v1/checkout/create \\
         sublabel={isRtl ? 'أرسل في ترويسة Authorization: Bearer <KEY>' : 'Pass in Authorization: Bearer <KEY> header'}
         value={apiKey}
         show={showApiKey}
-        setShow={setShowApiKey}
+        setShow={(next) => {
+          if (next) {
+            void ensureRevealedCredentials().then((creds) => {
+              if (creds?.apiKey) setShowApiKey(true);
+            });
+          } else {
+            setShowApiKey(false);
+          }
+        }}
         copied={copiedKey}
-        onCopy={() => handleCopy(apiKey, 'key')}
+        onCopy={() => {
+          void ensureRevealedCredentials().then((creds) => {
+            if (creds?.apiKey) handleCopy(creds.apiKey, 'key');
+          });
+        }}
         icon={<Key size={18} color="white" />}
         iconBg="linear-gradient(135deg, #2563eb, #3b82f6)"
         iconColor="#2563eb"
@@ -541,9 +591,21 @@ curl -X POST ${developerApiOrigin}/api/v1/checkout/create \\
         sublabel={isRtl ? 'للتحقق من ترويسة X-Instapay-Signature' : 'Verify X-Instapay-Signature header on callbacks'}
         value={webhookSecret}
         show={showWebhookSecret}
-        setShow={setShowWebhookSecret}
+        setShow={(next) => {
+          if (next) {
+            void ensureRevealedCredentials().then((creds) => {
+              if (creds?.webhookSecret) setShowWebhookSecret(true);
+            });
+          } else {
+            setShowWebhookSecret(false);
+          }
+        }}
         copied={copiedSecret}
-        onCopy={() => handleCopy(webhookSecret, 'secret')}
+        onCopy={() => {
+          void ensureRevealedCredentials().then((creds) => {
+            if (creds?.webhookSecret) handleCopy(creds.webhookSecret, 'secret');
+          });
+        }}
         icon={<Lock size={18} color="white" />}
         iconBg="linear-gradient(135deg, #d97706, #f59e0b)"
         iconColor="#d97706"
@@ -1089,6 +1151,10 @@ curl -X POST ${developerApiOrigin}/api/v1/checkout/create \\
       <DocumentationSection
         apiKey={settings?.apiKey}
         webhookSecret={settings?.webhookSecret}
+        onRequireRealKeys={async () => {
+          const creds = await ensureRevealedCredentials();
+          return Boolean(creds?.apiKey && !creds.apiKey.includes('•'));
+        }}
         showToast={showToast}
       />
     </div>

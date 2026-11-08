@@ -3,10 +3,10 @@ namespace NilePay;
 
 final class NilePayClient {
   public function __construct(private string $apiKey, private string $baseUrl = 'https://nilepay-api.runasp.net') {
-    if ($apiKey === '') throw new \InvalidArgumentException('apiKey is required');
+    if ($apiKey === '' || preg_match('/[\r\n]/', $apiKey)) throw new \InvalidArgumentException('Valid apiKey is required');
   }
   public function createCheckout(array $payload, string $idempotencyKey): array {
-    if ($idempotencyKey === '') throw new \InvalidArgumentException('Persist and provide an Idempotency-Key');
+    if ($idempotencyKey === '' || preg_match('/[\r\n]/', $idempotencyKey)) throw new \InvalidArgumentException('Persist and provide a valid Idempotency-Key');
     return $this->request('POST', '/api/v1/checkout/create', $payload, ['Idempotency-Key: '.$idempotencyKey]);
   }
   public function getCheckout(string $sessionId): array { return $this->request('GET', '/api/v1/checkout/status?sessionId='.rawurlencode($sessionId)); }
@@ -20,8 +20,14 @@ final class NilePayClient {
     return $decoded;
   }
   public static function verifyWebhook(string $rawBody, string $eventId, string $timestamp, string $signature, string $secret): bool {
-    if (!$eventId || !$timestamp || !$signature || !$secret || abs(time() - (int)$timestamp) > 300) return false;
+    if (!$eventId || !$timestamp || !$signature || !$secret || !ctype_digit($timestamp) || abs(time() - (int)$timestamp) > 300) return false;
+    $received = preg_replace('/^v1=/', '', $signature);
+    if (!preg_match('/^[0-9a-f]{64}$/i', $received)) return false;
     $expected = hash_hmac('sha256', $timestamp.'.'.$rawBody, $secret);
-    return hash_equals($expected, preg_replace('/^v1=/', '', $signature));
+    if (!hash_equals($expected, strtolower($received))) return false;
+    $decoded = json_decode($rawBody, true);
+    if (!is_array($decoded)) return false;
+    if (isset($decoded['eventId']) && is_string($decoded['eventId']) && $decoded['eventId'] !== $eventId) return false;
+    return true;
   }
 }
