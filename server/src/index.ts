@@ -15,6 +15,7 @@ import { startWebhookRetryWorker, stopWebhookRetryWorker } from './workers/webho
 import { startOtpCleanupWorker, stopOtpCleanupWorker } from './workers/otpCleanupWorker.js'
 import { startTransactionExpiryWorker, stopTransactionExpiryWorker } from './workers/transactionExpiryWorker.js'
 import { startRetentionPurgeWorker, stopRetentionPurgeWorker } from './workers/retentionPurgeWorker.js'
+import { startSubscriptionSchedulerWorker, stopSubscriptionSchedulerWorker } from './workers/subscriptionSchedulerWorker.js'
 import { syncApprovedMerchantsTokens, migratePlaintextCredentialsAtRest } from './services/authService.js'
 import { safeErrorMessage } from './lib/safeError.js'
 import { parseTrustProxy } from './lib/proxyTrust.js'
@@ -32,6 +33,8 @@ import { bundleRouter } from './routes/bundleRoutes.js'
 import { notificationRouter } from './routes/notificationRoutes.js'
 import { mobileAuthRouter } from './routes/mobileAuthRoutes.js'
 import { mobileRouter } from './routes/mobileRoutes.js'
+import { subscriptionRouter } from './routes/subscriptionRoutes.js'
+import { v1SubscriptionRouter } from './routes/v1SubscriptionRoutes.js'
 import { accountRouter } from './routes/accountRoutes.js'
 import { renderAccountDeletionHtml, renderAccountDeletionScript } from './views/accountDeletionHtml.js'
 
@@ -145,6 +148,7 @@ startWebhookRetryWorker(30000) // Poll every 30 seconds
 startOtpCleanupWorker(60 * 60 * 1000) // Cleanup expired OTPs every hour
 startTransactionExpiryWorker(60_000)
 startRetentionPurgeWorker(24 * 60 * 60 * 1000) // Daily retention purge and deferred deletions
+startSubscriptionSchedulerWorker(60_000) // Scheduled customer invoices & platform renewals
 
 // ─── Auto-Sync Integration Tokens for Approved Merchants ───────────
 syncApprovedMerchantsTokens().catch((err) => console.warn('[Startup] Token sync warning:', err))
@@ -228,12 +232,14 @@ app.use('/api/account', accountRouter)
 app.use('/api/auth', authLimiter, authRouter)
 app.use('/api/webhooks', webhookLimiter, webhookRouter)
 app.use('/api/v1/checkout', generalApiLimiter, v1CheckoutRouter)
+app.use('/api/v1/subscriptions', generalApiLimiter, v1SubscriptionRouter)
 app.use('/api/checkout', generalApiLimiter, checkoutRouter)
 app.use('/api/transactions', generalApiLimiter, transactionRouter)
 app.use('/api/admin', requireAdminOrigin(ADMIN_URL), adminRouter)
 app.use('/api/settings', generalApiLimiter, settingsRouter)
 app.use('/api/plans', generalApiLimiter, planCatalogRouter)
 app.use('/api/subscription', generalApiLimiter, planRouter)
+app.use('/api/subscriptions', generalApiLimiter, subscriptionRouter)
 app.use('/api/bundles', generalApiLimiter, bundleRouter)
 app.use('/api/notifications', generalApiLimiter, notificationRouter)
 
@@ -263,6 +269,7 @@ process.on('SIGINT', () => {
   stopOtpCleanupWorker()
   stopTransactionExpiryWorker()
   stopRetentionPurgeWorker()
+  stopSubscriptionSchedulerWorker()
   server.close(() => {
     console.log('[Server] Closed HTTP & Socket.IO server')
     process.exit(0)
@@ -274,6 +281,7 @@ process.on('SIGTERM', () => {
   stopOtpCleanupWorker()
   stopTransactionExpiryWorker()
   stopRetentionPurgeWorker()
+  stopSubscriptionSchedulerWorker()
   server.close(() => {
     process.exit(0)
   })

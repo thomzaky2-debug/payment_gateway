@@ -682,6 +682,8 @@ test('account deletion anonymizes merchant PII, cancels webhooks, and preserves 
   const origNotification = (db as any).merchantNotification
   const origAuditLog = (db as any).auditLog
   const origSpecialOffer = (db as any).specialOffer
+  const origCustomerSub = (db as any).customerSubscription
+  const origCustomerInv = (db as any).customerInvoice
   const orig$transaction = (db as any).$transaction
   ;(db as any).$transaction = async (fn: any) => fn(db)
 
@@ -692,6 +694,8 @@ test('account deletion anonymizes merchant PII, cancels webhooks, and preserves 
   ;(db as any).merchantNotification = { deleteMany: async () => ({ count: 0 }) }
   ;(db as any).auditLog = { findMany: async () => [], update: async () => ({}), create: async () => ({}) }
   ;(db as any).specialOffer = { updateMany: async () => ({ count: 0 }) }
+  ;(db as any).customerSubscription = { updateMany: async () => ({ count: 0 }) }
+  ;(db as any).customerInvoice = { updateMany: async () => ({ count: 0 }) }
 
   ;(db as any).client = {
     findUnique: async () => ({
@@ -1303,6 +1307,8 @@ test('public account deletion: stores single-use ACCOUNT_DELETION_PUBLIC code wi
   const origNotification = (db as any).merchantNotification
   const origAuditLog = (db as any).auditLog
   const origSpecialOffer = (db as any).specialOffer
+  const origCustomerSub = (db as any).customerSubscription
+  const origCustomerInv = (db as any).customerInvoice
   const orig$transaction = (db as any).$transaction
   ;(db as any).$transaction = async (fn: any) => fn(db)
 
@@ -1823,6 +1829,8 @@ test('performAccountDataScrub eliminates original email, name, phone, and IP acr
   const origIncoming = (db as any).incomingPaymentEvent
   const origMismatched = (db as any).mismatchedPayment
   const origSpecialOffer = (db as any).specialOffer
+  const origCustomerSub = (db as any).customerSubscription
+  const origCustomerInv = (db as any).customerInvoice
   const orig$transaction = (db as any).$transaction
   ;(db as any).$transaction = async (fn: any) => fn(db)
 
@@ -2090,6 +2098,12 @@ test('performAccountDataScrub eliminates original email, name, phone, and IP acr
   ;(db as any).specialOffer = {
     updateMany: async () => ({ count: 0 }),
   }
+  ;(db as any).customerSubscription = {
+    updateMany: async () => ({ count: 0 }),
+  }
+  ;(db as any).customerInvoice = {
+    updateMany: async () => ({ count: 0 }),
+  }
 
   t.after(() => {
     ;(db as any).client = origClient
@@ -2103,6 +2117,8 @@ test('performAccountDataScrub eliminates original email, name, phone, and IP acr
     ;(db as any).incomingPaymentEvent = origIncoming
     ;(db as any).mismatchedPayment = origMismatched
     ;(db as any).specialOffer = origSpecialOffer
+    ;(db as any).customerSubscription = origCustomerSub
+    ;(db as any).customerInvoice = origCustomerInv
     if (orig$transaction) (db as any).$transaction = orig$transaction
     else delete (db as any).$transaction
   })
@@ -2160,6 +2176,8 @@ test('deleteMerchantAccount refuses deletion with HTTP 409 when merchant has uns
   const origNotif = (db as any).merchantNotification
   const origAudit = (db as any).auditLog
   const origOffer = (db as any).specialOffer
+  const origCustomerSub = (db as any).customerSubscription
+  const origCustomerInv = (db as any).customerInvoice
   const orig$transaction = (db as any).$transaction
   ;(db as any).$transaction = async (fn: any) => fn(db)
 
@@ -2198,6 +2216,8 @@ test('deleteMerchantAccount refuses deletion with HTTP 409 when merchant has uns
   }
 
   ;(db as any).specialOffer = { updateMany: async () => ({ count: 0 }) }
+  ;(db as any).customerSubscription = { updateMany: async () => ({ count: 0 }) }
+  ;(db as any).customerInvoice = { updateMany: async () => ({ count: 0 }) }
   ;(db as any).authSession = { updateMany: async () => ({ count: 0 }) }
   ;(db as any).detectorDevice = {
     updateMany: async () => ({ count: 0 }),
@@ -2221,6 +2241,8 @@ test('deleteMerchantAccount refuses deletion with HTTP 409 when merchant has uns
     ;(db as any).merchantNotification = origNotif
     ;(db as any).auditLog = origAudit
     ;(db as any).specialOffer = origOffer
+    ;(db as any).customerSubscription = origCustomerSub
+    ;(db as any).customerInvoice = origCustomerInv
     if (orig$transaction) (db as any).$transaction = orig$transaction
     else delete (db as any).$transaction
   })
@@ -2269,6 +2291,8 @@ test('runDailyRetentionPurge purges retained financial records older than ACCOUN
   const origIpe = (db as any).incomingPaymentEvent
   const origMismatched = (db as any).mismatchedPayment
   const origWl = (db as any).webhookLog
+  const origCustomerSub = (db as any).customerSubscription
+  const origCustomerInv = (db as any).customerInvoice
 
   const deletedMerchantId = 'merchant_deleted_1'
   const activeMerchantId = 'merchant_active_1'
@@ -2304,6 +2328,8 @@ test('runDailyRetentionPurge purges retained financial records older than ACCOUN
   ;(db as any).incomingPaymentEvent = { deleteMany: async () => ({ count: 0 }) }
   ;(db as any).mismatchedPayment = { deleteMany: async () => ({ count: 0 }) }
   ;(db as any).webhookLog = { deleteMany: async () => ({ count: 0 }) }
+  ;(db as any).customerSubscription = { deleteMany: async () => ({ count: 0 }) }
+  ;(db as any).customerInvoice = { deleteMany: async () => ({ count: 0 }) }
 
   t.after(() => {
     ;(db as any).client = origClient
@@ -2311,6 +2337,8 @@ test('runDailyRetentionPurge purges retained financial records older than ACCOUN
     ;(db as any).incomingPaymentEvent = origIpe
     ;(db as any).mismatchedPayment = origMismatched
     ;(db as any).webhookLog = origWl
+    ;(db as any).customerSubscription = origCustomerSub
+    ;(db as any).customerInvoice = origCustomerInv
   })
 
   // Run purge cycle with fake clock

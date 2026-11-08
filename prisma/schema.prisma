@@ -111,6 +111,9 @@ model Client {
   authSessions       AuthSession[]
   incomingPayments   IncomingPaymentEvent[]
   specialOffers      SpecialOffer[]
+  subscriptionPlans     CustomerSubscriptionPlan[]
+  customerSubscriptions CustomerSubscription[]
+  customerInvoices      CustomerInvoice[]
 
   @@index([instapayHandle])
   @@index([instapayPaymentUrl])
@@ -277,6 +280,8 @@ model Transaction {
   createdAt DateTime @default(now())
   expiresAt DateTime
 
+  customerInvoice CustomerInvoice?
+
   @@unique([clientId, idempotencyKeyHash])
   @@index([clientId, status, createdAt])
   @@index([clientId, purpose, status])
@@ -371,4 +376,97 @@ model Plan {
   offerPriceEgp   Float?
   offerLabel      String?
   offerEndsAt     DateTime?
+}
+
+// ─── Merchant Customer Subscription Plans ───────────────────────────
+model CustomerSubscriptionPlan {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  amountEgp       Float
+  amountCents     Int
+  currency        String   @default("EGP")
+  billingInterval String   @default("MONTHLY") // MONTHLY | WEEKLY | DAILY | YEARLY | CUSTOM_DAYS
+  intervalDays    Int      @default(30)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions CustomerSubscription[]
+
+  @@index([clientId, isActive])
+  @@index([clientId, createdAt])
+}
+
+// ─── Customer Recurring Subscriptions / Schedules ───────────────────
+model CustomerSubscription {
+  id                 String                    @id @default(cuid())
+  clientId           String
+  client             Client                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  planId             String?
+  plan               CustomerSubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  customerName       String
+  customerEmail      String
+  customerPhone      String?
+  senderHandle       String?
+  amountEgp          Float
+  amountCents        Int
+  currency           String                    @default("EGP")
+  billingInterval    String                    @default("MONTHLY") // MONTHLY | WEEKLY | DAILY | YEARLY | CUSTOM_DAYS
+  intervalDays       Int                       @default(30)
+  status             String                    @default("ACTIVE") // ACTIVE | PAUSED | CANCELLED | PAST_DUE
+  currentPeriodStart DateTime                  @default(now())
+  currentPeriodEnd   DateTime
+  nextBillingAt      DateTime
+  reminderDaysBefore Int                       @default(2)
+  lastInvoiceAt      DateTime?
+  canceledAt         DateTime?
+  description        String?
+  metadata           Json?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  invoices CustomerInvoice[]
+
+  @@index([clientId, status, nextBillingAt])
+  @@index([status, nextBillingAt])
+  @@index([customerEmail])
+}
+
+// ─── Customer Invoices (Recurring Billing Cycles) ───────────────────
+model CustomerInvoice {
+  id                 String                @id @default(cuid())
+  invoiceNumber      String                @unique
+  clientId           String
+  client             Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  subscriptionId     String?
+  subscription       CustomerSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  transactionId      String?               @unique
+  transaction        Transaction?          @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  customerName       String
+  customerEmail      String
+  customerPhone      String?
+  senderHandle       String?
+  amountEgp          Float
+  amountCents        Int
+  currency           String                @default("EGP")
+  status             String                @default("PENDING") // PENDING | PAID | OVERDUE | CANCELLED
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  dueDate            DateTime
+  sessionId          String?               @unique
+  checkoutUrl        String?
+  paidAt             DateTime?
+  reminderSentAt     DateTime?
+  overdueNotifiedAt  DateTime?
+  metadata           Json?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([clientId, status, createdAt])
+  @@index([subscriptionId, status])
+  @@index([status, dueDate])
+  @@index([sessionId])
 }

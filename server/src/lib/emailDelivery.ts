@@ -385,3 +385,91 @@ export async function sendMerchantApprovalEmail(input: SendApprovalEmailInput): 
   console.info(`Status: APPROVED (Integration Tokens Generated)`)
   console.info(`======================================================\n`)
 }
+
+export interface SendApplicationEmailInput {
+  to: string
+  subject: string
+  html: string
+  text: string
+}
+
+export async function sendApplicationEmail(input: SendApplicationEmailInput): Promise<boolean> {
+  const cleanEmail = normalizeEmail(input.to)
+  if (!cleanEmail) return false
+
+  // 1. Try Resend
+  const apiKey = process.env.RESEND_API_KEY
+  if (apiKey) {
+    try {
+      const from = getFromAddress()
+      const replyTo = extractEmailAddress(from)
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from,
+          to: cleanEmail,
+          reply_to: replyTo,
+          subject: input.subject,
+          html: input.html,
+          text: input.text,
+          headers: {
+            'X-Auto-Response-Suppress': 'OOF, AutoReply',
+            'Auto-Submitted': 'auto-generated',
+          },
+        }),
+      })
+      if (response.ok) {
+        console.info(`[email] Application email delivered to ${cleanEmail} via Resend.`)
+        return true
+      }
+    } catch (err) {
+      console.warn('[email] Resend send error:', err)
+    }
+  }
+
+  // 2. Try SMTP
+  const host = process.env.SMTP_HOST
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  if (host && user && pass) {
+    try {
+      const port = Number(process.env.SMTP_PORT || 465)
+      const from = getFromAddress(user)
+      const replyTo = extractEmailAddress(from)
+      const domain = extractEmailDomain(from)
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        name: domain,
+        auth: { user, pass },
+      })
+      await transporter.sendMail({
+        from,
+        to: cleanEmail,
+        replyTo,
+        messageId: buildMessageId(from),
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+        headers: {
+          'X-Auto-Response-Suppress': 'OOF, AutoReply',
+          'Auto-Submitted': 'auto-generated',
+        },
+      })
+      console.info(`[email] Application email delivered to ${cleanEmail} via SMTP.`)
+      return true
+    } catch (err) {
+      console.warn('[email] SMTP send error:', err)
+    }
+  }
+
+  // 3. Fallback dev log
+  console.info(`\n======================================================`)
+  console.info(`📧 [APPLICATION EMAIL DISPATCH]`)
+  console.info(`To: ${cleanEmail}`)
+  console.info(`Subject: ${input.subject}`)
+  console.info(`======================================================\n`)
+  return true
+}

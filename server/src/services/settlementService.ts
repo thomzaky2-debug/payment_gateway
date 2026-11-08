@@ -65,6 +65,72 @@ export async function enqueueWebhookOutbox(txDb: any, transaction: any, client: 
   })
 }
 
+export async function enqueueSubscriptionWebhookOutbox(txDb: any, client: any, event: string, data: any) {
+  if (!client?.webhookUrl) return
+  const eventId = `evt_${crypto.randomBytes(16).toString('hex')}`
+  const payload = {
+    event,
+    eventId,
+    clientId: client.id,
+    businessName: client.businessName,
+    data,
+    createdAt: new Date().toISOString(),
+  }
+  await txDb.webhookLog.create({
+    data: {
+      clientId: client.id,
+      url: client.webhookUrl,
+      event,
+      eventId,
+      payload: JSON.stringify(payload),
+      isSuccess: false,
+      attempt: 0,
+      nextAttemptAt: new Date(),
+      outcomeKnown: true,
+    },
+  })
+}
+
+async function reconcileLinkedCustomerInvoice(txDb: any, transaction: any, client: any, paidAt: Date) {
+  try {
+    const linkedInvoice = await txDb.customerInvoice.findFirst({
+      where: {
+        OR: [
+          { sessionId: transaction.sessionId },
+          { transactionId: transaction.id },
+        ],
+        status: { in: ['PENDING', 'OVERDUE'] },
+      },
+      include: { subscription: true },
+    })
+    if (linkedInvoice) {
+      await txDb.customerInvoice.update({
+        where: { id: linkedInvoice.id },
+        data: { status: 'PAID', paidAt },
+      })
+      if (linkedInvoice.subscriptionId) {
+        await txDb.customerSubscription.update({
+          where: { id: linkedInvoice.subscriptionId },
+          data: { status: 'ACTIVE' },
+        })
+      }
+      await enqueueSubscriptionWebhookOutbox(txDb, client, 'subscription.invoice_paid', {
+        invoiceId: linkedInvoice.id,
+        invoiceNumber: linkedInvoice.invoiceNumber,
+        subscriptionId: linkedInvoice.subscriptionId,
+        customerName: linkedInvoice.customerName,
+        customerEmail: linkedInvoice.customerEmail,
+        amountEgp: linkedInvoice.amountEgp,
+        paidAt: paidAt.toISOString(),
+        transactionId: transaction.id,
+        sessionId: transaction.sessionId,
+      })
+    }
+  } catch (invErr) {
+    console.warn('[settlement] Customer invoice auto-reconciliation warning:', invErr)
+  }
+}
+
 /**
  * Settles an ordinary merchant checkout and consumes its quota reservation in
  * one database transaction. This prevents checkout creation from observing a
@@ -121,6 +187,7 @@ export async function confirmOrdinaryCheckout(
     })
     const client = await txDb.client.findUniqueOrThrow({ where: { id: input.clientId } })
     await enqueueWebhookOutbox(txDb, transaction, client)
+    await reconcileLinkedCustomerInvoice(txDb, transaction, client, input.detectedAt || new Date())
     return { transaction, newlyConfirmed: true }
   })
 }
@@ -216,6 +283,7 @@ export async function confirmTransactionAsOwner(sessionId: string) {
       include: { client: true },
     })
     await enqueueWebhookOutbox(txDb, transaction, transaction.client)
+    await reconcileLinkedCustomerInvoice(txDb, transaction, transaction.client, existing.detectedAt || new Date())
     return { transaction, newlyConfirmed: true }
   })
 }

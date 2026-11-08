@@ -349,6 +349,54 @@ export async function performAccountDataScrub(client: { id: string; email?: stri
       },
     })
 
+    // 11b. Cancel and scrub customer subscriptions and invoices
+    if (tx.customerSubscription?.updateMany) {
+      await tx.customerSubscription.updateMany({
+        where: { clientId },
+        data: {
+          status: 'CANCELLED',
+          customerName: '[deleted]',
+          customerEmail: 'deleted@deleted.local',
+          customerPhone: null,
+          senderHandle: null,
+          canceledAt: now,
+        },
+      })
+    }
+    if (tx.customerInvoice?.updateMany) {
+      await tx.customerInvoice.updateMany({
+        where: { clientId },
+        data: {
+          customerName: '[deleted]',
+          customerEmail: 'deleted@deleted.local',
+          customerPhone: null,
+          senderHandle: null,
+        },
+      })
+    }
+
+    // 11b. Cancel and scrub customer subscriptions and invoices
+    await tx.customerSubscription.updateMany({
+      where: { clientId },
+      data: {
+        status: 'CANCELLED',
+        customerName: '[deleted]',
+        customerEmail: 'deleted@deleted.local',
+        customerPhone: null,
+        senderHandle: null,
+        canceledAt: now,
+      },
+    })
+    await tx.customerInvoice.updateMany({
+      where: { clientId },
+      data: {
+        customerName: '[deleted]',
+        customerEmail: 'deleted@deleted.local',
+        customerPhone: null,
+        senderHandle: null,
+      },
+    })
+
     // 12. Anonymize all personal fields on the Client record
     await tx.client.update({
       where: { id: clientId },
@@ -690,6 +738,42 @@ export async function runDailyRetentionPurge(nowOverride?: Date): Promise<{
         },
       })
       count += wlResult.count || 0
+
+      if (db.customerInvoice?.deleteMany) {
+        const ciResult = await db.customerInvoice.deleteMany({
+          where: {
+            clientId: merchant.id,
+            createdAt: { lt: retentionCutoff },
+          },
+        })
+        count += ciResult.count || 0
+      }
+
+      if (db.customerSubscription?.deleteMany) {
+        const csResult = await db.customerSubscription.deleteMany({
+          where: {
+            clientId: merchant.id,
+            createdAt: { lt: retentionCutoff },
+          },
+        })
+        count += csResult.count || 0
+      }
+
+      const ciResult = await db.customerInvoice.deleteMany({
+        where: {
+          clientId: merchant.id,
+          createdAt: { lt: retentionCutoff },
+        },
+      })
+      count += ciResult.count || 0
+
+      const csResult = await db.customerSubscription.deleteMany({
+        where: {
+          clientId: merchant.id,
+          createdAt: { lt: retentionCutoff },
+        },
+      })
+      count += csResult.count || 0
 
       retentionRowsAnonymized += count
       if (count > 0) {

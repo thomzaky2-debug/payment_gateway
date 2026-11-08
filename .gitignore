@@ -9,6 +9,7 @@ build/
 env-*.text
 *.text
 chat_export.*
+explain-*.md
 .DS_Store
 .vscode/
 

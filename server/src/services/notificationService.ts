@@ -132,6 +132,14 @@ export function emitCheckoutUpdate(payload: CheckoutUpdatePayload) {
 }
 
 /**
+ * Emits a real-time event to a specific merchant
+ */
+export function emitToClient(clientId: string, event: string, data: any) {
+  if (!ioInstance) return
+  ioInstance.to(`merchant:${clientId}`).emit(event, data)
+}
+
+/**
  * Emits a real-time notification to a specific merchant
  */
 export function emitMerchantNotification(clientId: string, notification: {
@@ -141,6 +149,5 @@ export function emitMerchantNotification(clientId: string, notification: {
   severity: string
   createdAt: string
 }) {
-  if (!ioInstance) return
-  ioInstance.to(`merchant:${clientId}`).emit('notification:new', notification)
+  emitToClient(clientId, 'notification:new', notification)
 }

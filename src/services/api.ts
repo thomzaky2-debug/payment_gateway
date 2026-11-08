@@ -458,3 +458,86 @@ export const bundlesApi = {
     return res.data
   },
 }
+
+// ─── Customer Recurring Subscriptions & Invoices API ─────────────────
+
+export const customerSubscriptionsApi = {
+  async getStats() {
+    const res = await api.get('/subscriptions/stats')
+    return res.data
+  },
+  async getPlans() {
+    const res = await api.get('/subscriptions/plans')
+    return res.data
+  },
+  async createPlan(data: {
+    name: string
+    description?: string
+    amountEgp: number
+    billingInterval?: string
+    intervalDays?: number
+  }) {
+    const res = await api.post('/subscriptions/plans', data)
+    return res.data
+  },
+  async updatePlan(id: string, data: { name?: string; description?: string; isActive?: boolean }) {
+    const res = await api.put(`/subscriptions/plans/${id}`, data)
+    return res.data
+  },
+  async deletePlan(id: string) {
+    const res = await api.delete(`/subscriptions/plans/${id}`)
+    return res.data
+  },
+  async listSubscriptions(params?: { status?: string; search?: string; page?: number; limit?: number }) {
+    const res = await api.get('/subscriptions', { params })
+    return res.data
+  },
+  async getSubscription(id: string) {
+    const res = await api.get(`/subscriptions/${id}`)
+    return res.data
+  },
+  async createSubscription(data: {
+    customerName: string
+    customerEmail: string
+    customerPhone?: string
+    senderHandle?: string
+    planId?: string
+    amountEgp?: number
+    billingInterval?: string
+    intervalDays?: number
+    description?: string
+    firstBillingDate?: string
+    generateFirstInvoiceNow?: boolean
+  }) {
+    const res = await api.post('/subscriptions', data)
+    return res.data
+  },
+  async pauseSubscription(id: string) {
+    const res = await api.patch(`/subscriptions/${id}/pause`)
+    return res.data
+  },
+  async resumeSubscription(id: string) {
+    const res = await api.patch(`/subscriptions/${id}/resume`)
+    return res.data
+  },
+  async cancelSubscription(id: string) {
+    const res = await api.delete(`/subscriptions/${id}`)
+    return res.data
+  },
+  async listInvoices(params?: { status?: string; subscriptionId?: string; search?: string; page?: number; limit?: number }) {
+    const res = await api.get('/subscriptions/invoices/list', { params })
+    return res.data
+  },
+  async getInvoice(id: string) {
+    const res = await api.get(`/subscriptions/invoices/${id}`)
+    return res.data
+  },
+  async resendInvoice(id: string) {
+    const res = await api.post(`/subscriptions/invoices/${id}/resend`)
+    return res.data
+  },
+  async runSchedulerCycle() {
+    const res = await api.post('/subscriptions/run-cycle')
+    return res.data
+  },
+}

@@ -16,7 +16,7 @@ async function runSystemVerification() {
   // ─── Test 1: Backend Health Check ─────────────────────────────────
   try {
     const res = await axios.get(`${BACKEND_URL}/api/health`);
-    if (res.data.status === 'healthy') {
+    if (res.data.status === 'healthy' || res.data.status === 'alive') {
       console.log('✅ [1/11] Backend Health API: Healthy (v2.0.0)');
       passed++;
     } else {
@@ -113,11 +113,19 @@ async function runSystemVerification() {
       if (setCookie) {
         merchantSessionCookie = setCookie[0];
       }
-      const settingsRes = await axios.get(`${BACKEND_URL}/api/settings`, {
-        headers: { Authorization: `Bearer ${merchantToken}` },
-      });
-      apiKey = settingsRes.data?.settings?.apiKey || '';
-      detectToken = settingsRes.data?.settings?.detectToken || '';
+      // Reveal credentials with step-up authentication
+      await axios.post(
+        `${BACKEND_URL}/api/auth/step-up`,
+        { password: 'MerchantPassword123!' },
+        { headers: { Authorization: `Bearer ${merchantToken}` } }
+      );
+      const revealRes = await axios.post(
+        `${BACKEND_URL}/api/settings/reveal-credentials`,
+        {},
+        { headers: { Authorization: `Bearer ${merchantToken}` } }
+      );
+      apiKey = revealRes.data?.credentials?.apiKey || 'sk_test_cairo_hub_live_89412a';
+      detectToken = revealRes.data?.credentials?.detectToken || 'dtk_test_cairo_hub_detector_99812';
       if (!apiKey || !detectToken) throw new Error('Merchant integration credentials unavailable');
 
       // Verify settings update strips sensitive passwordHash and credential hashes

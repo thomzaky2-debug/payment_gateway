@@ -373,7 +373,7 @@ test('a grace-period login cannot undo an admin suspension', async (t) => {
 })
 
 test('account deletion scrubs only audit rows that reference the merchant, never by business name alone', async (t) => {
-  const delegates = ['authSession', 'detectorDevice', 'webhookLog', 'emailVerification', 'merchantNotification', 'transaction', 'auditLog', 'incomingPaymentEvent', 'mismatchedPayment', 'specialOffer', 'client']
+  const delegates = ['authSession', 'detectorDevice', 'webhookLog', 'emailVerification', 'merchantNotification', 'transaction', 'auditLog', 'incomingPaymentEvent', 'mismatchedPayment', 'specialOffer', 'customerSubscription', 'customerInvoice', 'client']
   const saved: Record<string, unknown> = { $transaction: (db as any).$transaction }
   for (const name of delegates) saved[name] = (db as any)[name]
   t.after(() => Object.assign(db as any, saved))
