@@ -163,9 +163,12 @@ IIS route fallback and browser security headers.
 
 Set secrets only in the API host's environment settings, including a distinct
 `CREDENTIAL_ENCRYPTION_KEY`; do not upload `.env`. Set the two `VITE_*`
-variables in each static-site build. Run `npm run db:migrate` from CI or a
-trusted machine before enabling the API. Monitor `/api/health` for process
-liveness and `/api/health/ready` for database/webhook-delivery readiness.
+variables in each static-site build. The hosted API runs `prisma migrate deploy` at startup, including when database
+credentials are available only at runtime. Configure both `DATABASE_URL` and
+`DIRECT_URL` on the API host and publish the tracked `prisma/migrations`
+directory. A failed migration stops startup and appears in the API process
+log. Monitor `/api/health` for process liveness and `/api/health/ready` for
+portal schema and webhook-delivery readiness.
 
 Before switching traffic, confirm MonsterASP supplies Node.js 22.20+, keeps
 the API process alive for the webhook worker, permits outbound Supabase,

@@ -3,6 +3,9 @@ dotenv.config()
 
 import express from 'express'
 import http from 'http'
+import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { db } from './db.js'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import fs from 'fs'
@@ -52,6 +55,23 @@ const PORT = Number(process.env.PORT) || 3001
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173'
 const isLocalRuntime = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test'
 const ADMIN_URL = process.env.ADMIN_URL || CLIENT_URL
+
+// MonsterASP can supply database credentials only to the running API. Run
+// tracked migrations before any workers or HTTP handlers can query new columns.
+if (!isLocalRuntime) {
+  const prismaCli = createRequire(import.meta.url).resolve('prisma/build/index.js')
+  execFileSync(process.execPath, [prismaCli, 'migrate', 'deploy'], { stdio: 'inherit' })
+}
+
+// Resolve the columns used by authenticated portal reads without scanning rows.
+async function checkPortalSchema() {
+  await db.$queryRaw`
+    SELECT c."suspendedAt", t."items", t."returnUrl", t."idempotencyKeyHash",
+           s."stepUpExpiresAt", i."id"
+    FROM "Client" c, "Transaction" t, "AuthSession" s, "CustomerInvoice" i
+    LIMIT 0
+  `
+}
 
 function normalizeOrigin(value: string): string {
   try {
@@ -170,14 +190,14 @@ app.get('/api/health', async (_req, res) => {
 
 app.get('/api/health/ready', async (_req, res) => {
   try {
-    const health = await getWebhookDeliveryHealth()
+    const [health] = await Promise.all([getWebhookDeliveryHealth(), checkPortalSchema()])
     res.status(health.healthy ? 200 : 503).json({
       status: health.healthy ? 'ready' : 'degraded',
       timestamp: new Date().toISOString(),
       service: 'InstaPay Gateway Backend',
     })
   } catch (err) {
-    console.error('[health/ready] Webhook delivery health query failed:', err)
+    console.error('[health/ready] Database readiness check failed:', err)
     res.status(503).json({ status: 'degraded', timestamp: new Date().toISOString(), service: 'InstaPay Gateway Backend' })
   }
 })
