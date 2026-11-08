@@ -41,6 +41,7 @@ const pageTitles: Record<Page, { en: string; ar: string }> = {
   transactions: { en: 'Transactions', ar: 'سجل المعاملات' },
   review: { en: 'Manual Review', ar: 'المراجعة اليدوية' },
   billing: { en: 'Plans & Billing', ar: 'الاشتراكات والباقات' },
+  subscriptions: { en: 'Recurring Subscriptions & Invoices', ar: 'الاشتراكات المتكررة والفواتير' },
   detector: { en: 'Detector Health', ar: 'حالة جهاز الكاشف' },
   developers: { en: 'Developer Portal', ar: 'بوابة المطورين وAPI' },
   settings: { en: 'Settings', ar: 'إعدادات المتجر' },

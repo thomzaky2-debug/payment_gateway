@@ -15,13 +15,14 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { BillingPage } from './pages/BillingPage';
+import { SubscriptionsPage } from './pages/SubscriptionsPage';
 import { ApiDocsPage } from './pages/ApiDocsPage';
 import { SupportPage } from './pages/SupportPage';
 import { AboutPage } from './pages/AboutPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { PublicLinks } from './components/PublicLinks';
 
-export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'detector' | 'developers' | 'settings' | 'audit' | 'security' | 'docs' | 'support' | 'about' | 'privacy';
+export type Page = 'overview' | 'transactions' | 'review' | 'billing' | 'subscriptions' | 'detector' | 'developers' | 'settings' | 'audit' | 'security' | 'docs' | 'support' | 'about' | 'privacy';
 
 export interface ToastMessage {
   id: string;
@@ -59,6 +60,10 @@ export function parseRouteFromHash(hashString?: string): { page: Page; subPath?:
     review: 'review',
     queue: 'review',
     billing: 'billing',
+    subscriptions: 'subscriptions',
+    subscription: 'subscriptions',
+    recurring: 'subscriptions',
+    invoices: 'subscriptions',
     detector: 'detector',
     developers: 'developers',
     developer: 'developers',
@@ -299,6 +304,8 @@ function App() {
         );
       case 'billing':
         return <BillingPage showToast={showToast} />;
+      case 'subscriptions':
+        return <SubscriptionsPage showToast={showToast} subPath={currentSubPath} />;
       case 'detector':
         return <DetectorPage showToast={showToast} />;
       case 'developers':

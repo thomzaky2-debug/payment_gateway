@@ -27,6 +27,7 @@ const navItems: { page: Page; key: string; label: string; emoji: string }[] = [
   { page: 'overview', key: 'overview', label: 'Overview', emoji: '📊' },
   { page: 'transactions', key: 'transactions', label: 'Transactions', emoji: '🧾' },
   { page: 'review', key: 'review', label: 'Manual Review', emoji: '⚖️' },
+  { page: 'subscriptions', key: 'subscriptions', label: 'Subscriptions', emoji: '🔄' },
   { page: 'billing', key: 'billing', label: 'Plans & Billing', emoji: '💎' },
   { page: 'detector', key: 'detector', label: 'Detector', emoji: '📱' },
   { page: 'developers', key: 'developers', label: 'Developers', emoji: '💻' },
