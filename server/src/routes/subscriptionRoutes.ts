@@ -381,7 +381,11 @@ subscriptionRouter.post('/invoices/:id/resend', async (req: Request, res: Respon
 
 subscriptionRouter.post('/run-cycle', async (req: Request, res: Response) => {
   try {
-    const result = await runSubscriptionSchedulerCycle()
+    const client = (req as any).client
+    const result = await runSubscriptionSchedulerCycle(new Date(), client.id)
+    if (result.skipped) {
+      return res.status(409).json({ ok: false, error: result.reason })
+    }
     return res.json({ ok: true, result })
   } catch (err) {
     return sendInternalError(res, err, 'Failed to run subscription scheduler cycle')

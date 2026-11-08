@@ -13,6 +13,7 @@ import {
   getSubscriptionStats,
 } from './subscriptionService.js'
 import { db } from '../db.js'
+import { runSubscriptionSchedulerCycle } from '../workers/subscriptionSchedulerWorker.js'
 
 test('calculateNextBillingDate computes correct dates for all intervals', () => {
   const base = new Date('2026-05-10T12:00:00Z')
@@ -281,3 +282,28 @@ test('scheduler transitions overdue invoices and sends reminders', async () => {
   }
 })
 
+
+test('manual scheduler queries use the merchant scope and background queries cover all merchants', async () => {
+  const subscriptions = db.customerSubscription as any
+  const invoices = db.customerInvoice as any
+  const merchants = db.client as any
+  const original = [subscriptions.findMany, invoices.findMany, merchants.findMany]
+  const scopes: Array<string | undefined> = []
+  const recordScope = (key: string) => async ({ where }: any) => {
+    scopes.push(where[key])
+    return []
+  }
+
+  try {
+    subscriptions.findMany = recordScope('clientId')
+    invoices.findMany = recordScope('clientId')
+    merchants.findMany = recordScope('id')
+    await runSubscriptionSchedulerCycle(new Date(), 'merchant-a')
+    assert.deepEqual(scopes, Array(4).fill('merchant-a'))
+    scopes.length = 0
+    await runSubscriptionSchedulerCycle()
+    assert.deepEqual(scopes, Array(4).fill(undefined))
+  } finally {
+    ;[subscriptions.findMany, invoices.findMany, merchants.findMany] = original
+  }
+})

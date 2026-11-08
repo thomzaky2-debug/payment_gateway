@@ -8,17 +8,17 @@ import {
 let workerInterval: NodeJS.Timeout | null = null
 let isCycleRunning = false
 
-export async function runSubscriptionSchedulerCycle(now = new Date()) {
+export async function runSubscriptionSchedulerCycle(now = new Date(), clientId?: string) {
   if (isCycleRunning) {
     return { skipped: true, reason: 'Previous cycle still running' }
   }
 
   isCycleRunning = true
   try {
-    const invoicesResult = await processScheduledInvoices(now)
-    const remindersCount = await processUpcomingInvoiceReminders(now)
-    const overdueCount = await processOverdueInvoices(now)
-    const platformRenewalsCount = await processPlatformSubscriptionRenewals(now)
+    const invoicesResult = await processScheduledInvoices(now, clientId)
+    const remindersCount = await processUpcomingInvoiceReminders(now, clientId)
+    const overdueCount = await processOverdueInvoices(now, clientId)
+    const platformRenewalsCount = await processPlatformSubscriptionRenewals(now, clientId)
 
     if (invoicesResult.generated > 0 || remindersCount > 0 || overdueCount > 0 || platformRenewalsCount > 0) {
       console.log(
@@ -36,7 +36,7 @@ export async function runSubscriptionSchedulerCycle(now = new Date()) {
     }
   } catch (err) {
     console.error('[subscription-scheduler] Error running scheduler cycle:', err)
-    return { skipped: false, error: (err as Error).message }
+    throw err
   } finally {
     isCycleRunning = false
   }

@@ -340,10 +340,11 @@ export async function sendInvoiceReminder(invoiceId: string, now = new Date()) {
   return true
 }
 
-export async function processScheduledInvoices(now = new Date()): Promise<{ generated: number; errors: number }> {
+export async function processScheduledInvoices(now = new Date(), clientId?: string): Promise<{ generated: number; errors: number }> {
   // Find all active subscriptions where nextBillingAt <= now
   const dueSubscriptions = await db.customerSubscription.findMany({
     where: {
+      clientId,
       status: 'ACTIVE',
       nextBillingAt: { lte: now },
     },
@@ -366,9 +367,10 @@ export async function processScheduledInvoices(now = new Date()): Promise<{ gene
   return { generated, errors }
 }
 
-export async function processUpcomingInvoiceReminders(now = new Date()): Promise<number> {
+export async function processUpcomingInvoiceReminders(now = new Date(), clientId?: string): Promise<number> {
   const pendingInvoices = await db.customerInvoice.findMany({
     where: {
+      clientId,
       status: 'PENDING',
       reminderSentAt: null,
       dueDate: { gt: now },
@@ -393,9 +395,10 @@ export async function processUpcomingInvoiceReminders(now = new Date()): Promise
   return count
 }
 
-export async function processOverdueInvoices(now = new Date()): Promise<number> {
+export async function processOverdueInvoices(now = new Date(), clientId?: string): Promise<number> {
   const overdueInvoices = await db.customerInvoice.findMany({
     where: {
+      clientId,
       status: 'PENDING',
       dueDate: { lt: now },
     },
@@ -435,11 +438,12 @@ export async function processOverdueInvoices(now = new Date()): Promise<number> 
   return count
 }
 
-export async function processPlatformSubscriptionRenewals(now = new Date()): Promise<number> {
+export async function processPlatformSubscriptionRenewals(now = new Date(), clientId?: string): Promise<number> {
   // Find approved active merchants whose paid subscription ends within 3 days or is overdue
   const threeDaysFuture = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
   const expiringMerchants = await db.client.findMany({
     where: {
+      id: clientId,
       approvalStatus: 'APPROVED',
       isActive: true,
       subscriptionPlan: { not: 'FREE_TRIAL' },
