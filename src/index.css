@@ -1859,12 +1859,12 @@ th, td {
 /* ─── Responsive Checkout Side-by-Side Layout ─── */
 .checkout-content-grid.has-items {
   display: grid;
-  grid-template-columns: minmax(0, 1.42fr) minmax(320px, 1fr) !important;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr) !important;
   gap: 24px !important;
   align-items: start;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1160px) {
   .checkout-content-grid.has-items {
     grid-template-columns: 1fr !important;
   }
@@ -2005,7 +2005,6 @@ html.dark .security-refresh-btn:hover:not(:disabled) {
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    color-adjust: exact !important;
   }
 
   @page {

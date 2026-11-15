@@ -1442,9 +1442,37 @@ export function CheckoutPayPage() {
                 )}
               </div>
 
-              {/* Amount & Timer Box */}
-              {checkout.productCategory && <p style={{ color: textSecondary, fontSize: 13, overflowWrap: 'anywhere', margin: 0 }}>{isRtl ? 'فئة المنتج: ' : 'Product category: '}{checkout.productCategory}</p>}
-              <div style={{ textAlign: isRtl ? 'left' : 'right', minWidth: '180px' }}>
+              {/* Category Badge & Amount/Timer Box */}
+              {checkout.productCategory && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    borderRadius: '12px',
+                    backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#f0f9ff',
+                    border: isDark ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid #bae6fd',
+                    color: isDark ? '#38bdf8' : '#0284c7',
+                    fontSize: '14.5px',
+                    fontWeight: 600,
+                    boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.25)' : '0 2px 6px rgba(56, 189, 248, 0.08)',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Tag size={16} style={{ flexShrink: 0, color: isDark ? '#38bdf8' : '#0284c7' }} />
+                  <span>
+                    <span style={{ color: textSecondary, fontWeight: 500, marginInlineEnd: '4px' }}>
+                      {isRtl ? 'فئة المنتج:' : 'Product category:'}
+                    </span>
+                    <strong style={{ color: textPrimary, fontWeight: 800, fontSize: '15px' }}>
+                      {checkout.productCategory}
+                    </strong>
+                  </span>
+                </div>
+              )}
+              <div style={{ textAlign: isRtl ? 'left' : 'right', minWidth: '180px', flexShrink: 0 }}>
                 <span
                   style={{
                     fontSize: '11px',
@@ -1598,6 +1626,8 @@ export function CheckoutPayPage() {
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
                         }}
                       >
                         <Edit2 size={11} /> {isRtl ? 'تعديل' : 'Edit'}
@@ -1608,31 +1638,50 @@ export function CheckoutPayPage() {
                   {!isEditingSender && checkout.senderHandle && checkout.senderHandle !== 'pending@instapay' ? (
                     <div
                       style={{
-                        padding: '12px 14px',
+                        padding: '11px 13px',
                         borderRadius: '12px',
                         backgroundColor: bgBox,
                         border: '1px solid rgba(16, 185, 129, 0.3)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        gap: '8px',
+                        flexWrap: 'wrap',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <UserCheck size={18} style={{ color: '#10b981' }} />
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '14px', color: textPrimary }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: '1 1 auto' }}>
+                        <UserCheck size={18} style={{ color: '#10b981', flexShrink: 0 }} />
+                        <span
+                          title={checkout.senderHandle}
+                          style={{
+                            fontFamily: 'monospace',
+                            fontWeight: 700,
+                            fontSize: '13.5px',
+                            color: textPrimary,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
                           {checkout.senderHandle}
                         </span>
                       </div>
                       <span
                         style={{
-                          fontSize: '10px',
+                          fontSize: '11px',
                           fontWeight: 700,
-                          padding: '2px 8px',
+                          padding: '3px 9px',
                           borderRadius: '12px',
                           backgroundColor: 'rgba(16, 185, 129, 0.15)',
                           color: '#10b981',
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
                         }}
                       >
+                        <CheckCircle2 size={11} style={{ flexShrink: 0 }} />
                         {isRtl ? 'مربوط للمطابقة الآلية' : 'Auto-Match Ready'}
                       </span>
                     </div>
@@ -2058,7 +2107,7 @@ export function CheckoutPayPage() {
                       gap: '10px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                       <div
                         style={{
                           width: '34px',
@@ -2069,15 +2118,16 @@ export function CheckoutPayPage() {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
+                          flexShrink: 0,
                         }}
                       >
                         <ShoppingBag size={18} />
                       </div>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: textPrimary }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: textPrimary, whiteSpace: 'nowrap' }}>
                           {isRtl ? 'تفاصيل طلب المنتجات' : 'Product Order Details'}
                         </h3>
-                        <span style={{ fontSize: '11.5px', color: textSecondary }}>
+                        <span style={{ fontSize: '11.5px', color: textSecondary, whiteSpace: 'nowrap' }}>
                           {isRtl
                             ? `${orderItems.length} ${orderItems.length === 1 ? 'صنف' : 'أصناف'} (${orderItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} قطعة)`
                             : `${orderItems.length} ${orderItems.length === 1 ? 'product' : 'products'} (${orderItems.reduce((acc, it) => acc + (it.quantity || 1), 0)} units)`}
@@ -2085,22 +2135,45 @@ export function CheckoutPayPage() {
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
-                        border: `1px solid ${borderSubtle}`,
-                        color: textSecondary,
-                        fontSize: '11px',
-                        fontWeight: 600,
-                      }}
-                    >
-                      <Receipt size={12} />
-                      <span>{isRtl ? 'فاتورة تفصيلية' : 'Itemized Receipt'}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {checkout.productCategory && (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: isDark ? 'rgba(56, 189, 248, 0.12)' : '#e0f2fe',
+                            border: isDark ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid #bae6fd',
+                            color: isDark ? '#38bdf8' : '#0284c7',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <Tag size={12} />
+                          <span>{checkout.productCategory}</span>
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          backgroundColor: isDark ? '#1e293b' : '#f1f5f9',
+                          border: `1px solid ${borderSubtle}`,
+                          color: textSecondary,
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <Receipt size={12} />
+                        <span>{isRtl ? 'فاتورة تفصيلية' : 'Itemized Receipt'}</span>
+                      </div>
                     </div>
                   </div>
 
