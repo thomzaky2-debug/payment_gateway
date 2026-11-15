@@ -1386,14 +1386,21 @@ html[dir="rtl"] .merchant-auth-input.has-icon-left.has-icon-right,
     max-width: min(280px, 86vw) !important;
   }
 
-  .merchant-sidebar-mobile-drawer nav button {
-    padding: 5px 8px !important;
+  .merchant-sidebar-mobile-drawer nav button,
+  .merchant-sidebar-mobile-drawer nav a {
+    padding: 0 8px !important;
+    height: 36px !important;
+    min-height: 36px !important;
     font-size: 13px !important;
-    gap: 7px !important;
-    border-radius: 6px !important;
+    gap: 8px !important;
+    border-radius: 7px !important;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
   }
 
-  .merchant-sidebar-mobile-drawer nav button span {
+  .merchant-sidebar-mobile-drawer nav button span,
+  .merchant-sidebar-mobile-drawer nav a span {
     font-size: 13px !important;
   }
 

@@ -279,7 +279,7 @@ export function AdminSidebar({
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '2px',
+          gap: '3px',
         }}
       >
         {navigation.map(({ tab, label, emoji }) => {
@@ -296,28 +296,31 @@ export function AdminSidebar({
               aria-current={active ? 'page' : undefined}
               style={{
                 width: collapsed && !mobileOpen ? '42px' : '100%',
-                height: collapsed && !mobileOpen ? '40px' : 'auto',
+                height: collapsed && !mobileOpen ? '38px' : '34px',
+                minHeight: '34px',
                 margin: collapsed && !mobileOpen ? '0 auto' : 0,
-                padding: collapsed && !mobileOpen ? 0 : '7px 10px',
+                padding: collapsed && !mobileOpen ? 0 : '0 8px',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '7px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: collapsed && !mobileOpen ? 'center' : 'flex-start',
-                gap: '9px',
+                gap: '8px',
                 position: 'relative',
                 overflow: 'hidden',
                 backgroundColor: active ? '#2563eb' : 'transparent',
                 color: active ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
                 boxShadow: active ? '0 3px 10px rgba(37, 99, 235, 0.35)' : 'none',
-                fontSize: '12.5px',
-                fontWeight: active ? 700 : 500,
+                fontSize: '11.5px',
+                fontWeight: active ? 600 : 500,
                 cursor: 'pointer',
                 transition: 'all 0.18s ease',
+                boxSizing: 'border-box',
+                flexShrink: 0,
               }}
             >
-              <span aria-hidden="true" style={{ flexShrink: 0, fontSize: '15px', lineHeight: 1 }}>{emoji}</span>
-              {(!collapsed || mobileOpen) && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+              <span aria-hidden="true" style={{ width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '15px', lineHeight: 1 }}>{emoji}</span>
+              {(!collapsed || mobileOpen) && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{label}</span>}
               {(!collapsed || mobileOpen) && tab === 'merchants' && pendingCount > 0 && (
                 <span
                   style={{

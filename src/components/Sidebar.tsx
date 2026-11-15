@@ -288,7 +288,7 @@ export function Sidebar({
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '2px',
+          gap: '3px',
         }}
       >
         {navItems.map((item) => {
@@ -308,7 +308,7 @@ export function Sidebar({
                 aria-label={itemLabel}
                 style={{
                   width: '42px',
-                  height: '40px',
+                  height: '38px',
                   margin: '0 auto',
                   borderRadius: '8px',
                   border: 'none',
@@ -322,6 +322,7 @@ export function Sidebar({
                   boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.4)' : 'none',
                   transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
                   position: 'relative',
+                  flexShrink: 0,
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
@@ -336,7 +337,7 @@ export function Sidebar({
                   }
                 }}
               >
-                <span>{item.emoji}</span>
+                <span style={{ width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{item.emoji}</span>
                 {isActive && (
                   <span
                     style={{
@@ -365,10 +366,12 @@ export function Sidebar({
               }}
               style={{
                 width: '100%',
+                height: '34px',
+                minHeight: '34px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                padding: '6px 8px',
+                padding: '0 8px',
                 borderRadius: '7px',
                 fontSize: '11.5px',
                 fontWeight: isActive ? 600 : 500,
@@ -381,6 +384,8 @@ export function Sidebar({
                 transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
                 position: 'relative',
                 overflow: 'hidden',
+                boxSizing: 'border-box',
+                flexShrink: 0,
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
@@ -395,8 +400,8 @@ export function Sidebar({
                 }
               }}
             >
-              <span style={{ fontSize: '15px', flexShrink: 0 }}>{item.emoji}</span>
-              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', lineHeight: 1, flexShrink: 0 }}>{item.emoji}</span>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
                 {itemLabel}
               </span>
               {isActive && (
@@ -416,94 +421,37 @@ export function Sidebar({
           );
         })}
 
+        {/* Section Divider 1: Store Settings */}
         <div
           style={{
-            borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0',
-            marginTop: '10px',
-            paddingTop: '8px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '2px',
+            height: '1px',
+            backgroundColor: isDark ? 'rgba(51, 65, 85, 0.5)' : '#e2e8f0',
+            margin: '6px 4px',
+            flexShrink: 0,
           }}
-        >
-          {!isCollapsed && (
-            <span
-              style={{
-                padding: '4px 8px',
-                color: isDark ? '#94a3b8' : '#64748b',
-                fontSize: '10px',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-              }}
-            >
-              {isRtl ? 'إعدادات المتجر' : 'STORE SETTINGS'}
-            </span>
-          )}
-          {settingsSections.map((section) => {
-            const isActive = currentPage === 'settings' && parseSettingsSection(currentSubPath) === section.key;
-            const label = isRtl ? section.ar : section.en;
+        />
 
-            if (isCollapsed) {
-              return (
-                <button
-                  key={section.key}
-                  type="button"
-                  title={label}
-                  aria-label={label}
-                  aria-current={isActive ? 'page' : undefined}
-                  onClick={() => {
-                    onNavigate('settings', section.path);
-                    onCloseMobile?.();
-                  }}
-                  style={{
-                    width: '42px',
-                    height: '40px',
-                    margin: '0 auto',
-                    borderRadius: '8px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '17px',
-                    backgroundColor: isActive ? '#2563eb' : 'transparent',
-                    color: isActive ? '#ffffff' : isDark ? '#94a3b8' : '#64748b',
-                    boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.4)' : 'none',
-                    transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = isDark ? '#1e293b' : '#f1f5f9';
-                      e.currentTarget.style.color = isDark ? '#f8fafc' : '#0f172a';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = isDark ? '#94a3b8' : '#64748b';
-                    }
-                  }}
-                >
-                  <span aria-hidden="true">{section.emoji}</span>
-                  {isActive && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        [isRtl ? 'right' : 'left']: '2px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: '3px',
-                        height: '16px',
-                        backgroundColor: '#60a5fa',
-                        borderRadius: '2px',
-                      }}
-                    />
-                  )}
-                </button>
-              );
-            }
+        {!isCollapsed && (
+          <span
+            style={{
+              padding: '4px 8px 2px',
+              color: isDark ? '#94a3b8' : '#64748b',
+              fontSize: '10px',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              userSelect: 'none',
+              flexShrink: 0,
+            }}
+          >
+            {isRtl ? 'إعدادات المتجر' : 'STORE SETTINGS'}
+          </span>
+        )}
 
+        {settingsSections.map((section) => {
+          const isActive = currentPage === 'settings' && parseSettingsSection(currentSubPath) === section.key;
+          const label = isRtl ? section.ar : section.en;
+
+          if (isCollapsed) {
             return (
               <button
                 key={section.key}
@@ -516,23 +464,22 @@ export function Sidebar({
                   onCloseMobile?.();
                 }}
                 style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 8px',
-                  borderRadius: '7px',
-                  fontSize: '11.5px',
-                  fontWeight: isActive ? 600 : 500,
+                  width: '42px',
+                  height: '38px',
+                  margin: '0 auto',
+                  borderRadius: '8px',
                   border: 'none',
                   cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '17px',
                   backgroundColor: isActive ? '#2563eb' : 'transparent',
-                  color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
-                  boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.35)' : 'none',
-                  textAlign: isRtl ? 'right' : 'left',
+                  color: isActive ? '#ffffff' : isDark ? '#94a3b8' : '#64748b',
+                  boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.4)' : 'none',
                   transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
                   position: 'relative',
-                  overflow: 'hidden',
+                  flexShrink: 0,
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
@@ -543,82 +490,63 @@ export function Sidebar({
                 onMouseLeave={(e) => {
                   if (!isActive) {
                     e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = isDark ? '#cbd5e1' : '#475569';
+                    e.currentTarget.style.color = isDark ? '#94a3b8' : '#64748b';
                   }
                 }}
               >
-                <span aria-hidden="true" style={{ fontSize: '15px', flexShrink: 0 }}>{section.emoji}</span>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {label}
-                </span>
+                <span aria-hidden="true" style={{ width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{section.emoji}</span>
                 {isActive && (
                   <span
                     style={{
                       position: 'absolute',
-                      [isRtl ? 'right' : 'left']: '0',
-                      top: '6px',
-                      bottom: '6px',
-                      width: '3.5px',
+                      [isRtl ? 'right' : 'left']: '2px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      width: '3px',
+                      height: '16px',
                       backgroundColor: '#60a5fa',
-                      borderRadius: isRtl ? '3px 0 0 3px' : '0 3px 3px 0',
+                      borderRadius: '2px',
                     }}
                   />
                 )}
               </button>
             );
-          })}
-          <div style={{ borderTop: isDark ? '1px solid rgba(51, 65, 85, 0.5)' : '1px solid #e2e8f0', marginBlock: 6 }} />
-          {[
-            { label: isRtl ? 'عن نايل باي' : 'About', href: '#about/', emoji: 'ℹ️', external: false, isActive: currentPage === 'about' },
-            { label: isRtl ? 'سياسة الخصوصية' : 'Privacy Policy', href: '#privacy/', emoji: '📑', external: false, isActive: currentPage === 'privacy' },
-            { label: isRtl ? 'الدعم' : 'Support', href: '#support/', emoji: '🛟', external: false, isActive: currentPage === 'support' },
-          ].map(({ label, href, emoji, external, isActive }) => (
-            <a
-              key={href}
-              href={href}
-              target={external ? '_blank' : undefined}
-              rel={external ? 'noopener noreferrer' : undefined}
-              onClick={() => onCloseMobile?.()}
+          }
+
+          return (
+            <button
+              key={section.key}
+              type="button"
               title={label}
               aria-label={label}
               aria-current={isActive ? 'page' : undefined}
-              style={
-                isCollapsed
-                  ? {
-                      width: '42px',
-                      height: '40px',
-                      margin: '0 auto',
-                      borderRadius: '8px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '17px',
-                      backgroundColor: isActive ? '#2563eb' : 'transparent',
-                      color: isActive ? '#ffffff' : isDark ? '#94a3b8' : '#64748b',
-                      boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.4)' : 'none',
-                      textDecoration: 'none',
-                      transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                      position: 'relative',
-                    }
-                  : {
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '6px 8px',
-                      borderRadius: '7px',
-                      fontSize: '11.5px',
-                      fontWeight: isActive ? 600 : 500,
-                      backgroundColor: isActive ? '#2563eb' : 'transparent',
-                      color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
-                      boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.35)' : 'none',
-                      textAlign: isRtl ? 'right' : 'left',
-                      textDecoration: 'none',
-                      transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
-                      position: 'relative',
-                      overflow: 'hidden',
-                    }
-              }
+              onClick={() => {
+                onNavigate('settings', section.path);
+                onCloseMobile?.();
+              }}
+              style={{
+                width: '100%',
+                height: '34px',
+                minHeight: '34px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '0 8px',
+                borderRadius: '7px',
+                fontSize: '11.5px',
+                fontWeight: isActive ? 600 : 500,
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: isActive ? '#2563eb' : 'transparent',
+                color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
+                boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.35)' : 'none',
+                textAlign: isRtl ? 'right' : 'left',
+                transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                position: 'relative',
+                overflow: 'hidden',
+                boxSizing: 'border-box',
+                flexShrink: 0,
+              }}
               onMouseEnter={(e) => {
                 if (!isActive) {
                   e.currentTarget.style.backgroundColor = isDark ? '#1e293b' : '#f1f5f9';
@@ -628,47 +556,146 @@ export function Sidebar({
               onMouseLeave={(e) => {
                 if (!isActive) {
                   e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = isCollapsed
-                    ? isDark ? '#94a3b8' : '#64748b'
-                    : isDark ? '#cbd5e1' : '#475569';
+                  e.currentTarget.style.color = isDark ? '#cbd5e1' : '#475569';
                 }
               }}
             >
-              <span aria-hidden="true" style={{ fontSize: isCollapsed ? '17px' : '15px', flexShrink: 0 }}>{emoji}</span>
-              {!isCollapsed && (
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {label}
-                </span>
-              )}
+              <span aria-hidden="true" style={{ width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', lineHeight: 1, flexShrink: 0 }}>{section.emoji}</span>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                {label}
+              </span>
               {isActive && (
                 <span
-                  style={
-                    isCollapsed
-                      ? {
-                          position: 'absolute',
-                          [isRtl ? 'right' : 'left']: '2px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          width: '3px',
-                          height: '16px',
-                          backgroundColor: '#60a5fa',
-                          borderRadius: '2px',
-                        }
-                      : {
-                          position: 'absolute',
-                          [isRtl ? 'right' : 'left']: '0',
-                          top: '6px',
-                          bottom: '6px',
-                          width: '3.5px',
-                          backgroundColor: '#60a5fa',
-                          borderRadius: isRtl ? '3px 0 0 3px' : '0 3px 3px 0',
-                        }
-                  }
+                  style={{
+                    position: 'absolute',
+                    [isRtl ? 'right' : 'left']: '0',
+                    top: '6px',
+                    bottom: '6px',
+                    width: '3.5px',
+                    backgroundColor: '#60a5fa',
+                    borderRadius: isRtl ? '3px 0 0 3px' : '0 3px 3px 0',
+                  }}
                 />
               )}
-            </a>
-          ))}
-        </div>
+            </button>
+          );
+        })}
+
+        {/* Section Divider 2: Legal & Support */}
+        <div
+          style={{
+            height: '1px',
+            backgroundColor: isDark ? 'rgba(51, 65, 85, 0.5)' : '#e2e8f0',
+            margin: '6px 4px',
+            flexShrink: 0,
+          }}
+        />
+
+        {[
+          { label: isRtl ? 'عن نايل باي' : 'About', href: '#about/', emoji: 'ℹ️', external: false, isActive: currentPage === 'about' },
+          { label: isRtl ? 'سياسة الخصوصية' : 'Privacy Policy', href: '#privacy/', emoji: '📑', external: false, isActive: currentPage === 'privacy' },
+          { label: isRtl ? 'الدعم' : 'Support', href: '#support/', emoji: '🛟', external: false, isActive: currentPage === 'support' },
+        ].map(({ label, href, emoji, external, isActive }) => (
+          <a
+            key={href}
+            href={href}
+            target={external ? '_blank' : undefined}
+            rel={external ? 'noopener noreferrer' : undefined}
+            onClick={() => onCloseMobile?.()}
+            title={label}
+            aria-label={label}
+            aria-current={isActive ? 'page' : undefined}
+            style={
+              isCollapsed
+                ? {
+                    width: '42px',
+                    height: '38px',
+                    margin: '0 auto',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '17px',
+                    backgroundColor: isActive ? '#2563eb' : 'transparent',
+                    color: isActive ? '#ffffff' : isDark ? '#94a3b8' : '#64748b',
+                    boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.4)' : 'none',
+                    textDecoration: 'none',
+                    transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative',
+                    flexShrink: 0,
+                  }
+                : {
+                    width: '100%',
+                    height: '34px',
+                    minHeight: '34px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '0 8px',
+                    borderRadius: '7px',
+                    fontSize: '11.5px',
+                    fontWeight: isActive ? 600 : 500,
+                    backgroundColor: isActive ? '#2563eb' : 'transparent',
+                    color: isActive ? '#ffffff' : isDark ? '#cbd5e1' : '#475569',
+                    boxShadow: isActive ? '0 3px 10px rgba(37,99,235,0.35)' : 'none',
+                    textAlign: isRtl ? 'right' : 'left',
+                    textDecoration: 'none',
+                    transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxSizing: 'border-box',
+                    flexShrink: 0,
+                  }
+            }
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.backgroundColor = isDark ? '#1e293b' : '#f1f5f9';
+                e.currentTarget.style.color = isDark ? '#f8fafc' : '#0f172a';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = isCollapsed
+                  ? isDark ? '#94a3b8' : '#64748b'
+                  : isDark ? '#cbd5e1' : '#475569';
+              }
+            }}
+          >
+            <span aria-hidden="true" style={{ width: '20px', height: '20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: isCollapsed ? '17px' : '15px', lineHeight: 1, flexShrink: 0 }}>{emoji}</span>
+            {!isCollapsed && (
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                {label}
+              </span>
+            )}
+            {isActive && (
+              <span
+                style={
+                  isCollapsed
+                    ? {
+                        position: 'absolute',
+                        [isRtl ? 'right' : 'left']: '2px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: '3px',
+                        height: '16px',
+                        backgroundColor: '#60a5fa',
+                        borderRadius: '2px',
+                      }
+                    : {
+                        position: 'absolute',
+                        [isRtl ? 'right' : 'left']: '0',
+                        top: '6px',
+                        bottom: '6px',
+                        width: '3.5px',
+                        backgroundColor: '#60a5fa',
+                        borderRadius: isRtl ? '3px 0 0 3px' : '0 3px 3px 0',
+                      }
+                }
+              />
+            )}
+          </a>
+        ))}
       </nav>
 
       {/* Footer Area: System Status & Theme/Language Controls */}
